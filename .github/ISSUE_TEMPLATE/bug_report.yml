@@ -1,0 +1,19 @@
+name: Bug report
+description: Report a reproducible problem with Telryn.
+body:
+  - type: markdown
+    attributes:
+      value: Use synthetic or redacted data. Keep customer records, lead reports, returned grading packets, and credentials private. Use the Security tab for sensitive reports.
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include the Telryn command, OS, Python version, and a small synthetic example when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and observed results
+    validations:
+      required: true

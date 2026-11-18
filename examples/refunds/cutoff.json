@@ -1,0 +1,4843 @@
+{
+  "schema": 1,
+  "shifts": {
+    "tuesday-am": {
+      "cutoff": "2026-04-07T09:00:00+00:00",
+      "membership": {
+        "source": "queue-membership/tuesday-am@1",
+        "ids": [
+          "R-001",
+          "R-002",
+          "R-003",
+          "R-004",
+          "R-005",
+          "R-006",
+          "R-007",
+          "R-008",
+          "R-009",
+          "R-010",
+          "R-011",
+          "R-012",
+          "R-013",
+          "R-014",
+          "R-015",
+          "R-016",
+          "R-017",
+          "R-018",
+          "R-019",
+          "R-020",
+          "R-021",
+          "R-022",
+          "R-023",
+          "R-024",
+          "R-025",
+          "R-026",
+          "R-027",
+          "R-028",
+          "R-029",
+          "R-030",
+          "R-031",
+          "R-032",
+          "R-033",
+          "R-034",
+          "R-035",
+          "R-036",
+          "R-037",
+          "R-038",
+          "R-039",
+          "R-040",
+          "R-041",
+          "R-042",
+          "R-043",
+          "R-044",
+          "R-045",
+          "R-046",
+          "R-047",
+          "R-048",
+          "R-049",
+          "R-050",
+          "R-051",
+          "R-052",
+          "R-053",
+          "R-054",
+          "R-055",
+          "R-056",
+          "R-057",
+          "R-058",
+          "R-059",
+          "R-060",
+          "R-061",
+          "R-062",
+          "R-063",
+          "R-064",
+          "R-065",
+          "R-066",
+          "R-067",
+          "R-068",
+          "R-069",
+          "R-070",
+          "R-071",
+          "R-072",
+          "R-073",
+          "R-074",
+          "R-075",
+          "R-076",
+          "R-077",
+          "R-078",
+          "R-079",
+          "R-080",
+          "R-081",
+          "R-082",
+          "R-083",
+          "R-084",
+          "R-085",
+          "R-086",
+          "R-087",
+          "R-088",
+          "R-089",
+          "R-090",
+          "R-091",
+          "R-092",
+          "R-093",
+          "R-094",
+          "R-095",
+          "R-096",
+          "R-097",
+          "R-098",
+          "R-099",
+          "R-100",
+          "R-101",
+          "R-102",
+          "R-103",
+          "R-104",
+          "R-105",
+          "R-106",
+          "R-107",
+          "R-108",
+          "R-109",
+          "R-110",
+          "R-111",
+          "R-112",
+          "R-113",
+          "R-114",
+          "R-115",
+          "R-116",
+          "R-117",
+          "R-118",
+          "R-119",
+          "R-120",
+          "R-121"
+        ]
+      },
+      "requests": {
+        "R-001": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12900,
+            "conflict_priority": 999,
+            "refined_priority": 999
+          },
+          "evidence": [
+            "order/R-001@2",
+            "refund/R-001@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-002": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12800,
+            "conflict_priority": 998,
+            "refined_priority": 998
+          },
+          "evidence": [
+            "order/R-002@2",
+            "refund/R-002@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-003": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12700,
+            "conflict_priority": 997,
+            "refined_priority": 997
+          },
+          "evidence": [
+            "order/R-003@2",
+            "refund/R-003@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-004": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12600,
+            "conflict_priority": 996,
+            "refined_priority": 996
+          },
+          "evidence": [
+            "order/R-004@2",
+            "refund/R-004@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-005": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12500,
+            "conflict_priority": 995,
+            "refined_priority": 995
+          },
+          "evidence": [
+            "order/R-005@2",
+            "refund/R-005@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-006": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12400,
+            "conflict_priority": 994,
+            "refined_priority": 994
+          },
+          "evidence": [
+            "order/R-006@2",
+            "refund/R-006@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-007": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12300,
+            "conflict_priority": 993,
+            "refined_priority": 993
+          },
+          "evidence": [
+            "order/R-007@2",
+            "refund/R-007@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-008": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12200,
+            "conflict_priority": 992,
+            "refined_priority": 992
+          },
+          "evidence": [
+            "order/R-008@2",
+            "refund/R-008@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-009": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12100,
+            "conflict_priority": 991,
+            "refined_priority": 991
+          },
+          "evidence": [
+            "order/R-009@2",
+            "refund/R-009@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-010": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12000,
+            "conflict_priority": 990,
+            "refined_priority": 990
+          },
+          "evidence": [
+            "order/R-010@2",
+            "refund/R-010@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-011": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11900,
+            "conflict_priority": 989,
+            "refined_priority": 989
+          },
+          "evidence": [
+            "order/R-011@2",
+            "refund/R-011@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-012": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11800,
+            "conflict_priority": 988,
+            "refined_priority": 988
+          },
+          "evidence": [
+            "order/R-012@2",
+            "refund/R-012@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-013": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11700,
+            "conflict_priority": 987,
+            "refined_priority": 987
+          },
+          "evidence": [
+            "order/R-013@2",
+            "refund/R-013@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-014": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11600,
+            "conflict_priority": 986,
+            "refined_priority": 986
+          },
+          "evidence": [
+            "order/R-014@2",
+            "refund/R-014@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-015": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11500,
+            "conflict_priority": 985,
+            "refined_priority": 985
+          },
+          "evidence": [
+            "order/R-015@2",
+            "refund/R-015@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-016": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11400,
+            "conflict_priority": 984,
+            "refined_priority": 984
+          },
+          "evidence": [
+            "order/R-016@2",
+            "refund/R-016@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-017": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11300,
+            "conflict_priority": 983,
+            "refined_priority": 983
+          },
+          "evidence": [
+            "order/R-017@2",
+            "refund/R-017@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-018": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11200,
+            "conflict_priority": 982,
+            "refined_priority": 982
+          },
+          "evidence": [
+            "order/R-018@2",
+            "refund/R-018@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-019": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11100,
+            "conflict_priority": 981,
+            "refined_priority": 981
+          },
+          "evidence": [
+            "order/R-019@2",
+            "refund/R-019@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-020": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11000,
+            "conflict_priority": 980,
+            "refined_priority": 980
+          },
+          "evidence": [
+            "order/R-020@2",
+            "refund/R-020@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-021": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10900,
+            "conflict_priority": 979,
+            "refined_priority": 979
+          },
+          "evidence": [
+            "order/R-021@2",
+            "refund/R-021@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-022": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10800,
+            "conflict_priority": 978,
+            "refined_priority": 978
+          },
+          "evidence": [
+            "order/R-022@2",
+            "refund/R-022@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-023": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10700,
+            "conflict_priority": 977,
+            "refined_priority": 977
+          },
+          "evidence": [
+            "order/R-023@2",
+            "refund/R-023@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-024": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10600,
+            "conflict_priority": 976,
+            "refined_priority": 976
+          },
+          "evidence": [
+            "order/R-024@2",
+            "refund/R-024@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-025": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10500,
+            "conflict_priority": 975,
+            "refined_priority": 975
+          },
+          "evidence": [
+            "order/R-025@2",
+            "refund/R-025@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-026": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10400,
+            "conflict_priority": 974,
+            "refined_priority": 974
+          },
+          "evidence": [
+            "order/R-026@2",
+            "refund/R-026@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-027": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10300,
+            "conflict_priority": 973,
+            "refined_priority": 973
+          },
+          "evidence": [
+            "order/R-027@2",
+            "refund/R-027@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-028": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10200,
+            "conflict_priority": 972,
+            "refined_priority": 972
+          },
+          "evidence": [
+            "order/R-028@2",
+            "refund/R-028@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-029": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10100,
+            "conflict_priority": 971,
+            "refined_priority": 971
+          },
+          "evidence": [
+            "order/R-029@2",
+            "refund/R-029@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-030": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10000,
+            "conflict_priority": 970,
+            "refined_priority": 970
+          },
+          "evidence": [
+            "order/R-030@2",
+            "refund/R-030@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-031": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9900,
+            "conflict_priority": 969,
+            "refined_priority": 969
+          },
+          "evidence": [
+            "order/R-031@2",
+            "refund/R-031@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-032": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9800,
+            "conflict_priority": 968,
+            "refined_priority": 968
+          },
+          "evidence": [
+            "order/R-032@2",
+            "refund/R-032@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-033": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9700,
+            "conflict_priority": 967,
+            "refined_priority": 967
+          },
+          "evidence": [
+            "order/R-033@2",
+            "refund/R-033@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-034": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9600,
+            "conflict_priority": 966,
+            "refined_priority": 966
+          },
+          "evidence": [
+            "order/R-034@2",
+            "refund/R-034@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-035": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9500,
+            "conflict_priority": 965,
+            "refined_priority": 965
+          },
+          "evidence": [
+            "order/R-035@2",
+            "refund/R-035@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-036": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9400,
+            "conflict_priority": 964,
+            "refined_priority": 964
+          },
+          "evidence": [
+            "order/R-036@2",
+            "refund/R-036@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-037": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9300,
+            "conflict_priority": 963,
+            "refined_priority": 963
+          },
+          "evidence": [
+            "order/R-037@2",
+            "refund/R-037@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-038": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9200,
+            "conflict_priority": 962,
+            "refined_priority": 962
+          },
+          "evidence": [
+            "order/R-038@2",
+            "refund/R-038@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-039": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9100,
+            "conflict_priority": 961,
+            "refined_priority": 961
+          },
+          "evidence": [
+            "order/R-039@2",
+            "refund/R-039@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-040": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9000,
+            "conflict_priority": 960,
+            "refined_priority": 960
+          },
+          "evidence": [
+            "order/R-040@2",
+            "refund/R-040@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-041": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8900,
+            "conflict_priority": 959,
+            "refined_priority": 959
+          },
+          "evidence": [
+            "order/R-041@2",
+            "refund/R-041@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-042": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8800,
+            "conflict_priority": 958,
+            "refined_priority": 958
+          },
+          "evidence": [
+            "order/R-042@2",
+            "refund/R-042@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-043": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8700,
+            "conflict_priority": 957,
+            "refined_priority": 957
+          },
+          "evidence": [
+            "order/R-043@2",
+            "refund/R-043@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-044": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8600,
+            "conflict_priority": 956,
+            "refined_priority": 956
+          },
+          "evidence": [
+            "order/R-044@2",
+            "refund/R-044@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-045": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8500,
+            "conflict_priority": 955,
+            "refined_priority": 955
+          },
+          "evidence": [
+            "order/R-045@2",
+            "refund/R-045@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-046": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8400,
+            "conflict_priority": 954,
+            "refined_priority": 954
+          },
+          "evidence": [
+            "order/R-046@2",
+            "refund/R-046@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-047": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8300,
+            "conflict_priority": 953,
+            "refined_priority": 953
+          },
+          "evidence": [
+            "order/R-047@2",
+            "refund/R-047@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-048": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8200,
+            "conflict_priority": 952,
+            "refined_priority": 952
+          },
+          "evidence": [
+            "order/R-048@2",
+            "refund/R-048@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-049": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8100,
+            "conflict_priority": 951,
+            "refined_priority": 951
+          },
+          "evidence": [
+            "order/R-049@2",
+            "refund/R-049@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-050": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8000,
+            "conflict_priority": 950,
+            "refined_priority": 950
+          },
+          "evidence": [
+            "order/R-050@2",
+            "refund/R-050@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-051": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7900,
+            "conflict_priority": 949,
+            "refined_priority": 949
+          },
+          "evidence": [
+            "order/R-051@2",
+            "refund/R-051@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-052": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7800,
+            "conflict_priority": 948,
+            "refined_priority": 948
+          },
+          "evidence": [
+            "order/R-052@2",
+            "refund/R-052@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-053": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7700,
+            "conflict_priority": 947,
+            "refined_priority": 947
+          },
+          "evidence": [
+            "order/R-053@2",
+            "refund/R-053@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-054": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7600,
+            "conflict_priority": 946,
+            "refined_priority": 946
+          },
+          "evidence": [
+            "order/R-054@2",
+            "refund/R-054@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-055": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7500,
+            "conflict_priority": 945,
+            "refined_priority": 945
+          },
+          "evidence": [
+            "order/R-055@2",
+            "refund/R-055@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-056": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7400,
+            "conflict_priority": 944,
+            "refined_priority": 944
+          },
+          "evidence": [
+            "order/R-056@2",
+            "refund/R-056@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-057": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7300,
+            "conflict_priority": 943,
+            "refined_priority": 943
+          },
+          "evidence": [
+            "order/R-057@2",
+            "refund/R-057@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-058": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7200,
+            "conflict_priority": 942,
+            "refined_priority": 942
+          },
+          "evidence": [
+            "order/R-058@2",
+            "refund/R-058@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-059": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7100,
+            "conflict_priority": 941,
+            "refined_priority": 941
+          },
+          "evidence": [
+            "order/R-059@2",
+            "refund/R-059@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-060": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7000,
+            "conflict_priority": 940,
+            "refined_priority": 940
+          },
+          "evidence": [
+            "order/R-060@2",
+            "refund/R-060@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-061": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6900,
+            "conflict_priority": 939,
+            "refined_priority": 939
+          },
+          "evidence": [
+            "order/R-061@2",
+            "refund/R-061@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-062": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6800,
+            "conflict_priority": 938,
+            "refined_priority": 938
+          },
+          "evidence": [
+            "order/R-062@2",
+            "refund/R-062@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-063": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6700,
+            "conflict_priority": 937,
+            "refined_priority": 937
+          },
+          "evidence": [
+            "order/R-063@2",
+            "refund/R-063@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-064": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6600,
+            "conflict_priority": 936,
+            "refined_priority": 936
+          },
+          "evidence": [
+            "order/R-064@2",
+            "refund/R-064@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-065": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6500,
+            "conflict_priority": 935,
+            "refined_priority": 935
+          },
+          "evidence": [
+            "order/R-065@2",
+            "refund/R-065@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-066": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6400,
+            "conflict_priority": 934,
+            "refined_priority": 934
+          },
+          "evidence": [
+            "order/R-066@2",
+            "refund/R-066@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-067": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6300,
+            "conflict_priority": 933,
+            "refined_priority": 933
+          },
+          "evidence": [
+            "order/R-067@2",
+            "refund/R-067@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-068": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6200,
+            "conflict_priority": 932,
+            "refined_priority": 932
+          },
+          "evidence": [
+            "order/R-068@2",
+            "refund/R-068@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-069": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6100,
+            "conflict_priority": 931,
+            "refined_priority": 931
+          },
+          "evidence": [
+            "order/R-069@2",
+            "refund/R-069@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-070": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6000,
+            "conflict_priority": 930,
+            "refined_priority": 930
+          },
+          "evidence": [
+            "order/R-070@2",
+            "refund/R-070@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-071": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5900,
+            "conflict_priority": 929,
+            "refined_priority": 929
+          },
+          "evidence": [
+            "order/R-071@2",
+            "refund/R-071@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-072": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5800,
+            "conflict_priority": 928,
+            "refined_priority": 928
+          },
+          "evidence": [
+            "order/R-072@2",
+            "refund/R-072@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-073": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5700,
+            "conflict_priority": -73,
+            "refined_priority": 927
+          },
+          "evidence": [
+            "order/R-073@2",
+            "refund/R-073@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-074": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5600,
+            "conflict_priority": 926,
+            "refined_priority": 926
+          },
+          "evidence": [
+            "order/R-074@2",
+            "refund/R-074@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-075": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5500,
+            "conflict_priority": 925,
+            "refined_priority": 925
+          },
+          "evidence": [
+            "order/R-075@2",
+            "refund/R-075@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-076": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5400,
+            "conflict_priority": 924,
+            "refined_priority": 924
+          },
+          "evidence": [
+            "order/R-076@2",
+            "refund/R-076@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-077": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5300,
+            "conflict_priority": 923,
+            "refined_priority": 923
+          },
+          "evidence": [
+            "order/R-077@2",
+            "refund/R-077@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-078": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5200,
+            "conflict_priority": 922,
+            "refined_priority": 922
+          },
+          "evidence": [
+            "order/R-078@2",
+            "refund/R-078@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-079": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5100,
+            "conflict_priority": 921,
+            "refined_priority": 921
+          },
+          "evidence": [
+            "order/R-079@2",
+            "refund/R-079@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-080": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5000,
+            "conflict_priority": 920,
+            "refined_priority": 920
+          },
+          "evidence": [
+            "order/R-080@2",
+            "refund/R-080@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-081": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4900,
+            "conflict_priority": 919,
+            "refined_priority": 919
+          },
+          "evidence": [
+            "order/R-081@2",
+            "refund/R-081@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-082": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4800,
+            "conflict_priority": -82,
+            "refined_priority": 918
+          },
+          "evidence": [
+            "order/R-082@2",
+            "refund/R-082@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-083": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4700,
+            "conflict_priority": -83,
+            "refined_priority": 917
+          },
+          "evidence": [
+            "order/R-083@2",
+            "refund/R-083@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-084": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4600,
+            "conflict_priority": -84,
+            "refined_priority": 916
+          },
+          "evidence": [
+            "order/R-084@2",
+            "refund/R-084@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-085": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4500,
+            "conflict_priority": -85,
+            "refined_priority": 915
+          },
+          "evidence": [
+            "order/R-085@2",
+            "refund/R-085@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-086": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4400,
+            "conflict_priority": -86,
+            "refined_priority": 914
+          },
+          "evidence": [
+            "order/R-086@2",
+            "refund/R-086@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-087": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4300,
+            "conflict_priority": -87,
+            "refined_priority": 913
+          },
+          "evidence": [
+            "order/R-087@2",
+            "refund/R-087@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-088": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4200,
+            "conflict_priority": -88,
+            "refined_priority": 912
+          },
+          "evidence": [
+            "order/R-088@2",
+            "refund/R-088@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-089": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4100,
+            "conflict_priority": -89,
+            "refined_priority": 911
+          },
+          "evidence": [
+            "order/R-089@2",
+            "refund/R-089@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-090": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4000,
+            "conflict_priority": -90,
+            "refined_priority": 910
+          },
+          "evidence": [
+            "order/R-090@2",
+            "refund/R-090@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-091": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3900,
+            "conflict_priority": -91,
+            "refined_priority": 909
+          },
+          "evidence": [
+            "order/R-091@2",
+            "refund/R-091@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-092": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3800,
+            "conflict_priority": -92,
+            "refined_priority": 908
+          },
+          "evidence": [
+            "order/R-092@2",
+            "refund/R-092@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-093": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3700,
+            "conflict_priority": -93,
+            "refined_priority": -93
+          },
+          "evidence": [
+            "order/R-093@2",
+            "refund/R-093@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-094": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3600,
+            "conflict_priority": -94,
+            "refined_priority": -94
+          },
+          "evidence": [
+            "order/R-094@2",
+            "refund/R-094@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-095": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3500,
+            "conflict_priority": -95,
+            "refined_priority": -95
+          },
+          "evidence": [
+            "order/R-095@2",
+            "refund/R-095@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-096": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3400,
+            "conflict_priority": -96,
+            "refined_priority": -96
+          },
+          "evidence": [
+            "order/R-096@2",
+            "refund/R-096@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-097": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3300,
+            "conflict_priority": -97,
+            "refined_priority": -97
+          },
+          "evidence": [
+            "order/R-097@2",
+            "refund/R-097@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-098": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3200,
+            "conflict_priority": -98,
+            "refined_priority": -98
+          },
+          "evidence": [
+            "order/R-098@2",
+            "refund/R-098@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-099": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3100,
+            "conflict_priority": -99,
+            "refined_priority": -99
+          },
+          "evidence": [
+            "order/R-099@2",
+            "refund/R-099@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-100": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3000,
+            "conflict_priority": -100,
+            "refined_priority": -100
+          },
+          "evidence": [
+            "order/R-100@2",
+            "refund/R-100@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-101": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2900,
+            "conflict_priority": 899,
+            "refined_priority": 899
+          },
+          "evidence": [
+            "order/R-101@2",
+            "refund/R-101@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-102": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2800,
+            "conflict_priority": 898,
+            "refined_priority": 898
+          },
+          "evidence": [
+            "order/R-102@2",
+            "refund/R-102@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-103": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2700,
+            "conflict_priority": 897,
+            "refined_priority": 897
+          },
+          "evidence": [
+            "order/R-103@2",
+            "refund/R-103@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-104": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2600,
+            "conflict_priority": 896,
+            "refined_priority": 896
+          },
+          "evidence": [
+            "order/R-104@2",
+            "refund/R-104@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-105": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2500,
+            "conflict_priority": 895,
+            "refined_priority": 895
+          },
+          "evidence": [
+            "order/R-105@2",
+            "refund/R-105@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-106": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2400,
+            "conflict_priority": 894,
+            "refined_priority": 894
+          },
+          "evidence": [
+            "order/R-106@2",
+            "refund/R-106@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-107": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2300,
+            "conflict_priority": 893,
+            "refined_priority": 893
+          },
+          "evidence": [
+            "order/R-107@2",
+            "refund/R-107@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-108": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2200,
+            "conflict_priority": 892,
+            "refined_priority": 892
+          },
+          "evidence": [
+            "order/R-108@2",
+            "refund/R-108@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-109": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2100,
+            "conflict_priority": 891,
+            "refined_priority": -109
+          },
+          "evidence": [
+            "order/R-109@2",
+            "refund/R-109@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-110": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2000,
+            "conflict_priority": 890,
+            "refined_priority": -110
+          },
+          "evidence": [
+            "order/R-110@2",
+            "refund/R-110@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-111": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1900,
+            "conflict_priority": 889,
+            "refined_priority": -111
+          },
+          "evidence": [
+            "order/R-111@2",
+            "refund/R-111@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-112": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1800,
+            "conflict_priority": 888,
+            "refined_priority": -112
+          },
+          "evidence": [
+            "order/R-112@2",
+            "refund/R-112@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-113": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1700,
+            "conflict_priority": 887,
+            "refined_priority": -113
+          },
+          "evidence": [
+            "order/R-113@2",
+            "refund/R-113@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-114": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1600,
+            "conflict_priority": 886,
+            "refined_priority": -114
+          },
+          "evidence": [
+            "order/R-114@2",
+            "refund/R-114@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-115": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1500,
+            "conflict_priority": 885,
+            "refined_priority": -115
+          },
+          "evidence": [
+            "order/R-115@2",
+            "refund/R-115@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-116": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1400,
+            "conflict_priority": 884,
+            "refined_priority": -116
+          },
+          "evidence": [
+            "order/R-116@2",
+            "refund/R-116@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-117": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1300,
+            "conflict_priority": 883,
+            "refined_priority": -117
+          },
+          "evidence": [
+            "order/R-117@2",
+            "refund/R-117@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-118": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1200,
+            "conflict_priority": 882,
+            "refined_priority": -118
+          },
+          "evidence": [
+            "order/R-118@2",
+            "refund/R-118@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-119": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1100,
+            "conflict_priority": 881,
+            "refined_priority": -119
+          },
+          "evidence": [
+            "order/R-119@2",
+            "refund/R-119@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "R-120": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1000,
+            "conflict_priority": 880,
+            "refined_priority": -120
+          },
+          "evidence": [
+            "order/R-120@2",
+            "refund/R-120@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "R-121": {
+          "revision": "1",
+          "known_at": "2026-04-07T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 900,
+            "conflict_priority": -121,
+            "refined_priority": -121
+          },
+          "evidence": [
+            "order/R-121@2",
+            "refund/R-121@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        }
+      },
+      "capacity": 100,
+      "live_version": "refund-amount-v1",
+      "tie_break": "id-asc-v1",
+      "actual": [
+        "R-001",
+        "R-002",
+        "R-003",
+        "R-004",
+        "R-005",
+        "R-006",
+        "R-007",
+        "R-008",
+        "R-009",
+        "R-010",
+        "R-011",
+        "R-012",
+        "R-013",
+        "R-014",
+        "R-015",
+        "R-016",
+        "R-017",
+        "R-018",
+        "R-019",
+        "R-020",
+        "R-021",
+        "R-022",
+        "R-023",
+        "R-024",
+        "R-025",
+        "R-026",
+        "R-027",
+        "R-028",
+        "R-029",
+        "R-030",
+        "R-031",
+        "R-032",
+        "R-033",
+        "R-034",
+        "R-035",
+        "R-036",
+        "R-037",
+        "R-038",
+        "R-039",
+        "R-040",
+        "R-041",
+        "R-042",
+        "R-043",
+        "R-044",
+        "R-045",
+        "R-046",
+        "R-047",
+        "R-048",
+        "R-049",
+        "R-050",
+        "R-051",
+        "R-052",
+        "R-053",
+        "R-054",
+        "R-055",
+        "R-056",
+        "R-057",
+        "R-058",
+        "R-059",
+        "R-060",
+        "R-061",
+        "R-062",
+        "R-063",
+        "R-064",
+        "R-065",
+        "R-066",
+        "R-067",
+        "R-068",
+        "R-069",
+        "R-070",
+        "R-071",
+        "R-072",
+        "R-073",
+        "R-074",
+        "R-075",
+        "R-076",
+        "R-077",
+        "R-078",
+        "R-079",
+        "R-080",
+        "R-081",
+        "R-082",
+        "R-083",
+        "R-084",
+        "R-085",
+        "R-086",
+        "R-087",
+        "R-088",
+        "R-089",
+        "R-090",
+        "R-091",
+        "R-092",
+        "R-093",
+        "R-094",
+        "R-095",
+        "R-096",
+        "R-097",
+        "R-098",
+        "R-099",
+        "R-100"
+      ],
+      "mandatory": [
+        "R-041",
+        "R-042"
+      ],
+      "overrides": []
+    },
+    "saturday-am": {
+      "cutoff": "2026-04-11T09:00:00+00:00",
+      "membership": {
+        "source": "queue-membership/saturday-am@1",
+        "ids": [
+          "S-001",
+          "S-002",
+          "S-003",
+          "S-004",
+          "S-005",
+          "S-006",
+          "S-007",
+          "S-008",
+          "S-009",
+          "S-010",
+          "S-011",
+          "S-012",
+          "S-013",
+          "S-014",
+          "S-015",
+          "S-016",
+          "S-017",
+          "S-018",
+          "S-019",
+          "S-020",
+          "S-021",
+          "S-022",
+          "S-023",
+          "S-024",
+          "S-025",
+          "S-026",
+          "S-027",
+          "S-028",
+          "S-029",
+          "S-030",
+          "S-031",
+          "S-032",
+          "S-033",
+          "S-034",
+          "S-035",
+          "S-036",
+          "S-037",
+          "S-038",
+          "S-039",
+          "S-040",
+          "S-041",
+          "S-042",
+          "S-043",
+          "S-044",
+          "S-045",
+          "S-046",
+          "S-047",
+          "S-048",
+          "S-049",
+          "S-050",
+          "S-051",
+          "S-052",
+          "S-053",
+          "S-054",
+          "S-055",
+          "S-056",
+          "S-057",
+          "S-058",
+          "S-059",
+          "S-060",
+          "S-061",
+          "S-062",
+          "S-063",
+          "S-064",
+          "S-065",
+          "S-066",
+          "S-067",
+          "S-068",
+          "S-069",
+          "S-070",
+          "S-071",
+          "S-072",
+          "S-073",
+          "S-074",
+          "S-075",
+          "S-076",
+          "S-077",
+          "S-078",
+          "S-079",
+          "S-080",
+          "S-081",
+          "S-082",
+          "S-083",
+          "S-084",
+          "S-085",
+          "S-086",
+          "S-087",
+          "S-088",
+          "S-089",
+          "S-090",
+          "S-091",
+          "S-092",
+          "S-093",
+          "S-094",
+          "S-095",
+          "S-096",
+          "S-097",
+          "S-098",
+          "S-099",
+          "S-100",
+          "S-101",
+          "S-102",
+          "S-103",
+          "S-104",
+          "S-105",
+          "S-106",
+          "S-107",
+          "S-108",
+          "S-109",
+          "S-110",
+          "S-111",
+          "S-112",
+          "S-113",
+          "S-114",
+          "S-115",
+          "S-116",
+          "S-117",
+          "S-118",
+          "S-119",
+          "S-120",
+          "S-121"
+        ]
+      },
+      "requests": {
+        "S-001": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12900,
+            "conflict_priority": 999,
+            "refined_priority": 999
+          },
+          "evidence": [
+            "order/S-001@2",
+            "refund/S-001@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-002": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12800,
+            "conflict_priority": 998,
+            "refined_priority": 998
+          },
+          "evidence": [
+            "order/S-002@2",
+            "refund/S-002@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-003": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12700,
+            "conflict_priority": 997,
+            "refined_priority": 997
+          },
+          "evidence": [
+            "order/S-003@2",
+            "refund/S-003@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-004": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12600,
+            "conflict_priority": 996,
+            "refined_priority": 996
+          },
+          "evidence": [
+            "order/S-004@2",
+            "refund/S-004@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-005": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12500,
+            "conflict_priority": 995,
+            "refined_priority": 995
+          },
+          "evidence": [
+            "order/S-005@2",
+            "refund/S-005@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-006": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12400,
+            "conflict_priority": 994,
+            "refined_priority": 994
+          },
+          "evidence": [
+            "order/S-006@2",
+            "refund/S-006@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-007": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12300,
+            "conflict_priority": 993,
+            "refined_priority": 993
+          },
+          "evidence": [
+            "order/S-007@2",
+            "refund/S-007@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-008": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12200,
+            "conflict_priority": 992,
+            "refined_priority": 992
+          },
+          "evidence": [
+            "order/S-008@2",
+            "refund/S-008@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-009": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12100,
+            "conflict_priority": 991,
+            "refined_priority": 991
+          },
+          "evidence": [
+            "order/S-009@2",
+            "refund/S-009@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-010": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 12000,
+            "conflict_priority": 990,
+            "refined_priority": 990
+          },
+          "evidence": [
+            "order/S-010@2",
+            "refund/S-010@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-011": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11900,
+            "conflict_priority": 989,
+            "refined_priority": 989
+          },
+          "evidence": [
+            "order/S-011@2",
+            "refund/S-011@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-012": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11800,
+            "conflict_priority": 988,
+            "refined_priority": 988
+          },
+          "evidence": [
+            "order/S-012@2",
+            "refund/S-012@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-013": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11700,
+            "conflict_priority": 987,
+            "refined_priority": 987
+          },
+          "evidence": [
+            "order/S-013@2",
+            "refund/S-013@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-014": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11600,
+            "conflict_priority": 986,
+            "refined_priority": 986
+          },
+          "evidence": [
+            "order/S-014@2",
+            "refund/S-014@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-015": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11500,
+            "conflict_priority": 985,
+            "refined_priority": 985
+          },
+          "evidence": [
+            "order/S-015@2",
+            "refund/S-015@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-016": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11400,
+            "conflict_priority": 984,
+            "refined_priority": 984
+          },
+          "evidence": [
+            "order/S-016@2",
+            "refund/S-016@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-017": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11300,
+            "conflict_priority": 983,
+            "refined_priority": 983
+          },
+          "evidence": [
+            "order/S-017@2",
+            "refund/S-017@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-018": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11200,
+            "conflict_priority": 982,
+            "refined_priority": 982
+          },
+          "evidence": [
+            "order/S-018@2",
+            "refund/S-018@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-019": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11100,
+            "conflict_priority": 981,
+            "refined_priority": 981
+          },
+          "evidence": [
+            "order/S-019@2",
+            "refund/S-019@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-020": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 11000,
+            "conflict_priority": 980,
+            "refined_priority": 980
+          },
+          "evidence": [
+            "order/S-020@2",
+            "refund/S-020@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-021": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10900,
+            "conflict_priority": 979,
+            "refined_priority": 979
+          },
+          "evidence": [
+            "order/S-021@2",
+            "refund/S-021@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-022": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10800,
+            "conflict_priority": 978,
+            "refined_priority": 978
+          },
+          "evidence": [
+            "order/S-022@2",
+            "refund/S-022@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-023": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10700,
+            "conflict_priority": 977,
+            "refined_priority": 977
+          },
+          "evidence": [
+            "order/S-023@2",
+            "refund/S-023@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-024": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10600,
+            "conflict_priority": 976,
+            "refined_priority": 976
+          },
+          "evidence": [
+            "order/S-024@2",
+            "refund/S-024@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-025": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10500,
+            "conflict_priority": 975,
+            "refined_priority": 975
+          },
+          "evidence": [
+            "order/S-025@2",
+            "refund/S-025@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-026": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10400,
+            "conflict_priority": 974,
+            "refined_priority": 974
+          },
+          "evidence": [
+            "order/S-026@2",
+            "refund/S-026@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-027": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10300,
+            "conflict_priority": 973,
+            "refined_priority": 973
+          },
+          "evidence": [
+            "order/S-027@2",
+            "refund/S-027@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-028": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10200,
+            "conflict_priority": 972,
+            "refined_priority": 972
+          },
+          "evidence": [
+            "order/S-028@2",
+            "refund/S-028@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-029": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10100,
+            "conflict_priority": 971,
+            "refined_priority": 971
+          },
+          "evidence": [
+            "order/S-029@2",
+            "refund/S-029@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-030": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 10000,
+            "conflict_priority": 970,
+            "refined_priority": 970
+          },
+          "evidence": [
+            "order/S-030@2",
+            "refund/S-030@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-031": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9900,
+            "conflict_priority": 969,
+            "refined_priority": 969
+          },
+          "evidence": [
+            "order/S-031@2",
+            "refund/S-031@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-032": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9800,
+            "conflict_priority": 968,
+            "refined_priority": 968
+          },
+          "evidence": [
+            "order/S-032@2",
+            "refund/S-032@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-033": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9700,
+            "conflict_priority": 967,
+            "refined_priority": 967
+          },
+          "evidence": [
+            "order/S-033@2",
+            "refund/S-033@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-034": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9600,
+            "conflict_priority": 966,
+            "refined_priority": 966
+          },
+          "evidence": [
+            "order/S-034@2",
+            "refund/S-034@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-035": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9500,
+            "conflict_priority": 965,
+            "refined_priority": 965
+          },
+          "evidence": [
+            "order/S-035@2",
+            "refund/S-035@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-036": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9400,
+            "conflict_priority": 964,
+            "refined_priority": 964
+          },
+          "evidence": [
+            "order/S-036@2",
+            "refund/S-036@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-037": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9300,
+            "conflict_priority": 963,
+            "refined_priority": 963
+          },
+          "evidence": [
+            "order/S-037@2",
+            "refund/S-037@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-038": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9200,
+            "conflict_priority": 962,
+            "refined_priority": 962
+          },
+          "evidence": [
+            "order/S-038@2",
+            "refund/S-038@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-039": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9100,
+            "conflict_priority": 961,
+            "refined_priority": 961
+          },
+          "evidence": [
+            "order/S-039@2",
+            "refund/S-039@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-040": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 9000,
+            "conflict_priority": 960,
+            "refined_priority": 960
+          },
+          "evidence": [
+            "order/S-040@2",
+            "refund/S-040@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-041": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8900,
+            "conflict_priority": 959,
+            "refined_priority": 959
+          },
+          "evidence": [
+            "order/S-041@2",
+            "refund/S-041@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-042": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8800,
+            "conflict_priority": 958,
+            "refined_priority": 958
+          },
+          "evidence": [
+            "order/S-042@2",
+            "refund/S-042@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-043": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8700,
+            "conflict_priority": 957,
+            "refined_priority": 957
+          },
+          "evidence": [
+            "order/S-043@2",
+            "refund/S-043@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-044": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8600,
+            "conflict_priority": 956,
+            "refined_priority": 956
+          },
+          "evidence": [
+            "order/S-044@2",
+            "refund/S-044@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-045": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8500,
+            "conflict_priority": 955,
+            "refined_priority": 955
+          },
+          "evidence": [
+            "order/S-045@2",
+            "refund/S-045@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-046": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8400,
+            "conflict_priority": 954,
+            "refined_priority": 954
+          },
+          "evidence": [
+            "order/S-046@2",
+            "refund/S-046@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-047": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8300,
+            "conflict_priority": 953,
+            "refined_priority": 953
+          },
+          "evidence": [
+            "order/S-047@2",
+            "refund/S-047@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-048": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8200,
+            "conflict_priority": 952,
+            "refined_priority": 952
+          },
+          "evidence": [
+            "order/S-048@2",
+            "refund/S-048@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-049": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8100,
+            "conflict_priority": 951,
+            "refined_priority": 951
+          },
+          "evidence": [
+            "order/S-049@2",
+            "refund/S-049@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-050": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 8000,
+            "conflict_priority": 950,
+            "refined_priority": 950
+          },
+          "evidence": [
+            "order/S-050@2",
+            "refund/S-050@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-051": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7900,
+            "conflict_priority": 949,
+            "refined_priority": 949
+          },
+          "evidence": [
+            "order/S-051@2",
+            "refund/S-051@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-052": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7800,
+            "conflict_priority": 948,
+            "refined_priority": 948
+          },
+          "evidence": [
+            "order/S-052@2",
+            "refund/S-052@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-053": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7700,
+            "conflict_priority": 947,
+            "refined_priority": 947
+          },
+          "evidence": [
+            "order/S-053@2",
+            "refund/S-053@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-054": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7600,
+            "conflict_priority": 946,
+            "refined_priority": 946
+          },
+          "evidence": [
+            "order/S-054@2",
+            "refund/S-054@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-055": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7500,
+            "conflict_priority": 945,
+            "refined_priority": 945
+          },
+          "evidence": [
+            "order/S-055@2",
+            "refund/S-055@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-056": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7400,
+            "conflict_priority": 944,
+            "refined_priority": 944
+          },
+          "evidence": [
+            "order/S-056@2",
+            "refund/S-056@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-057": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7300,
+            "conflict_priority": 943,
+            "refined_priority": 943
+          },
+          "evidence": [
+            "order/S-057@2",
+            "refund/S-057@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-058": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7200,
+            "conflict_priority": 942,
+            "refined_priority": 942
+          },
+          "evidence": [
+            "order/S-058@2",
+            "refund/S-058@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-059": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7100,
+            "conflict_priority": 941,
+            "refined_priority": 941
+          },
+          "evidence": [
+            "order/S-059@2",
+            "refund/S-059@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-060": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 7000,
+            "conflict_priority": 940,
+            "refined_priority": 940
+          },
+          "evidence": [
+            "order/S-060@2",
+            "refund/S-060@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-061": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6900,
+            "conflict_priority": 939,
+            "refined_priority": 939
+          },
+          "evidence": [
+            "order/S-061@2",
+            "refund/S-061@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-062": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6800,
+            "conflict_priority": 938,
+            "refined_priority": 938
+          },
+          "evidence": [
+            "order/S-062@2",
+            "refund/S-062@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-063": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6700,
+            "conflict_priority": 937,
+            "refined_priority": 937
+          },
+          "evidence": [
+            "order/S-063@2",
+            "refund/S-063@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-064": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6600,
+            "conflict_priority": 936,
+            "refined_priority": 936
+          },
+          "evidence": [
+            "order/S-064@2",
+            "refund/S-064@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-065": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6500,
+            "conflict_priority": 935,
+            "refined_priority": 935
+          },
+          "evidence": [
+            "order/S-065@2",
+            "refund/S-065@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-066": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6400,
+            "conflict_priority": 934,
+            "refined_priority": 934
+          },
+          "evidence": [
+            "order/S-066@2",
+            "refund/S-066@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-067": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6300,
+            "conflict_priority": 933,
+            "refined_priority": 933
+          },
+          "evidence": [
+            "order/S-067@2",
+            "refund/S-067@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-068": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6200,
+            "conflict_priority": 932,
+            "refined_priority": 932
+          },
+          "evidence": [
+            "order/S-068@2",
+            "refund/S-068@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-069": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6100,
+            "conflict_priority": 931,
+            "refined_priority": 931
+          },
+          "evidence": [
+            "order/S-069@2",
+            "refund/S-069@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-070": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 6000,
+            "conflict_priority": 930,
+            "refined_priority": 930
+          },
+          "evidence": [
+            "order/S-070@2",
+            "refund/S-070@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-071": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5900,
+            "conflict_priority": 929,
+            "refined_priority": 929
+          },
+          "evidence": [
+            "order/S-071@2",
+            "refund/S-071@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-072": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5800,
+            "conflict_priority": 928,
+            "refined_priority": 928
+          },
+          "evidence": [
+            "order/S-072@2",
+            "refund/S-072@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-073": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5700,
+            "conflict_priority": -73,
+            "refined_priority": 927
+          },
+          "evidence": [
+            "order/S-073@2",
+            "refund/S-073@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-074": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5600,
+            "conflict_priority": 926,
+            "refined_priority": 926
+          },
+          "evidence": [
+            "order/S-074@2",
+            "refund/S-074@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-075": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5500,
+            "conflict_priority": 925,
+            "refined_priority": 925
+          },
+          "evidence": [
+            "order/S-075@2",
+            "refund/S-075@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-076": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5400,
+            "conflict_priority": 924,
+            "refined_priority": 924
+          },
+          "evidence": [
+            "order/S-076@2",
+            "refund/S-076@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-077": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5300,
+            "conflict_priority": 923,
+            "refined_priority": 923
+          },
+          "evidence": [
+            "order/S-077@2",
+            "refund/S-077@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-078": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5200,
+            "conflict_priority": 922,
+            "refined_priority": 922
+          },
+          "evidence": [
+            "order/S-078@2",
+            "refund/S-078@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-079": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5100,
+            "conflict_priority": 921,
+            "refined_priority": 921
+          },
+          "evidence": [
+            "order/S-079@2",
+            "refund/S-079@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-080": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 5000,
+            "conflict_priority": 920,
+            "refined_priority": 920
+          },
+          "evidence": [
+            "order/S-080@2",
+            "refund/S-080@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-081": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4900,
+            "conflict_priority": 919,
+            "refined_priority": 919
+          },
+          "evidence": [
+            "order/S-081@2",
+            "refund/S-081@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-082": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4800,
+            "conflict_priority": -82,
+            "refined_priority": 918
+          },
+          "evidence": [
+            "order/S-082@2",
+            "refund/S-082@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-083": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4700,
+            "conflict_priority": -83,
+            "refined_priority": 917
+          },
+          "evidence": [
+            "order/S-083@2",
+            "refund/S-083@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-084": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4600,
+            "conflict_priority": -84,
+            "refined_priority": 916
+          },
+          "evidence": [
+            "order/S-084@2",
+            "refund/S-084@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-085": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4500,
+            "conflict_priority": -85,
+            "refined_priority": 915
+          },
+          "evidence": [
+            "order/S-085@2",
+            "refund/S-085@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-086": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4400,
+            "conflict_priority": -86,
+            "refined_priority": 914
+          },
+          "evidence": [
+            "order/S-086@2",
+            "refund/S-086@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-087": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4300,
+            "conflict_priority": -87,
+            "refined_priority": 913
+          },
+          "evidence": [
+            "order/S-087@2",
+            "refund/S-087@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-088": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4200,
+            "conflict_priority": -88,
+            "refined_priority": 912
+          },
+          "evidence": [
+            "order/S-088@2",
+            "refund/S-088@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-089": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4100,
+            "conflict_priority": -89,
+            "refined_priority": 911
+          },
+          "evidence": [
+            "order/S-089@2",
+            "refund/S-089@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-090": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 4000,
+            "conflict_priority": -90,
+            "refined_priority": 910
+          },
+          "evidence": [
+            "order/S-090@2",
+            "refund/S-090@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-091": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3900,
+            "conflict_priority": -91,
+            "refined_priority": 909
+          },
+          "evidence": [
+            "order/S-091@2",
+            "refund/S-091@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-092": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3800,
+            "conflict_priority": -92,
+            "refined_priority": 908
+          },
+          "evidence": [
+            "order/S-092@2",
+            "refund/S-092@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-093": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3700,
+            "conflict_priority": -93,
+            "refined_priority": -93
+          },
+          "evidence": [
+            "order/S-093@2",
+            "refund/S-093@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-094": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3600,
+            "conflict_priority": -94,
+            "refined_priority": -94
+          },
+          "evidence": [
+            "order/S-094@2",
+            "refund/S-094@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-095": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3500,
+            "conflict_priority": -95,
+            "refined_priority": -95
+          },
+          "evidence": [
+            "order/S-095@2",
+            "refund/S-095@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-096": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3400,
+            "conflict_priority": -96,
+            "refined_priority": -96
+          },
+          "evidence": [
+            "order/S-096@2",
+            "refund/S-096@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-097": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3300,
+            "conflict_priority": -97,
+            "refined_priority": -97
+          },
+          "evidence": [
+            "order/S-097@2",
+            "refund/S-097@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-098": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3200,
+            "conflict_priority": -98,
+            "refined_priority": -98
+          },
+          "evidence": [
+            "order/S-098@2",
+            "refund/S-098@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-099": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3100,
+            "conflict_priority": -99,
+            "refined_priority": -99
+          },
+          "evidence": [
+            "order/S-099@2",
+            "refund/S-099@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-100": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 3000,
+            "conflict_priority": -100,
+            "refined_priority": -100
+          },
+          "evidence": [
+            "order/S-100@2",
+            "refund/S-100@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-101": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2900,
+            "conflict_priority": 899,
+            "refined_priority": 899
+          },
+          "evidence": [
+            "order/S-101@2",
+            "refund/S-101@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-102": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2800,
+            "conflict_priority": 898,
+            "refined_priority": 898
+          },
+          "evidence": [
+            "order/S-102@2",
+            "refund/S-102@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-103": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2700,
+            "conflict_priority": 897,
+            "refined_priority": 897
+          },
+          "evidence": [
+            "order/S-103@2",
+            "refund/S-103@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-104": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2600,
+            "conflict_priority": 896,
+            "refined_priority": 896
+          },
+          "evidence": [
+            "order/S-104@2",
+            "refund/S-104@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-105": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2500,
+            "conflict_priority": 895,
+            "refined_priority": 895
+          },
+          "evidence": [
+            "order/S-105@2",
+            "refund/S-105@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-106": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2400,
+            "conflict_priority": 894,
+            "refined_priority": 894
+          },
+          "evidence": [
+            "order/S-106@2",
+            "refund/S-106@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-107": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2300,
+            "conflict_priority": 893,
+            "refined_priority": 893
+          },
+          "evidence": [
+            "order/S-107@2",
+            "refund/S-107@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-108": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2200,
+            "conflict_priority": 892,
+            "refined_priority": 892
+          },
+          "evidence": [
+            "order/S-108@2",
+            "refund/S-108@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-109": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2100,
+            "conflict_priority": 891,
+            "refined_priority": -109
+          },
+          "evidence": [
+            "order/S-109@2",
+            "refund/S-109@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-110": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 2000,
+            "conflict_priority": 890,
+            "refined_priority": -110
+          },
+          "evidence": [
+            "order/S-110@2",
+            "refund/S-110@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-111": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1900,
+            "conflict_priority": 889,
+            "refined_priority": -111
+          },
+          "evidence": [
+            "order/S-111@2",
+            "refund/S-111@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-112": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1800,
+            "conflict_priority": 888,
+            "refined_priority": -112
+          },
+          "evidence": [
+            "order/S-112@2",
+            "refund/S-112@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-113": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1700,
+            "conflict_priority": 887,
+            "refined_priority": -113
+          },
+          "evidence": [
+            "order/S-113@2",
+            "refund/S-113@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-114": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1600,
+            "conflict_priority": 886,
+            "refined_priority": -114
+          },
+          "evidence": [
+            "order/S-114@2",
+            "refund/S-114@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-115": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1500,
+            "conflict_priority": 885,
+            "refined_priority": -115
+          },
+          "evidence": [
+            "order/S-115@2",
+            "refund/S-115@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-116": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1400,
+            "conflict_priority": 884,
+            "refined_priority": -116
+          },
+          "evidence": [
+            "order/S-116@2",
+            "refund/S-116@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-117": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1300,
+            "conflict_priority": 883,
+            "refined_priority": -117
+          },
+          "evidence": [
+            "order/S-117@2",
+            "refund/S-117@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-118": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1200,
+            "conflict_priority": 882,
+            "refined_priority": -118
+          },
+          "evidence": [
+            "order/S-118@2",
+            "refund/S-118@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-119": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1100,
+            "conflict_priority": 881,
+            "refined_priority": -119
+          },
+          "evidence": [
+            "order/S-119@2",
+            "refund/S-119@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        },
+        "S-120": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 1000,
+            "conflict_priority": 880,
+            "refined_priority": -120
+          },
+          "evidence": [
+            "order/S-120@2",
+            "refund/S-120@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "observed"
+          }
+        },
+        "S-121": {
+          "revision": "1",
+          "known_at": "2026-04-11T09:00:00+00:00",
+          "inputs": {
+            "refund_cents": 900,
+            "conflict_priority": -121,
+            "refined_priority": -121
+          },
+          "evidence": [
+            "order/S-121@2",
+            "refund/S-121@1"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 5,
+            "basis": "estimated"
+          }
+        }
+      },
+      "capacity": 100,
+      "live_version": "refund-amount-v1",
+      "tie_break": "id-asc-v1",
+      "actual": [
+        "S-001",
+        "S-002",
+        "S-003",
+        "S-004",
+        "S-005",
+        "S-006",
+        "S-007",
+        "S-008",
+        "S-009",
+        "S-010",
+        "S-011",
+        "S-012",
+        "S-013",
+        "S-014",
+        "S-015",
+        "S-016",
+        "S-017",
+        "S-018",
+        "S-019",
+        "S-020",
+        "S-021",
+        "S-022",
+        "S-023",
+        "S-024",
+        "S-025",
+        "S-026",
+        "S-027",
+        "S-028",
+        "S-029",
+        "S-030",
+        "S-031",
+        "S-032",
+        "S-033",
+        "S-034",
+        "S-035",
+        "S-036",
+        "S-037",
+        "S-038",
+        "S-039",
+        "S-040",
+        "S-041",
+        "S-042",
+        "S-043",
+        "S-044",
+        "S-045",
+        "S-046",
+        "S-047",
+        "S-048",
+        "S-049",
+        "S-050",
+        "S-051",
+        "S-052",
+        "S-053",
+        "S-054",
+        "S-055",
+        "S-056",
+        "S-057",
+        "S-058",
+        "S-059",
+        "S-060",
+        "S-061",
+        "S-062",
+        "S-063",
+        "S-064",
+        "S-065",
+        "S-066",
+        "S-067",
+        "S-068",
+        "S-069",
+        "S-070",
+        "S-071",
+        "S-072",
+        "S-073",
+        "S-074",
+        "S-075",
+        "S-076",
+        "S-077",
+        "S-078",
+        "S-079",
+        "S-080",
+        "S-081",
+        "S-082",
+        "S-083",
+        "S-084",
+        "S-085",
+        "S-086",
+        "S-087",
+        "S-088",
+        "S-089",
+        "S-090",
+        "S-091",
+        "S-092",
+        "S-093",
+        "S-094",
+        "S-095",
+        "S-096",
+        "S-097",
+        "S-098",
+        "S-099",
+        "S-100"
+      ],
+      "mandatory": [
+        "S-041",
+        "S-042"
+      ],
+      "overrides": []
+    }
+  }
+}

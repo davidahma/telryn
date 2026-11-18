@@ -1,0 +1,2040 @@
+{
+  "schema": 1,
+  "rubric": "order-discrepancy-v1",
+  "grades": {
+    "R-001": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-001@2",
+        "refund/R-001@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-002": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-002@2",
+        "refund/R-002@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-003": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-003@2",
+        "refund/R-003@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-004": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-004@2",
+        "refund/R-004@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-005": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-005@2",
+        "refund/R-005@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-006": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-006@2",
+        "refund/R-006@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-007": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-007@2",
+        "refund/R-007@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-008": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-008@2",
+        "refund/R-008@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-009": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-009@2",
+        "refund/R-009@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-010": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-010@2",
+        "refund/R-010@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-011": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-011@2",
+        "refund/R-011@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-012": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-012@2",
+        "refund/R-012@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-013": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-013@2",
+        "refund/R-013@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-014": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-014@2",
+        "refund/R-014@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-015": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-015@2",
+        "refund/R-015@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-016": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-016@2",
+        "refund/R-016@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-017": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-017@2",
+        "refund/R-017@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-018": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-018@2",
+        "refund/R-018@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-019": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-019@2",
+        "refund/R-019@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-020": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-020@2",
+        "refund/R-020@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-021": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-021@2",
+        "refund/R-021@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-022": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-022@2",
+        "refund/R-022@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-023": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-023@2",
+        "refund/R-023@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-024": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-024@2",
+        "refund/R-024@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-025": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-025@2",
+        "refund/R-025@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-026": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-026@2",
+        "refund/R-026@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-027": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-027@2",
+        "refund/R-027@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-028": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-028@2",
+        "refund/R-028@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-029": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-029@2",
+        "refund/R-029@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-030": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-030@2",
+        "refund/R-030@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-031": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-031@2",
+        "refund/R-031@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-032": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-032@2",
+        "refund/R-032@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-033": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-033@2",
+        "refund/R-033@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-034": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-034@2",
+        "refund/R-034@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-035": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-035@2",
+        "refund/R-035@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-036": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-036@2",
+        "refund/R-036@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-037": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-037@2",
+        "refund/R-037@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-038": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-038@2",
+        "refund/R-038@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-039": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-039@2",
+        "refund/R-039@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-040": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-040@2",
+        "refund/R-040@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-041": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-041@2",
+        "refund/R-041@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-042": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-042@2",
+        "refund/R-042@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-043": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-043@2",
+        "refund/R-043@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-044": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-044@2",
+        "refund/R-044@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-045": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-045@2",
+        "refund/R-045@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-046": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-046@2",
+        "refund/R-046@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-047": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-047@2",
+        "refund/R-047@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-048": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-048@2",
+        "refund/R-048@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-049": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-049@2",
+        "refund/R-049@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-050": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-050@2",
+        "refund/R-050@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-051": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-051@2",
+        "refund/R-051@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-052": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-052@2",
+        "refund/R-052@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-053": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-053@2",
+        "refund/R-053@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-054": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-054@2",
+        "refund/R-054@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-055": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-055@2",
+        "refund/R-055@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-056": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-056@2",
+        "refund/R-056@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-057": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-057@2",
+        "refund/R-057@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-058": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-058@2",
+        "refund/R-058@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-059": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-059@2",
+        "refund/R-059@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-060": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-060@2",
+        "refund/R-060@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-061": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-061@2",
+        "refund/R-061@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-062": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-062@2",
+        "refund/R-062@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-063": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-063@2",
+        "refund/R-063@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-064": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-064@2",
+        "refund/R-064@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-065": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-065@2",
+        "refund/R-065@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-066": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-066@2",
+        "refund/R-066@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-067": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-067@2",
+        "refund/R-067@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-068": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-068@2",
+        "refund/R-068@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-069": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-069@2",
+        "refund/R-069@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-070": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-070@2",
+        "refund/R-070@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-071": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-071@2",
+        "refund/R-071@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-072": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-072@2",
+        "refund/R-072@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-073": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-073@2",
+        "refund/R-073@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-074": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-074@2",
+        "refund/R-074@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-075": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-075@2",
+        "refund/R-075@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-076": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-076@2",
+        "refund/R-076@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-077": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-077@2",
+        "refund/R-077@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-078": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-078@2",
+        "refund/R-078@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-079": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-079@2",
+        "refund/R-079@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-080": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-080@2",
+        "refund/R-080@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-081": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-081@2",
+        "refund/R-081@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-082": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-082@2",
+        "refund/R-082@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-083": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-083@2",
+        "refund/R-083@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-084": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-084@2",
+        "refund/R-084@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-085": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-085@2",
+        "refund/R-085@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-086": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-086@2",
+        "refund/R-086@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-087": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-087@2",
+        "refund/R-087@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-088": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-088@2",
+        "refund/R-088@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-089": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-089@2",
+        "refund/R-089@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-090": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-090@2",
+        "refund/R-090@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-091": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-091@2",
+        "refund/R-091@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-092": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-092@2",
+        "refund/R-092@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-093": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-093@2",
+        "refund/R-093@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-094": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-094@2",
+        "refund/R-094@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-095": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-095@2",
+        "refund/R-095@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-096": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-096@2",
+        "refund/R-096@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-097": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-097@2",
+        "refund/R-097@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-098": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-098@2",
+        "refund/R-098@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-099": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-099@2",
+        "refund/R-099@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-100": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-100@2",
+        "refund/R-100@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-101": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-101@2",
+        "refund/R-101@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-102": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-102@2",
+        "refund/R-102@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-103": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-103@2",
+        "refund/R-103@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-104": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-104@2",
+        "refund/R-104@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-105": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-105@2",
+        "refund/R-105@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-106": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-106@2",
+        "refund/R-106@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-107": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-107@2",
+        "refund/R-107@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-108": {
+      "grade": "meets",
+      "evidence": [
+        "order/R-108@2",
+        "refund/R-108@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-109": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-109@2",
+        "refund/R-109@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-110": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-110@2",
+        "refund/R-110@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-111": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-111@2",
+        "refund/R-111@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-112": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-112@2",
+        "refund/R-112@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "R-121": {
+      "grade": "outside",
+      "evidence": [
+        "order/R-121@2",
+        "refund/R-121@1"
+      ],
+      "evidence_at": "2026-04-07T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-001": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-001@2",
+        "refund/S-001@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-002": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-002@2",
+        "refund/S-002@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-003": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-003@2",
+        "refund/S-003@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-004": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-004@2",
+        "refund/S-004@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-005": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-005@2",
+        "refund/S-005@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-006": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-006@2",
+        "refund/S-006@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-007": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-007@2",
+        "refund/S-007@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-008": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-008@2",
+        "refund/S-008@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-009": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-009@2",
+        "refund/S-009@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-010": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-010@2",
+        "refund/S-010@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-011": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-011@2",
+        "refund/S-011@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-012": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-012@2",
+        "refund/S-012@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-013": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-013@2",
+        "refund/S-013@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-014": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-014@2",
+        "refund/S-014@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-015": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-015@2",
+        "refund/S-015@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-016": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-016@2",
+        "refund/S-016@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-017": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-017@2",
+        "refund/S-017@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-018": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-018@2",
+        "refund/S-018@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-019": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-019@2",
+        "refund/S-019@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-020": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-020@2",
+        "refund/S-020@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-021": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-021@2",
+        "refund/S-021@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-022": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-022@2",
+        "refund/S-022@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-023": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-023@2",
+        "refund/S-023@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-024": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-024@2",
+        "refund/S-024@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-025": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-025@2",
+        "refund/S-025@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-026": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-026@2",
+        "refund/S-026@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-027": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-027@2",
+        "refund/S-027@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-028": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-028@2",
+        "refund/S-028@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-029": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-029@2",
+        "refund/S-029@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-030": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-030@2",
+        "refund/S-030@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-031": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-031@2",
+        "refund/S-031@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-032": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-032@2",
+        "refund/S-032@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-033": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-033@2",
+        "refund/S-033@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-034": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-034@2",
+        "refund/S-034@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-035": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-035@2",
+        "refund/S-035@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-036": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-036@2",
+        "refund/S-036@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-037": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-037@2",
+        "refund/S-037@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-038": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-038@2",
+        "refund/S-038@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-039": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-039@2",
+        "refund/S-039@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-040": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-040@2",
+        "refund/S-040@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-041": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-041@2",
+        "refund/S-041@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-042": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-042@2",
+        "refund/S-042@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-043": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-043@2",
+        "refund/S-043@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-044": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-044@2",
+        "refund/S-044@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-045": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-045@2",
+        "refund/S-045@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-046": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-046@2",
+        "refund/S-046@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-047": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-047@2",
+        "refund/S-047@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-048": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-048@2",
+        "refund/S-048@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-049": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-049@2",
+        "refund/S-049@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-050": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-050@2",
+        "refund/S-050@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-051": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-051@2",
+        "refund/S-051@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-052": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-052@2",
+        "refund/S-052@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-053": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-053@2",
+        "refund/S-053@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-054": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-054@2",
+        "refund/S-054@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-055": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-055@2",
+        "refund/S-055@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-056": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-056@2",
+        "refund/S-056@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-057": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-057@2",
+        "refund/S-057@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-058": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-058@2",
+        "refund/S-058@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-059": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-059@2",
+        "refund/S-059@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-060": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-060@2",
+        "refund/S-060@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-061": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-061@2",
+        "refund/S-061@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-062": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-062@2",
+        "refund/S-062@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-063": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-063@2",
+        "refund/S-063@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-064": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-064@2",
+        "refund/S-064@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-065": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-065@2",
+        "refund/S-065@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-066": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-066@2",
+        "refund/S-066@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-067": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-067@2",
+        "refund/S-067@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-068": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-068@2",
+        "refund/S-068@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-069": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-069@2",
+        "refund/S-069@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-070": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-070@2",
+        "refund/S-070@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-071": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-071@2",
+        "refund/S-071@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-072": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-072@2",
+        "refund/S-072@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-073": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-073@2",
+        "refund/S-073@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-074": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-074@2",
+        "refund/S-074@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-075": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-075@2",
+        "refund/S-075@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-076": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-076@2",
+        "refund/S-076@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-077": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-077@2",
+        "refund/S-077@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-078": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-078@2",
+        "refund/S-078@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-079": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-079@2",
+        "refund/S-079@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-080": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-080@2",
+        "refund/S-080@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-081": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-081@2",
+        "refund/S-081@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-082": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-082@2",
+        "refund/S-082@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-083": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-083@2",
+        "refund/S-083@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-084": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-084@2",
+        "refund/S-084@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-085": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-085@2",
+        "refund/S-085@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-086": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-086@2",
+        "refund/S-086@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-087": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-087@2",
+        "refund/S-087@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-088": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-088@2",
+        "refund/S-088@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-089": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-089@2",
+        "refund/S-089@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-090": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-090@2",
+        "refund/S-090@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-091": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-091@2",
+        "refund/S-091@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-092": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-092@2",
+        "refund/S-092@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-093": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-093@2",
+        "refund/S-093@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-094": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-094@2",
+        "refund/S-094@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-095": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-095@2",
+        "refund/S-095@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-096": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-096@2",
+        "refund/S-096@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-097": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-097@2",
+        "refund/S-097@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-098": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-098@2",
+        "refund/S-098@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-099": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-099@2",
+        "refund/S-099@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-100": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-100@2",
+        "refund/S-100@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-101": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-101@2",
+        "refund/S-101@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-102": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-102@2",
+        "refund/S-102@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-103": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-103@2",
+        "refund/S-103@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-104": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-104@2",
+        "refund/S-104@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-105": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-105@2",
+        "refund/S-105@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-106": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-106@2",
+        "refund/S-106@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-107": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-107@2",
+        "refund/S-107@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-108": {
+      "grade": "meets",
+      "evidence": [
+        "order/S-108@2",
+        "refund/S-108@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-109": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-109@2",
+        "refund/S-109@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-110": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-110@2",
+        "refund/S-110@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-111": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-111@2",
+        "refund/S-111@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-112": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-112@2",
+        "refund/S-112@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    },
+    "S-121": {
+      "grade": "outside",
+      "evidence": [
+        "order/S-121@2",
+        "refund/S-121@1"
+      ],
+      "evidence_at": "2026-04-11T09:00:00+00:00",
+      "shared_sources": true
+    }
+  }
+}

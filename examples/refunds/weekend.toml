@@ -1,0 +1,32 @@
+schema = 1
+export = "cutoff.json"
+grades = "known-grades.json"
+required_shifts = ["tuesday-am", "saturday-am"]
+tuning_shifts = []
+minimum_additional_exceptions = 1
+rubric = "order-discrepancy-v1"
+rubric_question = "Did the requested quantity exceed the quantity recorded as delivered at cutoff?"
+evidence_window_hours = 24
+workload_method = "Synthetic case-level handling estimates"
+grading_budget = 10
+cross_checks_per_side = 1
+
+[live]
+file = "rules.py"
+function = "rank_by_amount"
+version = "refund-amount-v1"
+tie_break = "id-asc-v1"
+
+[candidate]
+file = "rules.py"
+function = "rank_by_order_conflict"
+version = "order-conflict-v1"
+tie_break = "id-asc-v1"
+
+[shifts.tuesday-am]
+capacity = 100
+staff_minutes = 480
+
+[shifts.saturday-am]
+capacity = 100
+staff_minutes = 480
