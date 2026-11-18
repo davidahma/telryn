@@ -6,9 +6,9 @@ import json
 from html import escape
 from pathlib import Path
 
-from .contracts import InputError, canonical, fingerprint, versioned
-from .decision import evaluate
-from .grades import grade_status, record_effort
+from .contracts import InputError, canonical, fingerprint, mapping, versioned
+from .decision import INCONCLUSIVE, evaluate
+from .grades import grade_status, record_effort, review_set
 
 STATE_OPEN = '<script type="application/json" id="telryn-evidence">'
 STATE_CLOSE = "</script>"
@@ -48,10 +48,29 @@ code { overflow-wrap:anywhere; }
 def recommendation(state: dict) -> dict:
     grades, pending, status = grade_status(state)
     summary = evaluate(state, grades, pending)
+    legacy = state["schema"] == 1
+    if legacy:
+        if not summary["operational_veto"]:
+            summary["recommendation"] = INCONCLUSIVE
+            summary["vetoes"] = []
+        summary["open_items"].insert(
+            0,
+            "This v0.1.0 snapshot cannot authorize shadow. Re-run compare with the current version.",
+        )
     summary.update(
         {
             "comparison_id": state["comparison_id"],
             "schema": 1,
+            "legacy_report": legacy,
+            "excluded_grading": state.get("excluded_grading", {}),
+            "adjudication": {
+                row_id: {
+                    "request": state["packet"][row_id]["case"],
+                    "review_set": review_set(row_id, state["grade_history"][row_id]),
+                }
+                for row_id, value in status.items()
+                if not legacy and value == "disputed"
+            },
             "packet_rows": len(state["packet"]),
             "effort": record_effort(state),
             "packet_returns": sum(
@@ -70,7 +89,9 @@ def load_report(path: Path) -> dict:
     if not opening or not closing:
         raise InputError("this file has no Telryn decision snapshot")
     envelope = versioned(json.loads(raw), "report")
-    state = versioned(envelope.get("state"), "report state")
+    state = mapping(envelope.get("state"), "report state")
+    if type(state.get("schema")) is not int or state["schema"] not in (1, 2):
+        raise InputError("unsupported report state schema")
     if fingerprint(state) != envelope.get("checksum"):
         raise InputError("the embedded report snapshot is damaged or modified")
     return state
@@ -126,7 +147,26 @@ def stopping_text(result: dict) -> str:
     return "Current grades already bound the count on one side of the hurdle."
 
 
-def shift_html(name: str, shift: dict, source: dict, grades: dict) -> str:
+def grade_groups(cases: list[str], grades: dict) -> str:
+    if not cases:
+        return '<p class="muted">None</p>'
+    parts = []
+    for status, label in (
+        ("meets", "Confirmed exceptions"),
+        ("outside", "Outside rubric"),
+        (None, "Unknown grade"),
+    ):
+        ids = [case for case in cases if grades.get(case) == status]
+        if ids:
+            parts.append(
+                f"<p><strong>{label} · {len(ids)}</strong></p>{cases_html(ids)}"
+            )
+    return "".join(parts)
+
+
+def shift_html(
+    name: str, shift: dict, source: dict, grades: dict, excluded: dict
+) -> str:
     head = f"<section><h2>{escape(name)}</h2>"
     if shift["status"] != "Replayable":
         return (
@@ -165,35 +205,33 @@ def shift_html(name: str, shift: dict, source: dict, grades: dict) -> str:
             if shift["mandatory_misses"]
             else ""
         )
-        + f'<div class="grid"><div><h3>Gain review · {len(shift["gain"])}</h3>{cases_html(shift["gain"])}'
-        + f"</div><div><h3>Lose review · {len(shift['loss'])}</h3>{cases_html(shift['loss'])}</div></div>"
-        + f"<details><summary>Open grades · {len(shift['unknown'])}</summary>{cases_html(shift['unknown'])}</details>"
-        + "<details><summary>Accepted grades and workload by request</summary>"
+        + f'<div class="grid"><div><h3>Gain review · {len(shift["gain"])}</h3>{grade_groups(shift["gain"], grades)}'
+        + f"</div><div><h3>Lose review · {len(shift['loss'])}</h3>{grade_groups(shift['loss'], grades)}</div></div>"
+        + (
+            "<details><summary>Excluded grading evidence</summary><ul>"
+            + list_items(
+                [
+                    f"{case}: {excluded[case]}"
+                    for case in shift["unknown"]
+                    if case in excluded
+                ]
+            )
+            + "</ul></details>"
+            if any(case in excluded for case in shift["unknown"])
+            else ""
+        )
+        + "<details><summary>Candidate workload by request</summary>"
         + "<p>"
         + escape(
             f"{basis['observed']} observed · {basis['estimated']} estimated · "
             f"{basis['unknown']} with unknown upper time"
         )
         + "</p>"
-        + "<p>Gaining review: "
-        + escape(_grade_counts(shift["gain"], grades))
-        + "</p>"
-        + "<p>Losing review: "
-        + escape(_grade_counts(shift["loss"], grades))
-        + "</p>"
         + '<div class="table" tabindex="0"><table><thead><tr><th>Candidate request</th><th>Revision</th>'
         "<th>Time evidence</th></tr></thead><tbody>"
         + "".join(details)
         + "</tbody></table></div>"
         "</details></section>"
-    )
-
-
-def _grade_counts(cases: list[str], grades: dict) -> str:
-    answers = [grades.get(case) for case in cases]
-    return (
-        f"{answers.count('meets')} meet the rubric · {answers.count('outside')} outside · "
-        f"{answers.count(None)} unknown"
     )
 
 
@@ -227,7 +265,28 @@ def render_report(state: dict) -> str:
     sections = []
     for name in state["plan"]["required_shifts"]:
         sections.append(
-            shift_html(name, result["shifts"][name], state["shifts"][name], grades)
+            shift_html(
+                name,
+                result["shifts"][name],
+                state["shifts"][name],
+                grades,
+                result["excluded_grading"],
+            )
+        )
+    disputed = result["adjudication"]
+    adjudication_html = ""
+    if disputed:
+        commands = "".join(
+            f"<li>{escape(info['request'])}<br><code>python3 -m telryn refresh REPORT "
+            f"--adjudicate {escape(row)} GRADE REASON --review-set {info['review_set']}</code></li>"
+            for row, info in disputed.items()
+        )
+        adjudication_html = (
+            "<h3>Adjudicate disputed grades</h3>"
+            "<p>Have an independent reviewer resolve each dispute against the frozen evidence. "
+            "A regular CSV return leaves the dispute open. Replace GRADE and REASON with "
+            "the decision and a quoted reason. Use the review set from the current report.</p>"
+            f"<ul>{commands}</ul>"
         )
     scored = result["scored_bounds"]
     partial = (
@@ -267,7 +326,8 @@ def render_report(state: dict) -> str:
         + partial
         + f"<p>{escape(stopping_text(result))}</p>"
         '<p class="muted">Shadow trials record candidate picks in your system while the live rule continues routing. '
-        "The counts describe historical review coverage.</p></header>"
+        "The counts describe historical review coverage.</p>"
+        + f"<p><strong>Review question</strong> {escape(plan['rubric_question'])}</p></header>"
         + "".join(sections)
         + "<section><h2>Grading handoff</h2>"
         + f"<p>{result['packet_rows']} packet rows · {result['packet_returns']} returned · "
@@ -275,6 +335,7 @@ def render_report(state: dict) -> str:
         + (f"<ul>{list_items(packet_notes)}</ul>" if packet_notes else "")
         + "<p>Share the grading CSV with the reviewer. Keep this report with the decision owner. To record a return, "
         "run <code>python3 -m telryn refresh REPORT --grades RETURNED.csv</code>.</p>"
+        + adjudication_html
         + f"<ul>{list_items(effort_entries)}</ul>"
         '<p class="muted">Grading, cross-checks and adjudication are separate from estimated shift workload.</p>'
         + (

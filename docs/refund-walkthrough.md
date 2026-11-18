@@ -13,7 +13,7 @@ cp runs/tuesday/grading.csv runs/tuesday-return.csv
 ```
 
 Open the lead report and confirm that R-118 gains review and R-073 loses it.
-The report shows the 80 shared requests, the 40 swaps, staffing, the +1
+The report shows the 80 shared requests, the 40 requests that move, staffing, the +1
 hurdle, and the cross-checks still outstanding. Keep it with the lead.
 Share the copied packet and the rubric's allowed evidence sources with the
 reviewer.
@@ -60,10 +60,14 @@ python3 -m examples.refunds.app export --db runs/refunds.sqlite --out runs/sourc
 python3 -m examples.refunds.baseline --export runs/source-export/cutoff.json --grades runs/source-export/known-grades.json
 ```
 
-The standalone baseline reconstructs Tuesday's two rankings in SQLite and
-computes the same initial case swaps and bounds. It checks the fixture's
-membership, cutoff, live picks, mandatory reviews, staffing estimates and
-grading budget. Use the baseline to compare the effort required to prepare the
-export, track cross-checks, merge returns, and explain the decision. The example
-ships with independently checked results. A timed comparison with an analyst
-using their usual method calls for an observed experiment.
+The standalone baseline checks the same Tuesday selection and safeguards.
+Pass the [worked ledger](../examples/refunds/review-ledger.json) to carry the
+SQL comparison through the five returns, a later dispute, and adjudication:
+
+```sh
+python3 -m examples.refunds.baseline --export runs/source-export/cutoff.json --grades runs/source-export/known-grades.json --ledger examples/refunds/review-ledger.json
+```
+
+Both workflows can reach the same final decision. The [evaluation protocol](evaluation.md)
+describes what to measure with an analyst and an operations lead before
+drawing conclusions about time savings.

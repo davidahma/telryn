@@ -60,7 +60,10 @@ override carries a `reason` and prevents scoring. Mandatory coverage remains a
 separate check. Document which deterministic behavior reflects your queue.
 
 Missing membership, material cutoff revisions, uncertain overrides, or a
-live replay divergence make a shift **Not replayable**. A valid shift with a
+live replay divergence make the affected shift **Not replayable**. Cutoff
+timestamps compare instants with their UTC offsets. Missing ranking inputs
+accessed directly on cutoff rows also block only that shift. Invalid
+selectors still return an execution error. A valid shift with a
 confirmed operational veto can still determine **Hold** when another shift is
 missing. Run `python3 -m telryn qualify --case membership` for an example where
 all recorded winners match but the export is incomplete.
@@ -71,24 +74,40 @@ Initial grades use [this JSON shape](../examples/refunds/known-grades.json).
 A grade needs the frozen rubric, matching exact evidence references, an
 `evidence_at` timestamp inside the window, and `shared_sources: true`.
 Evidence produced solely by an incumbent-triggered intervention leaves the case
-unknown. Reviewers use the same admissible sources and window for both groups.
+unknown. When an archived grade identifies a non-shared or out-of-window source,
+a packet also excludes any current evidence bundle for that case containing the
+same exact reference. Supply an independent, admissible bundle in a new
+comparison if one is available. Reviewers use the same admissible sources and window for both groups.
 
 Cross-checks are drawn from available accepted grades on each changed side and
 take priority within the frozen packet budget. The report records checks still
-owed if the budget is smaller than the required controls. Useful unknowns fill
-the remaining slots. Any returns that are still needed after the budgeted rows
+owed if the budget is smaller than the required controls. Useful unknowns fill the remaining slots while the initial count range spans the
+hurdle or required shift coverage is incomplete. If the range lies wholly on one
+side of the hurdle, the packet contains only the required controls. Reassess
+the frozen plan if a disputed control reopens the range. Any returns that are still needed after the budgeted rows
 are exhausted leave the decision open. Reviewers should disclose when they
 already know which requests changed. Record this with
 `refresh --reviewer-unblinded` on the return. Reviewers may leave `grade` blank or enter
 `meets`, `outside`, or `insufficient`.
 
-An identical returned answer is idempotent. A disagreement makes the grade
-unknown pending review. A second reviewer can adjudicate through the team's
-existing process. Record that decision locally:
+An unchanged return for a row is idempotent. The default identity uses its
+normalized grade and minutes. Supply `refresh --review-id NAME` for independent
+reviews with identical content. Keep that ID on retries. Reusing the same ID
+with changed contents fails. Mixed answers, including a definitive grade and
+`insufficient`, leave the row unknown and require an independent adjudication.
+New conflicting reviews can reopen a previous adjudication.
+
+The lead report and JSON output show the row ID and current review set for a
+dispute. Record the adjudication against that set so a stale decision cannot
+silence a newer return:
 
 ```sh
-python3 -m telryn refresh runs/tuesday/report.html --adjudicate ROW_ID outside "Independent review of the same evidence" --minutes 2
+python3 -m telryn refresh runs/tuesday/report.html --adjudicate ROW_ID outside "Independent review of the same evidence" --review-set REVIEW_SET --minutes 2
 ```
+
+A v0.1.0 saved report remains readable as a historical artifact. Re-run
+`compare` and issue a fresh packet before importing grades or using
+`--require-shadow` with that comparison.
 
 `explain` uses the report's embedded evidence snapshot and works after the
 source app has stopped. Refresh takes an advisory lock and atomically replaces

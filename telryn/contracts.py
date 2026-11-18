@@ -128,60 +128,60 @@ def load_plan(path: Path) -> dict:
 
 def load_export(path: Path) -> dict:
     data = read_json(path, "export")
-    shifts = mapping(data.get("shifts"), "export shifts")
-    all_ids: set[str] = set()
-    for shift, batch in shifts.items():
-        mapping(batch, shift)
-        timestamp(batch.get("cutoff"), f"{shift} cutoff")
-        if batch.get("membership") is not None:
-            membership = mapping(batch["membership"], "membership")
-            string(membership.get("source"), "membership source")
-            ids = set(unique_ids(membership.get("ids"), "membership IDs"))
-            if all_ids.intersection(ids):
-                raise InputError("eligible request IDs must be disjoint across shifts")
-            all_ids.update(ids)
-        fields = mapping(batch.get("requests"), "requests")
-        for case, row in fields.items():
-            string(case, "request ID")
-            mapping(row, case)
-            if row.get("revision") is not None:
-                string(row["revision"], f"{case} revision")
-            if row.get("known_at") is not None:
-                timestamp(row["known_at"], f"{case} known_at")
-            if row.get("inputs") is not None:
-                mapping(row["inputs"], f"{case} inputs")
-            refs = unique_ids(row.get("evidence", []), f"{case} evidence")
-            if any(any(ord(ch) < 32 for ch in ref) for ref in refs):
-                raise InputError(f"{case} evidence references must be single-line text")
-            if row.get("minutes") is not None:
-                time = mapping(row["minutes"], f"{case} minutes")
-                lower = integer(time.get("lower"), f"{case} lower minutes")
-                high = time.get("upper")
-                if high is not None:
-                    integer(high, f"{case} upper minutes", minimum=lower)
-                if time.get("basis") not in ("observed", "estimated"):
-                    raise InputError(
-                        f"{case} minutes basis must be observed or estimated"
-                    )
-                if time["basis"] == "observed" and lower != high:
-                    raise InputError(f"{case} observed minutes must have equal bounds")
-        for field in ("actual", "mandatory"):
-            if batch.get(field) is not None:
-                unique_ids(batch[field], f"{shift} {field}")
-        if batch.get("capacity") is not None:
-            integer(batch["capacity"], f"{shift} recorded capacity")
-        for field in ("live_version", "tie_break"):
-            if batch.get(field) is not None:
-                string(batch[field], f"{shift} {field}")
-        if batch.get("overrides") is not None:
-            for override in sequence(batch["overrides"], f"{shift} overrides"):
-                mapping(override, f"{shift} override")
-                if override.get("kind") not in ("include", "swap", "unresolved"):
-                    raise InputError(f"{shift} override kind is unsupported")
-                if override["kind"] == "unresolved":
-                    string(override.get("reason"), "unresolved override reason")
-                    continue
-                string(override.get("request"), "override request")
-                if override["kind"] == "swap":
-                    string(override.get("replace"), "swap incumbent")
+    mapping(data.get("shifts"), "export shifts")
+    try:
+        canonical(data)
+    except ValueError as exc:
+        raise InputError("export contains a non-finite number") from exc
     return data
+
+
+def validate_batch(shift: str, batch: dict) -> None:
+    mapping(batch, shift)
+    timestamp(batch.get("cutoff"), f"{shift} cutoff")
+    if batch.get("membership") is not None:
+        membership = mapping(batch["membership"], "membership")
+        string(membership.get("source"), "membership source")
+        unique_ids(membership.get("ids"), "membership IDs")
+    fields = mapping(batch.get("requests"), "requests")
+    for case, row in fields.items():
+        string(case, "request ID")
+        mapping(row, case)
+        if row.get("revision") is not None:
+            string(row["revision"], f"{case} revision")
+        if row.get("known_at") is not None:
+            timestamp(row["known_at"], f"{case} known_at")
+        if row.get("inputs") is not None:
+            mapping(row["inputs"], f"{case} inputs")
+        refs = unique_ids(row.get("evidence", []), f"{case} evidence")
+        if any(any(ord(ch) < 32 for ch in ref) for ref in refs):
+            raise InputError(f"{case} evidence references must be single-line text")
+        if row.get("minutes") is not None:
+            time = mapping(row["minutes"], f"{case} minutes")
+            lower = integer(time.get("lower"), f"{case} lower minutes")
+            high = time.get("upper")
+            if high is not None:
+                integer(high, f"{case} upper minutes", minimum=lower)
+            if time.get("basis") not in ("observed", "estimated"):
+                raise InputError(f"{case} minutes basis must be observed or estimated")
+            if time["basis"] == "observed" and lower != high:
+                raise InputError(f"{case} observed minutes must have equal bounds")
+    for field in ("actual", "mandatory"):
+        if batch.get(field) is not None:
+            unique_ids(batch[field], f"{shift} {field}")
+    if batch.get("capacity") is not None:
+        integer(batch["capacity"], f"{shift} recorded capacity")
+    for field in ("live_version", "tie_break"):
+        if batch.get(field) is not None:
+            string(batch[field], f"{shift} {field}")
+    if batch.get("overrides") is not None:
+        for override in sequence(batch["overrides"], f"{shift} overrides"):
+            mapping(override, f"{shift} override")
+            if override.get("kind") not in ("include", "swap", "unresolved"):
+                raise InputError(f"{shift} override kind is unsupported")
+            if override["kind"] == "unresolved":
+                string(override.get("reason"), "unresolved override reason")
+                continue
+            string(override.get("request"), "override request")
+            if override["kind"] == "swap":
+                string(override.get("replace"), "swap incumbent")

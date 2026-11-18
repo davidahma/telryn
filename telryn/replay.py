@@ -6,7 +6,25 @@ import hashlib
 from copy import deepcopy
 from pathlib import Path
 
-from .contracts import InputError, timestamp, unique_ids
+from .contracts import InputError, timestamp, unique_ids, validate_batch
+
+
+class MissingInput(KeyError):
+    """A selector indexed an unavailable field on a cutoff row."""
+
+    def __init__(self, case: str, field: str):
+        super().__init__(field)
+        self.case = case
+        self.field = field
+
+
+class CutoffInputs(dict):
+    def __missing__(self, field: str):
+        raise MissingInput(self["id"], field)
+
+
+def blocked(reason: str) -> dict:
+    return {"status": "Not replayable", "reason": reason}
 
 
 class Selector:
@@ -28,11 +46,13 @@ class Selector:
 
     def run(self, rows: dict, capacity: int) -> list[str]:
         inputs = [
-            {"id": case, **deepcopy(row["inputs"])}
+            CutoffInputs(id=case, **deepcopy(row["inputs"]))
             for case, row in sorted(rows.items())
         ]
         try:
             picks = self.select(inputs, capacity)
+        except MissingInput:
+            raise
         except (Exception, SystemExit) as exc:
             raise InputError(f"selector {self.label} failed: {exc}") from exc
         picks = unique_ids(picks, f"selector {self.label} output")
@@ -81,11 +101,12 @@ def replay_shift(
     live: Selector,
     candidate: Selector,
 ) -> dict:
-    def blocked(reason: str) -> dict:
-        return {"status": "Not replayable", "reason": reason}
-
     if batch is None:
         return blocked("Required shift is missing from the export.")
+    try:
+        validate_batch(name, batch)
+    except InputError as exc:
+        return blocked(str(exc))
     membership = batch.get("membership")
     if membership is None:
         return blocked("An independent cutoff membership record is missing.")
@@ -104,7 +125,7 @@ def replay_shift(
         if timestamp(row["known_at"], f"{case} known_at") > cutoff:
             return blocked(f"{case} revision is later than the cutoff.")
         if "id" in row["inputs"]:
-            raise InputError(f"{case} cutoff inputs use reserved field 'id'")
+            return blocked(f"{case} cutoff inputs use reserved field 'id'.")
     if any(
         batch.get(field) is None
         for field in (
@@ -137,9 +158,12 @@ def replay_shift(
             override["kind"] == "swap" and override["replace"] not in rows
         ):
             return blocked("Override history refers to an ineligible request.")
-    live_picks = apply_overrides(
-        live.run(rows, batch["capacity"]), batch["overrides"], batch["capacity"]
-    )
+    try:
+        live_picks = apply_overrides(
+            live.run(rows, batch["capacity"]), batch["overrides"], batch["capacity"]
+        )
+    except MissingInput as exc:
+        return blocked(f"{exc.case} lacks live ranking input {exc.field!r}.")
     if len(live_picks) > batch["capacity"] or live_picks != batch["actual"]:
         for index in range(max(len(live_picks), len(batch["actual"]))):
             expected = (
@@ -151,7 +175,10 @@ def replay_shift(
                     f"Live replay first diverges at slot {index + 1}: recorded {expected}, replayed {got}."
                 )
         return blocked("Recorded selection exceeds the historical slot capacity.")
-    raw_picks = candidate.run(rows, policy["capacity"])
+    try:
+        raw_picks = candidate.run(rows, policy["capacity"])
+    except MissingInput as exc:
+        return blocked(f"{exc.case} lacks candidate ranking input {exc.field!r}.")
     candidate_picks = apply_overrides(raw_picks, batch["overrides"], policy["capacity"])
     return {
         "status": "Replayable",

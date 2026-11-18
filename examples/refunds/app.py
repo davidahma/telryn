@@ -6,6 +6,7 @@ import argparse
 import json
 import sqlite3
 from contextlib import closing
+from datetime import datetime, timezone
 from pathlib import Path
 
 SHIFTS = {
@@ -136,10 +137,18 @@ def seed(path: Path) -> None:
             """)
 
 
+def utc_timestamp(value: str) -> str:
+    instant = datetime.fromisoformat(value)
+    if instant.utcoffset() is None:
+        raise ValueError("source timestamps must include a UTC offset")
+    return instant.astimezone(timezone.utc).isoformat(timespec="microseconds")
+
+
 def snapshot(connection: sqlite3.Connection) -> tuple[dict, dict]:
+    connection.create_function("utc_timestamp", 1, utc_timestamp, deterministic=True)
     exports = {}
     for shift, cutoff, capacity, version, tie_break in connection.execute(
-        "SELECT name, cutoff, capacity, live_version, tie_break FROM shift ORDER BY cutoff"
+        "SELECT name, cutoff, capacity, live_version, tie_break FROM shift ORDER BY utc_timestamp(cutoff), name"
     ):
         ids = [
             row[0]
@@ -154,8 +163,8 @@ def snapshot(connection: sqlite3.Connection) -> tuple[dict, dict]:
             SELECT m.request, r.revision, r.known_at, r.inputs, r.evidence, r.minutes
             FROM membership m JOIN revision r ON r.request = m.request
             WHERE m.shift = ? AND r.revision = (
-                SELECT revision FROM revision WHERE request = m.request AND known_at <= ?
-                ORDER BY known_at DESC, revision DESC LIMIT 1
+                SELECT revision FROM revision WHERE request = m.request AND utc_timestamp(known_at) <= utc_timestamp(?)
+                ORDER BY utc_timestamp(known_at) DESC, revision DESC LIMIT 1
             ) ORDER BY m.request
             """,
             (shift, cutoff),

@@ -66,6 +66,10 @@ def _parser() -> argparse.ArgumentParser:
         metavar=("ROW", "GRADE", "REASON"),
         help="record an independently resolved grade",
     )
+    update.add_argument("--review-id", help="stable identity for an independent return")
+    update.add_argument(
+        "--review-set", help="current review set shown in the disputed row"
+    )
     update.add_argument("--minutes", help="optional time spent on the adjudication")
     update.add_argument(
         "--reviewer-unblinded",
@@ -156,12 +160,18 @@ def main(argv: list[str] | None = None) -> int:
                 raise InputError(
                     "--minutes applies to an adjudication; use minutes_spent in a grade return"
                 )
+            if args.review_id is not None and args.grades is None:
+                raise InputError("--review-id applies to --grades")
+            if args.review_set is not None and args.adjudicate is None:
+                raise InputError("--review-set applies to --adjudicate")
             state = refresh(
                 report,
                 args.grades,
                 args.adjudicate,
                 parse_minutes(args.minutes or ""),
                 reviewer_unblinded=args.reviewer_unblinded,
+                review_id=args.review_id,
+                expected_review_set=args.review_set,
             )
         result = recommendation(state)
         _print(result, report, output_format=args.format)
