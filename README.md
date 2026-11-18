@@ -1,87 +1,133 @@
 # Telryn
 
-**See who gains and loses human review before you change a queue rule.**
+**Test changes to human-review queues before you roll them out.**
 
-Both rules fill 100 refund review slots. They send 20 different requests to
-review. Does the change catch more exceptions, preserve mandatory reviews, and
-fit the shift?
+Your refund team can review 100 requests per shift. A new escalation rule
+still picks 100, but replaces 20. Which exceptions would lose a human review?
+Would the team catch more of the right cases and finish the shift?
 
-Telryn replays a scheduled queue at its historical cutoff, compares two frozen
-rules, and gives the operations lead an offline HTML report and the reviewer a
-separate grading CSV. When evidence is incomplete, the report shows how far
-the answer can move and which judgments could settle it.
+Telryn replays the original queue and compares it with a frozen candidate.
+It produces a private HTML decision report for the lead and a blind grading
+CSV for the reviewer. The report names the cases that move, checks staffing
+and mandatory reviews, and shows what the available evidence supports.
 
 [![CI](https://github.com/davidahma/telryn/actions/workflows/ci.yml/badge.svg)](https://github.com/davidahma/telryn/actions/workflows/ci.yml)
 [![Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-## Run the demo
+[Download](https://github.com/davidahma/telryn/releases/latest) · [Try the full workflow](docs/refund-walkthrough.md) · [Connect a queue](docs/comparison.md)
 
-Download the [latest release](https://github.com/davidahma/telryn/releases/latest)
-or clone the repository. From the unpacked directory or checkout, run:
+## See a decision in under a minute
+
+Use CPython 3.12–3.15 with SQLite on Linux or macOS. Download and unpack the
+[release archive](https://github.com/davidahma/telryn/releases/latest), or
+clone the repository:
 
 ```sh
-python3 -m telryn demo
+git clone https://github.com/davidahma/telryn.git
+cd telryn
 ```
 
-Use CPython 3.12 or newer with SQLite support on macOS or Linux. The demo and
-qualification suite run offline with Python installed. There are no Python
-packages to install, and the bundled refund data is synthetic.
+From the unpacked directory or checkout:
 
-The terminal prints the three scenarios and the paths to the Tuesday files.
-Open `report.html` in a browser. Give the reviewer only `grading.csv` and access
-to the permitted evidence revisions. For a named output directory, pass
-`--out runs/demo` on the first run.
+```sh
+python3 -m telryn demo --out runs/demo
+```
 
-![Telryn report showing an inconclusive Tuesday decision, a range of −2 to +6, a +1 hurdle, and the 20 requests that gain review and 20 that lose it.](docs/images/tuesday-report.png)
+The demo uses synthetic data and runs offline with the standard library. Open
+`runs/demo/report.html`. The terminal also shows why one candidate was held
+and why another qualified for shadow testing. Use a fresh output directory
+for each comparison.
 
-## Work through Tuesday
+![Lead report showing a range of −2 to +6 against a +1 hurdle, projected workload, and the cases gaining or losing review grouped by grade.](docs/images/tuesday-report.png)
 
-The two rules share 80 requests. Ten exceptions lose review. Eight confirmed
-exceptions gain it, and eight gains have unknown grades. That leaves the net
-change between **−2 and +6**. Three new positive grades meet the **+1** hurdle
-if the existing grades stand. Six negatives put the hurdle out of reach.
+## Follow the evidence
 
-| Recommendation | What the lead can do |
+Tuesday's rules have 80 requests in common. Of the 20 losing review, **10**
+are confirmed exceptions. Of the 20 gaining review, **8** are confirmed
+exceptions and **8** remain ungraded. The resulting range is **−2 to +6**
+additional exceptions sent to review. Three positive grades among those
+eight secure the **+1** hurdle if accepted grades stand and the safeguards
+pass.
+
+| Role | What happens next |
 | --- | --- |
-| **Hold** | Stop on a verified mandatory-review, capacity, or staffing failure, or when the supported count rules out the hurdle. |
-| **Inconclusive** | Resolve the missing shift, grade, cross-check, or workload evidence named in the report. |
-| **Try in shadow** | Record candidate picks in your existing system while the live rule continues routing. |
+| Analyst | Exports the cutoff snapshot, confirms the original queue replays, and runs the comparison. |
+| Reviewer | Opens the issued evidence revisions, applies the rubric, and returns `meets`, `outside`, or `insufficient` in the CSV. The packet omits ranking, selection side, and cross-check labels. |
+| Operations lead | Sees which cases moved, their grades, staffing, the decision range, and the exact next step. A disputed grade requires an independent adjudication tied to the reviews it considered. |
 
 ```sh
 python3 -m telryn compare examples/refunds/comparison.toml --out runs/tuesday
 python3 -m telryn explain runs/tuesday/report.html
 ```
 
-Follow the [refund walkthrough](docs/refund-walkthrough.md) to inspect exact
-evidence revisions, return a partially filled CSV, and refresh the decision.
-The [plain SQLite comparison](docs/refund-walkthrough.md#compare-with-plain-sql)
-uses the same synthetic evidence so you can inspect what Telryn adds.
+The [walkthrough](docs/refund-walkthrough.md) shows how to inspect the SQLite
+evidence, return five judgments, and refresh Tuesday to **+1 to +6**.
+A separate comparison that requires Saturday still needs Saturday's evidence.
 
-## Bring your own queue
+## Use it with AI agents
 
-Start with a scheduled queue that resets between batches. You'll need the
-original ordered picks, a separately recorded eligible population, exact
-cutoff inputs, the live rule and override history, a shared grading rubric,
-and staffing limits. A matching list of historical winners can hide a missing
-eligible request. Telryn reconciles membership before scoring a candidate.
+When an agent or model helps decide what reaches a human, Telryn can test the
+**routing rule around that decision**. For example, you could compare two
+thresholds for escalating an uncertain refund case, or compare two
+prioritization rules for a queue of agent-proposed account changes. Export
+the scores, flags, and other inputs as they were available at cutoff. Run
+each proposed routing rule against that same historical batch.
 
-Read the [comparison and export reference](docs/comparison.md) for the
-format, selector contract, supported overrides, grade handling, and CLI exit
-codes. Keep local selector code trusted and the lead report private. Queues
-with carryover or continuous reassignment need a different replay model.
+The rule must be reproducible. For model-backed queues, record the model or
+policy version behind each exported signal and preserve the signal values
+used at the time. Telryn does the offline comparison with those frozen
+inputs. Your system remains responsible for execution, review approvals,
+and any live or shadow routing.
 
-## Verify the release
+## Connect a queue
+
+Telryn is designed for scheduled, disjoint batches. Prepare:
+
+- The independently recorded eligible IDs and the actual ordered picks.
+- Exact cutoff inputs for each eligible request, with availability timestamps
+  and revision IDs. A backdated correction can still arrive after cutoff.
+- The original rule and candidate as trusted local Python selectors, plus
+  tie-breaks, override history, mandatory reviews, slot limits, and staff time.
+- A shared rubric and references to evidence available under both rules.
+  An incumbent-triggered customer call cannot be reused as an independent
+  grade simply by sending its transcript to another reviewer.
+
+A replay that reproduces the original winners can still have an incomplete
+eligible pool. Telryn checks membership before scoring. See the
+[comparison contract](docs/comparison.md) for fields, supported overrides,
+and limits on queues with carryover or continuous reassignment. Treat
+`report.html` as private and send reviewers only the appropriate packet.
+
+## Read the verdict and use the CLI gate
+
+| Verdict | Meaning |
+| --- | --- |
+| **Hold** | A verified operational safeguard failed, or the upper bound fell below the hurdle after the required cross-checks. |
+| **Inconclusive** | Evidence is still open. The report names missing inputs, staffing measurements, grades, or cross-checks. |
+| **Try in shadow** | All required shifts replay, the lower bound meets the hurdle, and the required safeguards and cross-checks pass. Record candidate picks in your existing system while the live rule keeps routing. |
+
+```sh
+python3 -m telryn explain runs/tuesday/report.html --format json --require-shadow
+```
+
+Here the ungraded Tuesday comparison exits **1**. With the gate enabled,
+**0** means **Try in shadow** and **2** means an execution or input error.
+Without the gate, a completed report exits **0** for any verdict.
+Upgrade from v0.1.0 by regenerating the comparison and issuing a fresh
+packet before relying on the gate.
+
+## What the release verifies
 
 ```sh
 python3 -m telryn qualify
-python3 -m telryn qualify --case grade-return
 ```
 
-The suite checks cutoff replay, exact bounds, workload and capacity, coverage,
-blind grading, concurrent returns, interruption recovery, and stable case
-results across fresh processes. The [release notes](https://github.com/davidahma/telryn/releases)
-record which configurations passed. The published example measures historical
-review coverage. Operational time savings and customer outcomes require field
-evidence.
+The suite exercises missing cutoff evidence, timestamp offsets, rejected
+sources, reordered returns, adjudication, recovery, and 90 fresh-process
+comparisons. CI also runs the clean checkout and source archive with networking
+disabled. The synthetic SQL baseline reaches the same completed decision,
+including a dispute and its resolution. Use the [comparison protocol](docs/evaluation.md)
+to measure setup, grading, adjudication, and decision time on a real workflow.
+The published evidence establishes the mechanics and the synthetic result.
 
-[Contribute](CONTRIBUTING.md) · [Security](SECURITY.md) · [Apache-2.0](LICENSE)
+[Release evidence](https://github.com/davidahma/telryn/releases) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Apache-2.0](LICENSE)

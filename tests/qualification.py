@@ -6,6 +6,7 @@ import csv
 import itertools
 import json
 import shutil
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -15,7 +16,7 @@ from pathlib import Path
 
 from telryn.contracts import fingerprint
 from telryn.decision import bounds, evaluate
-from telryn.report import load_report
+from telryn.report import load_report, render_report
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "examples" / "refunds"
@@ -25,6 +26,10 @@ CASES = (
     "cutoff",
     "bounds",
     "grade-return",
+    "grading-evidence",
+    "return-order",
+    "revision-time",
+    "lead-report",
     "capacity",
     "coverage",
     "handoff",
@@ -94,7 +99,7 @@ class Qualification(unittest.TestCase):
         definition.write_text(content, encoding="utf-8")
         return definition
 
-    def filled(self, output, answers, filename):
+    def filled(self, output, answers, filename, minutes=2):
         state = load_report(output / "report.html")
         with (output / "grading.csv").open(encoding="utf-8-sig", newline="") as source:
             packet = csv.DictReader(source)
@@ -108,11 +113,11 @@ class Qualification(unittest.TestCase):
                 case = state["packet"][row["row_id"]]["case"]
                 if case in answers:
                     row["grade"] = answers[case]
-                    row["minutes_spent"] = "2"
+                    row["minutes_spent"] = str(minutes)
                     writer.writerow(row)
         return path
 
-    def refresh(self, output, path, expected=0):
+    def refresh(self, output, path, expected=0, flags=()):
         return json.loads(
             self.cli(
                 "refresh",
@@ -121,6 +126,7 @@ class Qualification(unittest.TestCase):
                 path,
                 "--format",
                 "json",
+                *flags,
                 expected=expected,
             )
         )
@@ -274,6 +280,8 @@ class Qualification(unittest.TestCase):
                 row_id,
                 "outside",
                 "Independent evidence review",
+                "--review-set",
+                z["adjudication"][row_id]["review_set"],
                 "--minutes",
                 "4",
                 "--format",
@@ -327,6 +335,261 @@ class Qualification(unittest.TestCase):
         self.assertTrue(disclosed["reviewer_unblinded"])
         self.assertIn(
             "A reviewer knew", (out / "report.html").read_text(encoding="utf-8")
+        )
+
+    def test_grading_evidence(self):
+        plan = self.plan_copy("comparison.toml")
+        archived = json.loads((self.root / "known-grades.json").read_text())
+        archived["grades"]["R-091"]["shared_sources"] = False
+        (self.root / "known-grades.json").write_text(json.dumps(archived))
+        data = self.existing_export()
+        out, first = self.comparison("excluded", plan)
+        self.assertIn("R-091", first["excluded_grading"])
+        with (out / "grading.csv").open(encoding="utf-8-sig", newline="") as file:
+            reader = csv.DictReader(file)
+            rows = list(reader)
+            fields = reader.fieldnames
+        self.assertFalse(any("R-091" in row["evidence_references"] for row in rows))
+        received = self.filled(
+            out,
+            {
+                "R-092": "outside",
+                "R-101": "meets",
+                "R-113": "meets",
+                "R-114": "meets",
+                "R-118": "meets",
+            },
+            "all-admissible.csv",
+        )
+        result = self.refresh(out, received, expected=1, flags=("--require-shadow",))
+        self.assertEqual(
+            (result["bounds"], result["recommendation"]), ([0, 6], "Inconclusive")
+        )
+        illegitimate = self.root / "excluded-revision.csv"
+        rows[0]["grade"] = "outside"
+        rows[0]["evidence_references"] = json.dumps(
+            archived["grades"]["R-091"]["evidence"]
+        )
+        with illegitimate.open("w", encoding="utf-8", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=fields)
+            writer.writeheader()
+            writer.writerow(rows[0])
+        self.assertEqual(
+            self.refresh(out, illegitimate, expected=2)["status"], "execution_error"
+        )
+        self.assertEqual(self.explanation(out), result)
+
+        data["shifts"][TUESDAY]["requests"]["R-091"]["evidence"] = [
+            "delivery-log/R-091@3"
+        ]
+        replaced, new = self.comparison(
+            "independent", plan, export=self.write_export(data)
+        )
+        self.assertNotIn("R-091", new["excluded_grading"])
+        independent = self.filled(
+            replaced,
+            {
+                "R-091": "outside",
+                "R-092": "outside",
+                "R-101": "meets",
+                "R-113": "meets",
+                "R-114": "meets",
+                "R-118": "meets",
+            },
+            "independent.csv",
+        )
+        self.assertEqual(
+            self.refresh(replaced, independent, flags=("--require-shadow",))["bounds"],
+            [1, 6],
+        )
+
+        plan = self.plan_copy(
+            "comparison.toml",
+            **{
+                "minimum_additional_exceptions = 1": "minimum_additional_exceptions = 12"
+            },
+        )
+        unreachable, result = self.comparison("hurdle", plan)
+        self.assertEqual(result["packet_rows"], 2)
+        self.assertEqual(
+            {
+                row["case"]
+                for row in load_report(unreachable / "report.html")["packet"].values()
+            },
+            {"R-091", "R-101"},
+        )
+        returned = self.filled(
+            unreachable, {"R-091": "outside", "R-101": "meets"}, "hurdle.csv"
+        )
+        self.assertEqual(
+            self.refresh(
+                unreachable, returned, expected=1, flags=("--require-shadow",)
+            )["recommendation"],
+            "Hold",
+        )
+
+    def test_return_order(self):
+        for index, answers in enumerate(
+            (("meets", "insufficient"), ("insufficient", "meets"))
+        ):
+            out, _ = self.comparison(f"order-{index}")
+            known = self.filled(
+                out,
+                {
+                    "R-091": "outside",
+                    "R-101": "meets",
+                    "R-113": "meets",
+                    "R-114": "meets",
+                },
+                "known.csv",
+            )
+            self.refresh(out, known)
+            for answer in answers:
+                response = self.filled(out, {"R-118": answer}, f"{answer}.csv")
+                self.refresh(out, response, flags=("--review-id", f"review-{answer}"))
+            disputed = self.explanation(out)
+            self.assertEqual(
+                (disputed["bounds"], disputed["recommendation"]),
+                ([0, 6], "Inconclusive"),
+            )
+            self.cli("explain", out / "report.html", "--require-shadow", expected=1)
+            [(row, details)] = disputed["adjudication"].items()
+            self.assertEqual(details["request"], "R-118")
+            args = [
+                "refresh",
+                out / "report.html",
+                "--adjudicate",
+                row,
+                "meets",
+                "Independent evidence review",
+                "--review-set",
+                details["review_set"],
+                "--format",
+                "json",
+            ]
+            self.assertEqual(
+                json.loads(self.cli(*args))["recommendation"], "Try in shadow"
+            )
+            retry = self.filled(out, {"R-118": "insufficient"}, "retry.csv")
+            self.assertEqual(
+                self.refresh(out, retry, flags=("--review-id", "review-insufficient"))[
+                    "recommendation"
+                ],
+                "Try in shadow",
+            )
+            reused_id = self.filled(
+                out, {"R-118": "insufficient"}, "another.csv", minutes=3
+            )
+            self.assertEqual(
+                self.refresh(
+                    out,
+                    reused_id,
+                    expected=2,
+                    flags=("--review-id", "review-insufficient"),
+                )["status"],
+                "execution_error",
+            )
+            reopened = self.refresh(
+                out, reused_id, expected=1, flags=("--require-shadow",)
+            )
+            self.assertEqual(reopened["bounds"], [0, 6])
+            self.assertEqual(reopened["effort"]["grading"]["events"], 5)
+            self.assertEqual(json.loads(self.cli(*args)), reopened)
+            stale = list(args)
+            stale[5] = "Stale adjudication"
+            self.assertEqual(
+                json.loads(self.cli(*stale, expected=2))["status"], "execution_error"
+            )
+
+    def test_revision_time(self):
+        db = self.root / "revision.sqlite"
+        self.cli("seed", "--db", db, module="examples.refunds.app")
+        with sqlite3.connect(db) as connection:
+            connection.execute("""UPDATE revision SET known_at = '2026-04-07T08:00:00+00:00'
+                WHERE request = 'R-121' AND revision = '1'""")
+        outcomes = []
+        for index, instant in enumerate(
+            ("2026-04-07T08:30:00+00:00", "2026-04-07T10:30:00+02:00")
+        ):
+            with sqlite3.connect(db) as connection:
+                connection.execute(
+                    """UPDATE revision SET known_at = ?,
+                    inputs = json_set(inputs, '$.conflict_priority', 999999, '$.refund_cents', 900)
+                    WHERE request = 'R-121' AND revision = '2'""",
+                    (instant,),
+                )
+            exported = self.root / f"clock-{index}"
+            self.cli(
+                "export", "--db", db, "--out", exported, module="examples.refunds.app"
+            )
+            snapshot = exported / "cutoff.json"
+            record = json.loads(snapshot.read_text())["shifts"][TUESDAY]["requests"][
+                "R-121"
+            ]
+            self.assertEqual(record["revision"], "2")
+            _, result = self.comparison(f"cutoff-{index}", export=snapshot)
+            self.assertIn("R-121", result["shifts"][TUESDAY]["gain"])
+            plain = json.loads(
+                self.cli("--export", snapshot, module="examples.refunds.baseline")
+            )
+            self.assertEqual(plain["gain"], result["shifts"][TUESDAY]["gain"])
+            outcomes.append(result["shifts"][TUESDAY])
+        self.assertEqual(outcomes[0], outcomes[1])
+        with sqlite3.connect(db) as connection:
+            connection.execute("""UPDATE revision SET known_at = '2026-04-07T08:00:00.000001-01:00'
+                WHERE request = 'R-121' AND revision = '2'""")
+        self.cli("export", "--db", db, "--out", exported, module="examples.refunds.app")
+        data = json.loads(snapshot.read_text())
+        self.assertEqual(data["shifts"][TUESDAY]["requests"]["R-121"]["revision"], "1")
+        data["shifts"][TUESDAY]["requests"]["R-121"]["known_at"] = (
+            "2026-04-07T08:00:00.000001-01:00"
+        )
+        changed = self.write_export(data)
+        _, late = self.comparison("late", export=changed)
+        self.assertIn("later than the cutoff", late["shifts"][TUESDAY]["reason"])
+        plain = json.loads(
+            self.cli("--export", changed, module="examples.refunds.baseline")
+        )
+        self.assertEqual(plain["batch"], "Not replayable")
+
+    def test_lead_report(self):
+        out, _ = self.comparison("lead")
+        report = out / "report.html"
+        text = report.read_text().split('<script type="application/json"')[0]
+        self.assertIn(
+            "Did the requested quantity exceed the quantity recorded as delivered at cutoff?",
+            text,
+        )
+        self.assertRegex(
+            text,
+            r"Lose review · 20</h3><p><strong>Confirmed exceptions · 10</strong></p>"
+            r'<ul class="cases"><li>R-073</li>',
+        )
+        dispute = self.filled(out, {"R-091": "meets"}, "dispute.csv")
+        result = self.refresh(out, dispute)
+        [(row, info)] = result["adjudication"].items()
+        text = report.read_text().split('<script type="application/json"')[0]
+        self.assertIn("Adjudicate disputed grades", text)
+        self.assertIn(
+            f"--adjudicate {row} GRADE REASON --review-set {info['review_set']}", text
+        )
+        shadow, _ = self.comparison("shadow-new", EXAMPLE / "shadow.toml")
+        old = load_report(shadow / "report.html")
+        old["schema"] = 1
+        legacy = self.root / "legacy.html"
+        legacy.write_text(render_report(old), encoding="utf-8")
+        summary = json.loads(
+            self.cli(
+                "explain", legacy, "--require-shadow", "--format", "json", expected=1
+            )
+        )
+        self.assertTrue(summary["legacy_report"])
+        self.assertEqual(summary["recommendation"], "Inconclusive")
+        self.assertIn(
+            "re-run compare",
+            self.cli(
+                "refresh", legacy, "--grades", dispute, "--format", "json", expected=2
+            ).lower(),
         )
 
     def test_capacity(self):
@@ -397,6 +660,41 @@ class Qualification(unittest.TestCase):
         )
         _, veto = self.comparison("missing-veto", plan, export=self.write_export(data))
         self.assertEqual(veto["recommendation"], "Hold")
+
+        data = self.existing_export()
+        cutoff = data["shifts"][SATURDAY].pop("cutoff")
+        _, tuesday_only = self.comparison(
+            "unscoped-cutoff",
+            EXAMPLE / "hold.toml",
+            export=self.write_export(data),
+            gate=True,
+            expected=1,
+        )
+        self.assertEqual(tuesday_only["recommendation"], "Hold")
+        self.assertNotIn(SATURDAY, tuesday_only["shifts"])
+        _, broken_cutoff = self.comparison(
+            "scoped-cutoff", plan, export=self.write_export(data), gate=True, expected=1
+        )
+        self.assertEqual(broken_cutoff["recommendation"], "Hold")
+        self.assertIn("cutoff", broken_cutoff["shifts"][SATURDAY]["reason"])
+        data["shifts"][SATURDAY]["cutoff"] = cutoff
+        for index, field in enumerate(("conflict_priority", "refund_cents")):
+            row = data["shifts"][SATURDAY]["requests"]["S-001"]["inputs"]
+            removed = row.pop(field)
+            _, broken_input = self.comparison(
+                f"missing-ranking-{index}",
+                plan,
+                export=self.write_export(data),
+                gate=True,
+                expected=1,
+            )
+            self.assertEqual(broken_input["recommendation"], "Hold")
+            self.assertEqual(
+                broken_input["shifts"][SATURDAY]["status"], "Not replayable"
+            )
+            self.assertIn(field, broken_input["shifts"][SATURDAY]["reason"])
+            self.assertTrue(any("R-041" in veto for veto in broken_input["vetoes"]))
+            row[field] = removed
 
         # Independent two-shift arithmetic: one loss on Tuesday, two gains on Saturday.
         def shift(live, candidate):
@@ -486,8 +784,63 @@ class Qualification(unittest.TestCase):
                     for row in reader
                 )
             )
+        ledger = json.loads((EXAMPLE / "review-ledger.json").read_text())
+        paths = []
+        for name, records in (
+            ("agreement", ledger[:5]),
+            ("disagreement", ledger[:6]),
+            ("adjudicated", ledger),
+        ):
+            path = self.root / f"{name}.json"
+            path.write_text(json.dumps(records))
+            paths.append(path)
+
+        first = {event["case"]: event["grade"] for event in ledger[:5]}
+        csv_path = self.filled(prepared, first, "agreement.csv")
+        stage_one = self.refresh(prepared, csv_path)
+        csv_path = self.filled(prepared, {"R-091": "meets"}, "disagreement.csv")
+        stage_two = self.refresh(prepared, csv_path)
+        [(row, dispute)] = stage_two["adjudication"].items()
+        stage_three = json.loads(
+            self.cli(
+                "refresh",
+                prepared / "report.html",
+                "--adjudicate",
+                row,
+                "outside",
+                ledger[-1]["reason"],
+                "--review-set",
+                dispute["review_set"],
+                "--minutes",
+                "4",
+                "--format",
+                "json",
+                "--require-shadow",
+            )
+        )
+        self.assertEqual(
+            [stage["recommendation"] for stage in (stage_one, stage_two, stage_three)],
+            ["Try in shadow", "Inconclusive", "Try in shadow"],
+        )
+        for path, telryn in zip(paths, (stage_one, stage_two, stage_three)):
+            sql = json.loads(
+                self.cli(
+                    "--export",
+                    exported / "cutoff.json",
+                    "--grades",
+                    exported / "known-grades.json",
+                    "--ledger",
+                    path,
+                    module="examples.refunds.baseline",
+                )
+            )
+            for field in ("bounds", "recommendation", "pending_cross_checks", "effort"):
+                self.assertEqual(sql[field], telryn[field], field)
+            self.assertEqual(
+                sql["disputed"], [v["request"] for v in telryn["adjudication"].values()]
+            )
         db.unlink()
-        self.assertEqual(self.explanation(prepared), result)
+        self.assertEqual(self.explanation(prepared), stage_three)
 
     def test_recovery(self):
         out, before = self.comparison("recover")

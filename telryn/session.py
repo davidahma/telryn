@@ -7,12 +7,13 @@ import os
 import shutil
 import sys
 import tempfile
+from collections import Counter
 from contextlib import redirect_stdout
 from pathlib import Path
 
 from .contracts import InputError, fingerprint, load_export, load_plan
 from .grades import add_packet, adjudicate, import_packet, initial_grades, write_packet
-from .replay import Selector, replay_shift
+from .replay import Selector, blocked, replay_shift
 from .report import load_report, render_report
 
 
@@ -36,14 +37,27 @@ def compare(plan_path: Path, export_path: Path | None = None) -> dict:
             )
             for name in plan["required_shifts"]
         }
-    grades, grade_digest = initial_grades(
+    replayed = {
+        name: source["shifts"][name]["membership"]["ids"]
+        for name, shift in shifts.items()
+        if shift["status"] == "Replayable"
+    }
+    counts = Counter(case for ids in replayed.values() for case in ids)
+    for name, ids in replayed.items():
+        overlap = sorted(case for case in ids if counts[case] > 1)
+        if overlap:
+            shifts[name] = blocked(
+                f"Eligible request IDs overlap required shifts: {', '.join(overlap)}."
+            )
+    grades, grade_digest, excluded = initial_grades(
         base / plan["grades"] if "grades" in plan else None, plan, shifts
     )
     state = {
-        "schema": 1,
+        "schema": 2,
         "plan": plan,
         "shifts": shifts,
         "initial_grades": grades,
+        "excluded_grading": excluded,
         "frozen": {
             "export": fingerprint(source),
             "grades": grade_digest,
@@ -103,6 +117,8 @@ def refresh(
     resolution: tuple[str, str, str] | None,
     minutes: int | None = None,
     reviewer_unblinded: bool = False,
+    review_id: str | None = None,
+    expected_review_set: str | None = None,
 ) -> dict:
     path = path.resolve(strict=True)
     lock = path.with_name(f".{path.name}.lock")
@@ -111,12 +127,20 @@ def refresh(
     with os.fdopen(fd, "a") as lock_stream:
         fcntl.flock(lock_stream, fcntl.LOCK_EX)
         state = load_report(path)
+        if state["schema"] != 2:
+            raise InputError(
+                "re-run compare for this v0.1.0 report before importing or adjudicating grades"
+            )
         if grades is not None:
-            changed = import_packet(grades, state)
+            changed = import_packet(grades, state, review_id)
         else:
             if resolution is None:
                 raise InputError("refresh requires returned grades or an adjudication")
-            changed = adjudicate(state, *resolution, minutes)
+            if expected_review_set is None:
+                raise InputError(
+                    "--adjudicate requires --review-set from the current report"
+                )
+            changed = adjudicate(state, *resolution, minutes, expected_review_set)
         if reviewer_unblinded and not state.get("reviewer_unblinded", False):
             state["reviewer_unblinded"] = True
             changed = True

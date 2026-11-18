@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import secrets
 from datetime import timedelta
 from pathlib import Path
@@ -32,13 +33,14 @@ COLUMNS = (
 
 def initial_grades(
     path: Path | None, plan: dict, shifts: dict
-) -> tuple[dict[str, str], str | None]:
+) -> tuple[dict[str, str], str | None, dict[str, str]]:
     if path is None:
-        return {}, None
+        return {}, None, {}
     source = read_json(path, "grades")
     if source.get("rubric") != plan["rubric"]:
         raise InputError("the initial grade file uses a different rubric")
     accepted: dict[str, str] = {}
+    excluded: dict[str, str] = {}
     records = mapping(source.get("grades"), "initial grades")
     by_case = {}
     for shift in shifts.values():
@@ -48,6 +50,8 @@ def initial_grades(
                 by_case[case] = (cutoff, row)
     window = timedelta(hours=plan["evidence_window_hours"])
     for case, record in records.items():
+        if case not in by_case:
+            continue
         mapping(record, f"grade for {case}")
         answer = record.get("grade")
         if not isinstance(answer, str) or answer not in ANSWERS:
@@ -57,18 +61,26 @@ def initial_grades(
         shared_sources = record.get("shared_sources")
         if type(shared_sources) is not bool:
             raise InputError(f"{case} grade requires a shared_sources boolean")
-        if case not in by_case:
-            continue
         cutoff, row = by_case[case]
+        admissible_time = cutoff <= when <= cutoff + window
+        if set(refs).intersection(row["evidence"]):
+            if not shared_sources:
+                excluded[case] = (
+                    "The listed evidence includes a source unavailable to both rules."
+                )
+            elif not admissible_time:
+                excluded[case] = (
+                    "The listed evidence includes a revision outside the grading window."
+                )
         if (
             answer != "insufficient"
             and shared_sources
             and refs
             and set(refs) == set(row["evidence"])
-            and cutoff <= when <= cutoff + window
+            and admissible_time
         ):
             accepted[case] = answer
-    return accepted, fingerprint(source)
+    return accepted, fingerprint(source), excluded
 
 
 def add_packet(state: dict) -> None:
@@ -86,7 +98,7 @@ def add_packet(state: dict) -> None:
                 evidence = state["shifts"][shift]["rows"][case]["evidence"]
                 if case in accepted:
                     candidates[side].append((case, evidence))
-                elif evidence:
+                elif evidence and case not in state["excluded_grading"]:
                     unknown.append((case, evidence, False))
     required = plan["cross_checks_per_side"]
     controls = []
@@ -100,9 +112,7 @@ def add_packet(state: dict) -> None:
             controls.extend((case, refs, True) for case, refs in records[:required])
     interval = current["bounds"]
     count_open = interval is None or interval[0] < current["hurdle"] <= interval[1]
-    work = []
-    if not hard_veto:
-        work = controls + (unknown if count_open or controls else [])
+    work = controls + (unknown if count_open and not hard_veto else [])
     budget = plan["grading_budget"]
     rng = secrets.SystemRandom()
     chosen = work[:budget]
@@ -116,6 +126,11 @@ def add_packet(state: dict) -> None:
             "review_revision": "V-" + secrets.token_hex(12),
         }
     reasons = []
+    if controls and not count_open:
+        reasons.append(
+            "Only cross-checks were issued because the current range is already on one side of the hurdle. "
+            "If a check changes the range, reassess the grading plan."
+        )
     if not packet:
         if hard_veto:
             reasons.append(
@@ -170,7 +185,13 @@ def write_packet(path: Path, state: dict) -> None:
             )
 
 
-def import_packet(path: Path, state: dict) -> bool:
+def import_packet(path: Path, state: dict, review_id: str | None = None) -> bool:
+    if review_id is not None and not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}", review_id
+    ):
+        raise InputError(
+            "review ID must be 1–80 letters, digits, dots, underscores, or hyphens"
+        )
     changed = False
     with path.open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream, strict=True)
@@ -204,24 +225,41 @@ def import_packet(path: Path, state: dict) -> bool:
                 raise InputError(
                     f"row {row_id} grade must be meets, outside, or insufficient"
                 )
-            events = state["grade_history"].setdefault(row_id, [])
-            if any(
-                event["kind"] == "return" and event["grade"] == answer
-                for event in events
-            ):
-                continue
-            events.append(
-                {
-                    "kind": "return",
-                    "grade": answer,
-                    "minutes": minutes,
-                    "review_revision": row["review_revision"],
-                }
+            if row["case"] in state["excluded_grading"]:
+                raise InputError(f"row {row_id} contains excluded evidence")
+            delivery = {"grade": answer, "minutes": minutes}
+            receipt = (
+                "review:" + review_id
+                if review_id
+                else "content:" + fingerprint(delivery)
             )
+            event = {
+                "kind": "return",
+                "id": receipt,
+                **delivery,
+                "review_revision": row["review_revision"],
+            }
+            events = state["grade_history"].setdefault(row_id, [])
+            prior = next((item for item in events if item.get("id") == receipt), None)
+            if prior is not None:
+                if prior != event:
+                    raise InputError(
+                        f"review ID {review_id!r} was already used for a different return on row {row_id}"
+                    )
+                continue
+            events.append(event)
             changed = True
         if not received_row:
             raise InputError("returned CSV has no rows to bind to this comparison")
     return changed
+
+
+def pending_reviews(events: list[dict]) -> tuple[dict | None, list[dict]]:
+    """Separate the latest adjudication from the independent returns it did not see."""
+    for index in range(len(events) - 1, -1, -1):
+        if events[index]["kind"] == "adjudication":
+            return events[index], events[index + 1 :]
+    return None, events
 
 
 def grade_status(state: dict) -> tuple[dict[str, str], int, dict[str, str]]:
@@ -230,42 +268,39 @@ def grade_status(state: dict) -> tuple[dict[str, str], int, dict[str, str]]:
     status = {}
     for row_id, row in state["packet"].items():
         case = row["case"]
-        prior = grades.get(case)
-        current = prior
-        disputed = False
-        confirmed = False
-        returned = False
-        for event in state["grade_history"].get(row_id, []):
-            answer = event["grade"]
-            returned = True
-            if event["kind"] == "adjudication":
-                current = None if answer == "insufficient" else answer
-                disputed = False
-                confirmed = current is not None
-            elif answer == "insufficient":
-                disputed = disputed or current is not None
-                confirmed = False
-            elif current is not None and current != answer:
-                disputed = True
-                confirmed = False
-            elif not disputed:
-                current = answer
-                confirmed = True
-        if disputed or current is None:
+        last_decision, reviews = pending_reviews(state["grade_history"].get(row_id, []))
+        reference = last_decision["grade"] if last_decision else grades.get(case)
+        if reference == "insufficient":
+            reference = None
+        considered = {event["grade"] for event in reviews}
+        if reference is not None:
+            considered.add(reference)
+        if len(considered) > 1:
             grades.pop(case, None)
-        else:
-            grades[case] = current
-        if row["control"] and confirmed:
-            pending -= 1
-        if disputed:
             status[row_id] = "disputed"
-        elif confirmed:
-            status[row_id] = "accepted"
-        elif returned:
+        elif considered == {"insufficient"} or (not considered and last_decision):
+            grades.pop(case, None)
             status[row_id] = "insufficient"
+        elif reviews or last_decision:
+            grade = next(iter(considered))
+            grades[case] = grade
+            status[row_id] = "accepted"
+            if row["control"]:
+                pending -= 1
         else:
             status[row_id] = "awaiting return"
     return grades, pending, status
+
+
+def review_set(row_id: str, events: list[dict]) -> str:
+    decision, remaining = pending_reviews(events)
+    return fingerprint(
+        [
+            row_id,
+            decision["id"] if decision else None,
+            sorted(event["id"] for event in remaining),
+        ]
+    )
 
 
 def parse_minutes(value: str | None) -> int | None:
@@ -303,23 +338,34 @@ def record_effort(state: dict) -> dict:
 
 
 def adjudicate(
-    state: dict, row_id: str, answer: str, reason: str, minutes: int | None
+    state: dict,
+    row_id: str,
+    answer: str,
+    reason: str,
+    minutes: int | None,
+    expected_set: str,
 ) -> bool:
     if row_id not in state["packet"]:
         raise InputError("the adjudication row is outside this comparison")
     if answer not in ANSWERS or not reason.strip():
         raise InputError("adjudication needs a valid grade and a brief reason")
-    events = state["grade_history"].get(row_id)
-    if not events:
-        raise InputError("return a grade before adjudicating its row")
+    events = state["grade_history"].get(row_id, [])
     event = {
         "kind": "adjudication",
         "grade": answer,
         "reason": reason.strip(),
         "minutes": minutes,
+        "review_set": expected_set,
         "review_revision": state["packet"][row_id]["review_revision"],
     }
-    if event == events[-1]:
+    event["id"] = "decision:" + fingerprint(event)
+    if any(previous.get("id") == event["id"] for previous in events):
         return False
+    if expected_set != review_set(row_id, events):
+        raise InputError(
+            "the review set changed; open the refreshed lead report before adjudicating"
+        )
+    if grade_status(state)[2][row_id] != "disputed":
+        raise InputError("only a disputed row can be adjudicated")
     events.append(event)
     return True
