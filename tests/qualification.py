@@ -547,8 +547,11 @@ class Qualification(unittest.TestCase):
         with sqlite3.connect(db) as connection:
             connection.execute("""UPDATE revision SET known_at = '2026-04-07T08:00:00.000001-01:00'
                 WHERE request = 'R-121' AND revision = '2'""")
-        self.cli("export", "--db", db, "--out", exported, module="examples.refunds.app")
-        data = json.loads(snapshot.read_text())
+        late_export = self.root / "late-clock"
+        self.cli(
+            "export", "--db", db, "--out", late_export, module="examples.refunds.app"
+        )
+        data = json.loads((late_export / "cutoff.json").read_text())
         self.assertEqual(data["shifts"][TUESDAY]["requests"]["R-121"]["revision"], "1")
         data["shifts"][TUESDAY]["requests"]["R-121"]["known_at"] = (
             "2026-04-07T08:00:00.000001-01:00"
@@ -1366,6 +1369,12 @@ def qualify(case: str | None = None) -> int:
         Qualification(f"test_{name.replace('-', '_')}")
         for name in ([case] if case else CASES)
     )
+    if case is None:
+        suite.addTests(
+            unittest.defaultTestLoader.discover(
+                str(ROOT / "tests"), pattern="test_*.py", top_level_dir=str(ROOT)
+            )
+        )
     import sqlite3
 
     print(

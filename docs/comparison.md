@@ -5,6 +5,11 @@ disjoint historical shifts that start fresh, a single combined exception-count
 hurdle, and per-shift operating limits. Keep configuration, rule source and
 cutoff evidence stable while reviewers hold a packet.
 
+When the export includes a named tuning shift, supply its eligible membership.
+Telryn excludes a required shift if either membership lists any of the same
+requests. When tuning data is kept elsewhere, the lead must verify that its
+cases are disjoint from the held-out population.
+
 ## Definition
 
 The version 1 TOML format is illustrated by
@@ -47,7 +52,7 @@ keyed by shift ID.
 | `membership.source`, `membership.ids` | A reference to an independently recorded eligible queue and its complete ID list. |
 | `requests.<id>.revision`, `known_at`, `inputs` | The exact source revision, when it was available, and its cutoff decision inputs. Reserve the field `id` for Telryn. Use availability time even when a correction has an earlier effective date. |
 | `requests.<id>.evidence` | Permitted references to exact evidence revisions for the rubric. |
-| `requests.<id>.minutes` | `null` for unknown time or `{lower, upper, basis}` in whole minutes. Use `observed` for a point value and `estimated` for a supported range. An estimated upper bound may be `null`. |
+| `requests.<id>.minutes` | `null` for unknown time or `{lower, upper, basis}` in whole minutes. Use `observed` for a point value and `estimated` for a supported range. Omit an unknown estimated upper bound or use `null`. |
 | `capacity`, `live_version`, `tie_break`, `actual` | Historical limits, rule identity, stable tie-break identifier, and recorded picks in final slot order. |
 | `mandatory`, `overrides` | IDs requiring review under the policy and the ordered records explaining historical interventions. Use an empty list for a known absence. |
 
@@ -61,7 +66,10 @@ separate check. Document which deterministic behavior reflects your queue.
 
 Missing membership, material cutoff revisions, uncertain overrides, or a
 live replay divergence make the affected shift **Not replayable**. Cutoff
-timestamps compare instants with their UTC offsets. Missing ranking inputs
+timestamps compare instants with their UTC offsets and retain all fractional
+second digits, including nanoseconds. A revision exactly at cutoff qualifies.
+The same precision applies to both endpoints of the grading window. Use
+`Z` or a numeric UTC offset with whole seconds. Missing ranking inputs
 accessed directly on cutoff rows also block only that shift. Invalid
 selectors still return an execution error. A valid shift with a
 confirmed operational veto can still determine **Hold** when another shift is
@@ -90,12 +98,16 @@ already know which requests changed. Record this with
 `refresh --reviewer-unblinded` on the return. Reviewers may leave `grade` blank or enter
 `meets`, `outside`, or `insufficient`.
 
-An unchanged return for a row is idempotent. The default identity uses its
+Each row ID may appear once per returned CSV, including rows left blank.
+A duplicate rejects the entire file. An unchanged return in a later file is
+idempotent. The default identity uses its
 normalized grade and minutes. Supply `refresh --review-id NAME` for independent
 reviews with identical content. Keep that ID on retries. Reusing the same ID
 with changed contents fails. Mixed answers, including a definitive grade and
 `insufficient`, leave the row unknown and require an independent adjudication.
-New conflicting reviews can reopen a previous adjudication.
+A definitive return after an `insufficient` adjudication reopens the dispute
+on that evidence. Any required control stays pending until the conflict is
+resolved.
 
 The lead report and JSON output show the row ID and current review set for a
 dispute. Record the adjudication against that set so a stale decision cannot
@@ -105,14 +117,18 @@ silence a newer return:
 python3 -m telryn refresh runs/tuesday/report.html --adjudicate ROW_ID outside "Independent review of the same evidence" --review-set REVIEW_SET --minutes 2
 ```
 
-A v0.1.0 saved report remains readable as a historical artifact. Re-run
-`compare` and issue a fresh packet before importing grades or using
-`--require-shadow` with that comparison.
+A saved report from v0.3.0 or earlier remains readable. Browsers show the
+historical verdict embedded at publication. Current `explain --require-shadow`
+withholds approval because the saved report lacks the per-request timestamps
+needed to repeat the corrected cutoff checks. Run `compare` on the original
+export and issue the new packet before resuming grading, qualifying a pilot,
+or recording a new shadow trial. Old packet IDs belong to the original report.
 
 `explain` uses the report's embedded evidence snapshot and works after the
 source app has stopped. Refresh takes an advisory lock and atomically replaces
 the report on the local filesystem. Retain the lock file while refreshes may
-run. Keep the original blank packet for another partial return. Treat the
+run. Telryn creates the grading CSV with owner-only read and write permissions.
+Keep the original blank packet for another partial return. Treat the
 report, source exports, working directories, and returned packets as sensitive.
 Default reports use case references, and the analyst should keep raw customer
 messages out of inputs. Apply retention to all copies. If evidence or a grade
@@ -151,6 +167,12 @@ confirmation of completeness.
 | `columns` | Optional aliases for `id`, `slot`, `revision`, `known_at`, `evidence`, `cohort`, `lower_minutes`, `upper_minutes`, and `time_basis`. Use `eligible_id`, `picks_id`, or `cutoff_id` for source-specific ID columns. Other unmapped names use their logical headers. |
 | `inputs` | Logical ranking field to numeric CSV column. Use finite values and stable score precision. |
 | `shifts.<shift>` | Relative or absolute paths for `eligible`, `picks`, and `cutoff_inputs` CSVs, plus `cutoff`, `capacity`, `live_version`, `tie_break`, `membership_source`, `mandatory`, and `overrides`. Use empty lists for a verified absence of mandatory cases or overrides. |
+
+CSV and JSON ranking inputs must retain their value when normalized. Common
+decimal scores such as `0.1` are supported. If a fractional value would round
+to a different decimal or underflow to zero, Telryn reports the precision
+loss. Use a documented integer scale or a string-aware selector when more
+precision is required.
 
 The eligibility CSV contains IDs and comes from a separate authoritative source.
 Recorded picks use consecutive slot numbers starting at 1. The cutoff CSV has
@@ -197,6 +219,13 @@ IDs. The report retains the exact query hash and SQLite runtime version in
 its embedded evidence. Review SQL as part of the comparison definition and
 verify any manual reviewer substitutions through the ordinary override log.
 
+Declare every ranking field in `required_inputs`. Integer values in those
+fields, including nested values, must fit SQLite's signed 64-bit range.
+An out-of-range value makes that shift **Not replayable**, since SQLite can
+round distinct JSON integers to the same score. Python selectors retain the
+exact integer from a JSON export. For SQL rules that already rank textual
+identifiers, preserve the identifiers as strings in the source export.
+
 ## Cap serious cases losing review
 
 A comparison can add a `[serious]` table with `max_lost`, `rubric`,
@@ -233,7 +262,9 @@ The allowed actions are `adopt`, `revise`, `hold`, and `continue`. Each
 entry in `batches` names a replayable `reference_shift` and lists the
 observed candidate `picks` in order. Each pick has an ID, a cohort, and
 optionally whole `minutes` recorded by the reviewer. Missing minutes stay
-unmeasured. Use the same cohort definition as the historical export.
+unmeasured. Use the same cohort definition as the historical export. Remove
+unlisted fields before import, including transcript text. The report records
+the decision revision that qualified the trial when it was imported.
 
 Telryn writes observations into the existing report atomically and leaves the
 grading CSV as issued. It compares observed case mix, volume, and recorded
@@ -245,10 +276,14 @@ decision. The import does not schedule reviews or change live routing.
 
 Run `python3 -m telryn benchmark REPORT PILOT.json --format json`. The
 [version 1 example](../examples/support-qa/pilot-record.json) uses the saved
-report’s `comparison_id` and `decision_revision`, a calendar `decision_date`, a `comparator` label,
+report’s `comparison_id` and `decision_revision`, the UTC calendar `decision_date`, a `comparator` label,
 `evidence` of `synthetic` or `observed`, and a positive
 `material_minutes_saved`. Optionally enter `policy_changes_last_year`. Use
 nonnegative whole minutes for each effort phase in `baseline` and `telryn`.
+The decision date must be on or after every replayed cutoff's UTC date.
+Telryn reviewer minutes must cover the grading and cross-check minutes already
+logged in the report. Adjudication minutes must cover the logged adjudication
+time. Add separately measured or previously untimed work to the matching phase.
 
 The recorded `matched` conditions and the lead’s `equally_supported` judgment
 are operator attestations. Telryn verifies the comparison identity and grade revision, then checks

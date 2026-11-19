@@ -7,8 +7,15 @@ from html import escape
 from pathlib import Path
 
 from . import shadow
-from .contracts import InputError, canonical, fingerprint, mapping, versioned
-from .decision import INCONCLUSIVE, evaluate
+from .contracts import (
+    REPORT_SCHEMA,
+    InputError,
+    canonical,
+    fingerprint,
+    mapping,
+    versioned,
+)
+from .decision import INCONCLUSIVE, SHADOW, evaluate
 from .grades import grade_status, record_effort, review_set
 
 STATE_OPEN = '<script type="application/json" id="telryn-evidence">'
@@ -49,14 +56,16 @@ code { overflow-wrap:anywhere; }
 def recommendation(state: dict) -> dict:
     grades, serious, pending, status = grade_status(state)
     summary = evaluate(state, grades, pending, serious)
-    legacy = state["schema"] == 1
+    legacy = state["schema"] < REPORT_SCHEMA
     if legacy:
-        if not summary["operational_veto"]:
+        if (state["schema"] == 1 and not summary["operational_veto"]) or summary[
+            "recommendation"
+        ] == SHADOW:
             summary["recommendation"] = INCONCLUSIVE
             summary["vetoes"] = []
         summary["open_items"].insert(
             0,
-            "This v0.1.0 snapshot cannot authorize shadow. Re-run compare with the current version.",
+            "This older snapshot predates the current cutoff checks. Re-run compare and issue a fresh packet before using the shadow gate.",
         )
     summary.update(
         {
@@ -100,7 +109,11 @@ def load_report(path: Path) -> dict:
         raise InputError("this file has no Telryn decision snapshot")
     envelope = versioned(json.loads(raw), "report")
     state = mapping(envelope.get("state"), "report state")
-    if type(state.get("schema")) is not int or state["schema"] not in (1, 2):
+    if type(state.get("schema")) is not int or state["schema"] not in (
+        1,
+        2,
+        REPORT_SCHEMA,
+    ):
         raise InputError("unsupported report state schema")
     if fingerprint(state) != envelope.get("checksum"):
         raise InputError("the embedded report snapshot is damaged or modified")
@@ -115,7 +128,7 @@ def signed_range(value: list[int] | None) -> str:
 
 
 def time_range(time: dict) -> str:
-    upper = time["upper"]
+    upper = time.get("upper")
     return (
         f"{time['lower']}–{upper} min"
         if upper is not None
@@ -406,6 +419,15 @@ def shadow_html(trials: dict) -> str:
             f"<h3>{escape(trial_id)}</h3><p>Observed {escape(trial['observed_at'])} · "
             f"Lead decision <strong>{escape(owner['action'])}</strong> · {escape(owner['note'])}</p>"
         )
+        revision = trial.get("decision_revision")
+        if revision:
+            parts.append(
+                f"<p>Qualifying decision revision <code>{escape(revision)}</code></p>"
+            )
+        else:
+            parts.append(
+                "<p>This historical trial has no recorded qualifying decision revision.</p>"
+            )
         for name, batch in trial["batches"].items():
             lower, upper = batch["projected_minutes"]
             ref = escape(batch["reference_shift"])

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import tempfile
+import re
 import sqlite3
 from contextlib import closing
 from datetime import datetime, timezone
@@ -137,11 +140,29 @@ def seed(path: Path) -> None:
             """)
 
 
-def utc_timestamp(value: str) -> str:
-    instant = datetime.fromisoformat(value)
-    if instant.utcoffset() is None:
+def instant(value: str) -> tuple[datetime, str]:
+    parsed = datetime.fromisoformat(value)
+    if parsed.utcoffset() is None:
         raise ValueError("source timestamps must include a UTC offset")
-    return instant.astimezone(timezone.utc).isoformat(timespec="microseconds")
+    match = re.fullmatch(
+        r"\d{4}-?(?:\d{2}-?\d{2}|W\d{2}(?:-?\d)?)."
+        r"\d{2}(?::?\d{2}){0,2}(?:[.,](\d+))?(?:Z|[+-]\d{2}(?::?\d{2}){0,2})",
+        value,
+        re.ASCII | re.DOTALL,
+    )
+    if match is None:
+        raise ValueError(
+            "source timestamp needs an ISO time and whole-second UTC offset"
+        )
+    fraction = match[1] or ""
+    return parsed, fraction[6:].rstrip("0")
+
+
+def utc_timestamp(value: str) -> str:
+    parsed, remainder = instant(value)
+    utc = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    # Fixed-width UTC through microseconds, followed by the exact submicrosecond part.
+    return utc.isoformat(timespec="microseconds") + remainder
 
 
 def snapshot(connection: sqlite3.Connection) -> tuple[dict, dict]:
@@ -212,6 +233,8 @@ def snapshot(connection: sqlite3.Connection) -> tuple[dict, dict]:
     for case, grade, evidence, when, shared in connection.execute(
         "SELECT request, grade, evidence, evidence_at, shared_sources FROM archived_grade ORDER BY request"
     ):
+        if type(shared) is not int or shared not in (0, 1):
+            raise ValueError(f"{case} has invalid shared-source status")
         grades[case] = {
             "grade": grade,
             "evidence": json.loads(evidence),
@@ -229,6 +252,42 @@ def write_json(path: Path, value: dict) -> None:
     with path.open("w", encoding="utf-8") as stream:
         json.dump(value, stream, ensure_ascii=False, indent=2)
         stream.write("\n")
+
+
+def export_snapshot(connection: sqlite3.Connection, out: Path) -> None:
+    # The eligibility ledger, revisions, picks and grades must share one SQLite snapshot.
+    connection.execute("BEGIN")
+    try:
+        export, grades = snapshot(connection)
+    finally:
+        connection.rollback()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".refunds-export-", dir=out.parent))
+    try:
+        for name, value in (("cutoff.json", export), ("known-grades.json", grades)):
+            write_json(staging / name, value)
+        if not out.exists() and not out.is_symlink():
+            try:
+                staging.rename(out)
+                return
+            except OSError:
+                if not out.exists():
+                    raise
+        if (
+            out.is_dir()
+            and not out.is_symlink()
+            and all(
+                (out / child.name).is_file()
+                and not (out / child.name).is_symlink()
+                and (out / child.name).read_bytes() == child.read_bytes()
+                for child in staging.iterdir()
+            )
+        ):
+            return
+        raise ValueError(f"choose a new export directory for a changed snapshot: {out}")
+    finally:
+        if staging.exists():
+            shutil.rmtree(staging)
 
 
 def main() -> int:
@@ -250,10 +309,7 @@ def main() -> int:
             sqlite3.connect(args.db.resolve().as_uri() + "?mode=ro", uri=True)
         ) as connection:
             if args.command == "export":
-                args.out.mkdir(parents=True, exist_ok=True)
-                export, grades = snapshot(connection)
-                write_json(args.out / "cutoff.json", export)
-                write_json(args.out / "known-grades.json", grades)
+                export_snapshot(connection, args.out)
             else:
                 for ref in args.references:
                     found = connection.execute(
@@ -261,9 +317,9 @@ def main() -> int:
                     ).fetchone()
                     if found is None:
                         raise ValueError(f"no evidence stored at {ref}")
-                    print(f"{ref}  {found[0]}")
+                    print(f"{ref!r}  {found[0]!r}")
     except (OSError, sqlite3.Error, ValueError) as exc:
-        parser.exit(2, f"refunds: {exc}\n")
+        parser.exit(2, f"refunds: {str(exc)!r}\n")
     return 0
 
 

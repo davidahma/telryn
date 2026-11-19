@@ -4,14 +4,25 @@ from __future__ import annotations
 
 import csv
 import json
-import math
 import os
 import tempfile
 import tomllib
 from collections import Counter
+from contextlib import contextmanager
 from pathlib import Path
 
-from .contracts import InputError, mapping, string, timestamp, unique_ids, versioned
+from .artifacts import sync_directory
+from .contracts import (
+    InputError,
+    canonical,
+    exact_number,
+    mapping,
+    string,
+    timestamp,
+    unique_ids,
+    validate_request,
+    versioned,
+)
 from .replay import cutoff_issue
 
 CAPTURE = {
@@ -26,6 +37,14 @@ class MissingSource(InputError):
     def __init__(self, source: str, message: str):
         super().__init__(message)
         self.source = source
+
+
+@contextmanager
+def source_errors(kind: str):
+    try:
+        yield
+    except (ValueError, OSError, csv.Error) as exc:
+        raise MissingSource(kind, str(exc)) from exc
 
 
 def file_rows(path: Path, columns: list[str]) -> list[dict]:
@@ -52,37 +71,19 @@ def whole(value: str, label: str) -> int:
         raise InputError(f"{label} needs a whole number") from exc
 
 
-def score(value: str, label: str) -> int | float:
-    try:
-        return int(value)
-    except ValueError:
-        try:
-            number = float(value)
-        except ValueError as exc:
-            raise InputError(f"{label} needs a finite number") from exc
-        if not math.isfinite(number):
-            raise InputError(f"{label} needs a finite number")
-        return number
-
-
 def convert(base: Path, spec: dict, columns: dict, inputs: dict) -> dict:
     def column(name: str) -> str:
         return columns.get(name, name)
 
     def path_for(kind: str) -> Path:
-        value = spec.get(kind)
-        if not isinstance(value, str) or not value.strip():
-            raise MissingSource(kind, f"no {kind} CSV was supplied")
-        path = (base / value).resolve()
-        if not path.is_file():
-            raise MissingSource(kind, f"the {kind} CSV is unavailable")
-        return path
-
-    def read(kind: str, path: Path, required: list[str]) -> list[dict]:
-        try:
-            return file_rows(path, required)
-        except (OSError, ValueError, csv.Error) as exc:
-            raise MissingSource(kind, f"{kind}: {exc}") from exc
+        with source_errors(kind):
+            value = spec.get(kind)
+            if not isinstance(value, str) or not value.strip():
+                raise InputError(f"no {kind} CSV was supplied")
+            path = (base / value).resolve()
+            if not path.is_file():
+                raise InputError(f"the {kind} CSV is unavailable")
+            return path
 
     id_header = column("id")
     eligible_id = columns.get("eligible_id", id_header)
@@ -91,66 +92,101 @@ def convert(base: Path, spec: dict, columns: dict, inputs: dict) -> dict:
     eligible_path = path_for("eligible")
     picks_path = path_for("picks")
     inputs_path = path_for("cutoff_inputs")
-    if eligible_path.samefile(picks_path) or eligible_path.samefile(inputs_path):
-        raise MissingSource(
-            "eligible", "eligible membership must come from a separate source file"
+    with source_errors("eligible"):
+        if eligible_path.samefile(picks_path) or eligible_path.samefile(inputs_path):
+            raise InputError(
+                "eligible membership must come from a separate source file"
+            )
+        eligible = file_rows(eligible_path, [eligible_id])
+        ids = unique_ids([row[eligible_id] for row in eligible], "eligible IDs")
+        if not ids:
+            raise InputError("eligible membership is empty")
+        string(spec.get("membership_source"), "membership source")
+
+    with source_errors("picks"):
+        positions = column("slot")
+        picks = file_rows(picks_path, [picks_id, positions])
+        ranked = sorted(
+            (whole(row[positions], "recorded slot"), row[picks_id]) for row in picks
         )
-    eligible = read("eligible", eligible_path, [eligible_id])
-    ids = unique_ids([row[eligible_id] for row in eligible], "eligible IDs")
-    if not ids:
-        raise MissingSource("eligible", "eligible membership is empty")
-    positions = column("slot")
-    picks = read("picks", picks_path, [picks_id, positions])
-    ranked = sorted(
-        (whole(row[positions], "recorded slot"), row[picks_id]) for row in picks
-    )
-    if [index for index, case in ranked] != list(range(1, len(ranked) + 1)):
-        raise MissingSource("picks", "recorded slots must be consecutive starting at 1")
-    input_rows = read(
-        "cutoff_inputs",
-        inputs_path,
-        [cutoff_id, column("revision"), column("known_at"), *inputs.values()],
-    )
-    unique_ids([row[cutoff_id] for row in input_rows], "cutoff input IDs")
-    rows = {}
-    for row in input_rows:
-        case = row[cutoff_id]
-        values = {}
-        for field, header in inputs.items():
-            values[field] = score(row[header], f"{case} input {field}")
+        if [index for index, _ in ranked] != list(range(1, len(ranked) + 1)):
+            raise InputError("recorded slots must be consecutive starting at 1")
+        actual = unique_ids([case for _, case in ranked], "recorded picks")
+        ineligible = sorted(set(actual).difference(ids))
+        if ineligible:
+            raise InputError(
+                f"recorded picks include ineligible IDs: {', '.join(ineligible)}"
+            )
+        capacity = spec.get("capacity")
+        if type(capacity) is int and capacity >= 0 and len(actual) > capacity:
+            raise InputError("recorded picks exceed recorded capacity")
+
+    with source_errors("policy"):
+        cutoff = timestamp(spec.get("cutoff"), "shift cutoff")
         try:
-            timestamp(row[column("known_at")], f"{case} cutoff availability")
-            string(row[column("revision")], f"{case} revision")
-        except InputError as exc:
-            raise MissingSource("cutoff_inputs", str(exc)) from exc
-        reference = row.get(column("evidence"), "").strip()
-        cohort = row.get(column("cohort"), "").strip()
-        item = {
-            "revision": row[column("revision")].strip() or None,
-            "known_at": row[column("known_at")].strip() or None,
-            "inputs": values,
-            "evidence": [reference] if reference else [],
-        }
-        if cohort:
-            item["cohort"] = cohort
-        lower = row.get(column("lower_minutes"), "").strip()
-        upper = row.get(column("upper_minutes"), "").strip()
-        basis = row.get(column("time_basis"), "").strip()
-        if lower or upper or basis:
-            item["minutes"] = {
-                "lower": whole(lower, f"{case} lower minutes"),
-                "upper": whole(upper, f"{case} upper minutes") if upper else None,
-                "basis": basis,
-            }
-        rows[case] = item
-    missing = sorted(set(ids).difference(rows))
-    if missing:
-        raise MissingSource(
-            "cutoff_inputs", f"eligible cases lack cutoff rows: {', '.join(missing)}"
+            canonical(spec.get("overrides"))
+        except (TypeError, ValueError) as exc:
+            raise InputError(
+                "override history must contain finite JSON values"
+            ) from exc
+    with source_errors("cutoff_inputs"):
+        optional = (
+            "evidence",
+            "cohort",
+            "lower_minutes",
+            "upper_minutes",
+            "time_basis",
         )
-    capacity = spec.get("capacity")
-    if type(capacity) is int and len(ranked) > capacity:
-        raise MissingSource("picks", "recorded picks exceed recorded capacity")
+        headers = [
+            cutoff_id,
+            column("revision"),
+            column("known_at"),
+            *inputs.values(),
+            *(columns[field] for field in optional if field in columns),
+        ]
+        input_rows = file_rows(inputs_path, headers)
+        unique_ids([row[cutoff_id] for row in input_rows], "cutoff input IDs")
+        rows = {}
+        for row in input_rows:
+            case = row[cutoff_id]
+            if (
+                timestamp(
+                    row[column("known_at")].strip(), f"{case} cutoff availability"
+                )
+                > cutoff
+            ):
+                raise InputError(f"{case} revision is later than the cutoff.")
+            revision = string(row[column("revision")].strip(), f"{case} revision")
+            reference = row.get(column("evidence"), "").strip()
+            item = {
+                "revision": revision,
+                "known_at": row[column("known_at")].strip(),
+                "inputs": {
+                    field: exact_number(row[header], f"{case} input {field}")
+                    for field, header in inputs.items()
+                },
+                "evidence": [reference] if reference else [],
+            }
+            cohort = row.get(column("cohort"), "").strip()
+            if cohort:
+                item["cohort"] = cohort
+            lower = row.get(column("lower_minutes"), "").strip()
+            upper = row.get(column("upper_minutes"), "").strip()
+            basis = row.get(column("time_basis"), "").strip()
+            if lower or upper or basis:
+                item["minutes"] = {
+                    "lower": whole(lower, f"{case} lower minutes"),
+                    "upper": whole(upper, f"{case} upper minutes") if upper else None,
+                    "basis": basis,
+                }
+            validate_request(case, item)
+            rows[case] = item
+        missing = sorted(set(ids).difference(rows))
+        if missing:
+            raise InputError(f"eligible cases lack cutoff rows: {', '.join(missing)}")
+        extra = sorted(set(rows).difference(ids))
+        if extra:
+            raise InputError(f"cutoff rows include ineligible IDs: {', '.join(extra)}")
     return {
         **{
             field: spec.get(field)
@@ -164,7 +200,7 @@ def convert(base: Path, spec: dict, columns: dict, inputs: dict) -> dict:
             )
         },
         "membership": {"source": spec.get("membership_source"), "ids": ids},
-        "actual": [case for _, case in ranked],
+        "actual": actual,
         "requests": rows,
     }
 
@@ -195,6 +231,23 @@ def inspect(path: Path, batch_path: Path | None = None) -> tuple[dict, dict]:
         for name, header in values.items():
             string(name, "logical field")
             string(header, f"column for {name}")
+    valid_columns = {
+        "id",
+        "eligible_id",
+        "picks_id",
+        "cutoff_id",
+        "slot",
+        "revision",
+        "known_at",
+        "evidence",
+        "cohort",
+        "lower_minutes",
+        "upper_minutes",
+        "time_basis",
+    }
+    unknown = sorted(set(columns).difference(valid_columns))
+    if unknown:
+        raise InputError(f"unknown intake columns: {', '.join(unknown)}")
     if "id" in inputs:
         raise InputError("id is reserved for the request ID")
     batches, results = {}, {}
@@ -248,10 +301,13 @@ def write_export(path: Path, value: dict) -> None:
     temp = Path(name)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
-            json.dump(value, stream, indent=2)
+            json.dump(value, stream, indent=2, allow_nan=False)
             stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
         try:
             os.link(temp, path)
+            sync_directory(path.parent)
         except FileExistsError as exc:
             raise InputError(f"export already exists: {path}") from exc
     finally:

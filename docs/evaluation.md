@@ -109,13 +109,18 @@ as OSS and pause broader product investment.
 Before either arm starts, have the lead name the comparison, declare a
 material time saving in minutes, and confirm the matching conditions.
 Record active person-minutes in each arm for setup, analysis, grading,
-adjudication, and lead review. Assign each activity to one phase. Record
+adjudication, and lead review. Assign each activity to one phase. Telryn’s
+reviewer total includes minutes recorded for ordinary grades and cross-checks.
+The adjudication total includes minutes logged for dispute resolution. Add
+externally timed work in the appropriate phase. Record
 policy changes in the last 12 months from dated decisions. Count changes to
 selection policy separately from audits performed.
 
 Copy the [pilot record](../examples/support-qa/pilot-record.json) to your
 local runs directory. After grading, put the report’s `comparison_id` and
-`decision_revision` in the record. If a new grade or adjudication changes
+`decision_revision` in the record. Use the UTC calendar date of the lead’s
+decision. It must be on or after the UTC date of every replayed cutoff.
+If a new grade or adjudication changes
 the revision, check that the benchmark findings still apply before updating it.
 The included minutes and cadence are invented to demonstrate the calculation.
 Set `evidence` to `observed` for an actual team run. Populate the lead’s
@@ -196,6 +201,7 @@ generated exports. It leaves customer effort and adoption to the pilot.
 > your team and agree on the review budget and what would count as an
 > improvement before using any records.
 
-The synthetic walkthrough exercises all five steps using generated data.
+The synthetic walkthrough covers intake, replay, grading, and a recorded
+shadow trial. The pilot requires teams with dated decisions and measured effort.
 Operator time, frequency of usable policy changes, and pricing remain
 questions for the pilot.

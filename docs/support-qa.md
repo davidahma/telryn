@@ -6,8 +6,8 @@ The proposed policy adds three conversations with quality defects and drops
 one with an unresolved serious grade. The lead requires zero confirmed serious
 cases to lose review and enough evidence to rule out more than zero.
 
-This example is synthetic. All reviewed evidence is available at cutoff through
-the exact transcript revision. The queue decides what a human audits after
+This example is synthetic. The exported grades identify the transcript revisions at cutoff.
+The sample evidence file includes the excerpt needed to return the serious grade. The queue decides what a human audits after
 the conversation is complete.
 
 ## 1. Check the ordinary exports
@@ -22,7 +22,10 @@ The intake maps headers in three CSVs. The eligibility ledger lists all
 12 IDs, the assignments list eight ordered picks, and the cutoff snapshot
 contains a revision, availability time, and frozen scores per eligible ID.
 Preflight reports its first gap per shift and what to capture at the next
-cutoff. It writes a normalized export only when all requested shifts are ready.
+cutoff. An explicitly mapped column must exist in the corresponding CSV.
+Use scaled integers for ranking scores whose fractional precision exceeds
+a round trip through a Python float. Preflight reports affected values and
+writes a normalized export only when all requested shifts are ready.
 
 Run the comparison using the bundled SQLite rankings:
 
@@ -73,7 +76,7 @@ python3 -m telryn record-shadow runs/qa-revised/report.html runs/qa-observed.jso
 
 The same HTML now shows eight observed picks, 1,240 recorded reviewer-minutes,
 and more Account cases than projected. It records the lead's decision to
-**revise**. The historical recommendation remains a separate field.
+**revise** and the decision revision that qualified the trial at import.
 
 ## Hand the next cutoff to another analyst
 

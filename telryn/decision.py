@@ -25,7 +25,7 @@ def workload(rows: dict, picks: list[str]) -> dict:
         minutes = rows[case]["minutes"]
         if minutes is not None:
             lower += minutes["lower"]
-        if minutes is None or minutes["upper"] is None:
+        if minutes is None or minutes.get("upper") is None:
             unknown.append(case)
             basis["unknown"] += 1
         else:

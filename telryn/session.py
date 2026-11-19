@@ -14,7 +14,16 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from . import shadow
-from .contracts import InputError, fingerprint, load_export, load_plan
+from .artifacts import sync_directory
+from .contracts import (
+    REPORT_SCHEMA,
+    InputError,
+    fingerprint,
+    load_export,
+    load_plan,
+    mapping,
+    unique_ids,
+)
 from .grades import add_packet, adjudicate, import_packet, initial_grades, write_packet
 from .replay import SqlSelector, blocked, load_selector, replay_shift
 from .report import load_report, recommendation, render_report
@@ -46,17 +55,27 @@ def compare(plan_path: Path, export_path: Path | None = None) -> dict:
         if shift["status"] == "Replayable"
     }
     counts = Counter(case for ids in replayed.values() for case in ids)
+    tuning_cases = set()
+    for name in plan.get("tuning_shifts", []):
+        if name in source["shifts"]:
+            batch = mapping(source["shifts"][name], f"tuning shift {name}")
+            membership = mapping(batch.get("membership"), f"{name} tuning membership")
+            tuning_cases.update(unique_ids(membership.get("ids"), f"{name} tuning IDs"))
     for name, ids in replayed.items():
         overlap = sorted(case for case in ids if counts[case] > 1)
         if overlap:
             shifts[name] = blocked(
                 f"Eligible request IDs overlap required shifts: {', '.join(overlap)}."
             )
+        elif overlap := sorted(tuning_cases.intersection(ids)):
+            shifts[name] = blocked(
+                f"Held-out requests also appear in a tuning shift: {', '.join(overlap)}."
+            )
     grades, grade_digest, excluded = initial_grades(
         base / plan["grades"] if "grades" in plan else None, plan, shifts
     )
     state = {
-        "schema": 2,
+        "schema": REPORT_SCHEMA,
         "plan": plan,
         "shifts": shifts,
         "initial_grades": grades,
@@ -97,14 +116,6 @@ def _write_report(fd: int, state: dict) -> None:
         os.fsync(stream.fileno())
 
 
-def _sync_directory(path: Path) -> None:
-    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
-
-
 def publish(out: Path, state: dict) -> Path:
     if out.exists() or out.is_symlink():
         raise InputError(f"output directory already exists: {out}")
@@ -121,9 +132,9 @@ def publish(out: Path, state: dict) -> Path:
         write_packet(packet, state)
         with packet.open("rb") as stream:
             os.fsync(stream.fileno())
-        _sync_directory(staging)
+        sync_directory(staging)
         staging.rename(out)
-        _sync_directory(out.parent)
+        sync_directory(out.parent)
     finally:
         if staging.exists():
             shutil.rmtree(staging)
@@ -140,9 +151,9 @@ def refresh(
     expected_review_set: str | None = None,
 ) -> dict:
     def update(state: dict) -> bool:
-        if state["schema"] != 2:
+        if state["schema"] != REPORT_SCHEMA:
             raise InputError(
-                "re-run compare for this v0.1.0 report before importing or adjudicating grades"
+                "re-run compare and issue a fresh packet before updating this older report"
             )
         if grades is not None:
             changed = import_packet(grades, state, review_id)
@@ -164,9 +175,7 @@ def refresh(
 
 def record_shadow(path: Path, observations: Path) -> dict:
     def update(state: dict) -> bool:
-        return shadow.record(
-            state, observations, recommendation(state)["recommendation"]
-        )
+        return shadow.record(state, observations, recommendation(state))
 
     return _update_report(path, update)
 
@@ -187,7 +196,7 @@ def _update_report(path: Path, update: Callable[[dict], bool]) -> dict:
             try:
                 _write_report(report_fd, state)
                 temp.replace(path)
-                _sync_directory(path.parent)
+                sync_directory(path.parent)
             finally:
                 temp.unlink(missing_ok=True)
         return state

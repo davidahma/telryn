@@ -105,23 +105,31 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def terminal_text(value: object) -> str:
+    """Display one untrusted value without letting it control the terminal."""
+    return "".join(
+        char if char.isprintable() else repr(char)[1:-1] for char in str(value)
+    )
+
+
 def _print(result: dict, path: Path, *, output_format: str) -> None:
     if output_format == "json":
         print(canonical(result))
         return
+    prefix = "Historical report · " if result["legacy_report"] else ""
     print(
-        f"{result['recommendation']}  ·  net additional exceptions {signed_range(result['bounds'])}"
+        f"{prefix}{result['recommendation']}  ·  net additional exceptions {signed_range(result['bounds'])}"
     )
     for name, shift in result["shifts"].items():
         if shift["status"] == "Replayable":
             print(
-                f"  {name}: {len(shift['gain'])} gain review, {len(shift['loss'])} lose it; "
+                f"  {terminal_text(name)}: {len(shift['gain'])} gain review, {len(shift['loss'])} lose it; "
                 f"net {signed_range(shift['bounds'])}"
             )
     for reason in result["vetoes"] + result["open_items"]:
-        print(f"  {reason}")
+        print(f"  {terminal_text(reason)}")
     print(f"  {stopping_text(result)}")
-    print(f"  {path}")
+    print(f"  {terminal_text(path)}")
 
 
 def _demo(out: Path | None) -> int:
@@ -143,7 +151,7 @@ def _demo(out: Path | None) -> int:
         )
     report = publish(out, tuesday)
     t = middle["shifts"]["tuesday-am"]
-    print(f"HOLD            Candidate A. {hold['vetoes'][0]}")
+    print(f"HOLD            Candidate A. {terminal_text(hold['vetoes'][0])}")
     print(
         f"INCONCLUSIVE    Candidate B. {len(t['gain'])} gain review, {len(t['loss'])} lose it."
     )
@@ -157,8 +165,8 @@ def _demo(out: Path | None) -> int:
     print(
         "TRY IN SHADOW   Candidate C. Combined hurdle and safeguards cleared across held-out shifts."
     )
-    print(f"Lead report     {report}")
-    print(f"Reviewer CSV    {out / 'grading.csv'}")
+    print(f"Lead report     {terminal_text(report)}")
+    print(f"Reviewer CSV    {terminal_text(out / 'grading.csv')}")
     return 0
 
 
@@ -170,15 +178,15 @@ def preflight(args: argparse.Namespace) -> int:
         print(canonical(result))
     else:
         for name, shift in result["shifts"].items():
-            print(f"{name} · {shift['status']}")
+            print(f"{terminal_text(name)} · {shift['status']}")
             if shift["status"] == "Not ready":
-                print(f"  {shift['reason']}\n  {shift['capture']}")
+                print(f"  {terminal_text(shift['reason'])}\n  {shift['capture']}")
             else:
                 print(f"  {shift['eligible']} eligible · {shift['selected']} selected")
                 if shift.get("note"):
                     print(f"  {shift['note']}")
         if args.out is not None and result["ready"]:
-            print(f"Export {args.out}")
+            print(f"Export {terminal_text(args.out)}")
     return int(not result["ready"])
 
 
@@ -188,7 +196,7 @@ def pilot_benchmark(args: argparse.Namespace) -> int:
         print(canonical(result))
         return 0
     print(
-        f"{result['evidence'].capitalize()} pilot · {result['decision_date']} · {result['comparator']}"
+        f"{result['evidence'].capitalize()} pilot · {result['decision_date']} · {terminal_text(result['comparator'])}"
     )
     if result["timing_comparable"]:
         print(
@@ -208,7 +216,10 @@ def pilot_benchmark(args: argparse.Namespace) -> int:
     if result["serious_misses_confirmed_by_lead"]:
         print(
             "Confirmed serious misses overlooked by the comparator: "
-            + ", ".join(result["serious_misses_confirmed_by_lead"])
+            + ", ".join(
+                terminal_text(case)
+                for case in result["serious_misses_confirmed_by_lead"]
+            )
         )
     return 0
 
@@ -228,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(canonical(result))
             else:
                 print(
-                    f"Recorded shadow trial. Open {args.report} for observed workload, case mix, and the lead’s decision."
+                    f"Recorded shadow trial. Open {terminal_text(args.report)} for observed workload, case mix, and the lead’s decision."
                 )
             return 0
         if args.command == "qualify":
@@ -271,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         else:
-            print(f"telryn: {exc}", file=sys.stderr)
+            print(f"telryn: {terminal_text(exc)}", file=sys.stderr)
         return 2
     except KeyboardInterrupt:
         print("telryn: interrupted", file=sys.stderr)

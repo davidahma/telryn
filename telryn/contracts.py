@@ -4,10 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import re
 import tomllib
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
+
+
+REPORT_SCHEMA = 3
 
 
 class InputError(ValueError):
@@ -22,6 +28,24 @@ def canonical(value: Any) -> str:
 
 def fingerprint(value: Any) -> str:
     return hashlib.sha256(canonical(value).encode("ascii")).hexdigest()
+
+
+def exact_number(value: str, label: str = "JSON number") -> int | float:
+    try:
+        return int(value)
+    except ValueError:
+        try:
+            number = float(value)
+            exact = Decimal(value)
+        except (InvalidOperation, ValueError) as exc:
+            raise InputError(f"{label} needs a finite number") from exc
+        if not math.isfinite(number):
+            raise InputError(f"{label} needs a finite number")
+        if exact == exact.to_integral_value() and Decimal.from_float(number) != exact:
+            return int(exact)
+        if Decimal(str(number)) != exact:
+            raise InputError(f"{label} would lose precision as a JSON number")
+        return number
 
 
 def integer(value: Any, label: str, *, minimum: int = 0) -> int:
@@ -55,14 +79,30 @@ def unique_ids(value: Any, label: str) -> list[str]:
     return values
 
 
-def timestamp(value: Any, label: str) -> datetime:
+_TIMESTAMP = re.compile(
+    r"\d{4}-?(?:\d{2}-?\d{2}|W\d{2}(?:-?\d)?)."  # Date and time separator
+    r"\d{2}(?::?\d{2}){0,2}(?:[.,](?P<fraction>\d+))?"
+    r"(?:Z|[+-]\d{2}(?::?\d{2}){0,2})",
+    re.ASCII | re.DOTALL,
+)
+
+
+def timestamp(value: Any, label: str) -> tuple[datetime, str]:
+    """Return an instant plus any fraction smaller than a microsecond."""
+    value = string(value, label)
     try:
-        parsed = datetime.fromisoformat(string(value, label))
+        parsed = datetime.fromisoformat(value)
     except ValueError as exc:
         raise InputError(f"{label} must be an ISO 8601 timestamp") from exc
     if parsed.utcoffset() is None:
         raise InputError(f"{label} must include a UTC offset")
-    return parsed
+    match = _TIMESTAMP.fullmatch(value)
+    if match is None:
+        raise InputError(
+            f"{label} needs an ISO timestamp with a whole-second UTC offset"
+        )
+    fraction = match["fraction"] or ""
+    return parsed, fraction[6:].rstrip("0")
 
 
 def versioned(data: Any, label: str) -> dict:
@@ -82,7 +122,12 @@ def read_json(path: Path, label: str) -> dict:
         return result
 
     return versioned(
-        json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_keys),
+        json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=unique_keys,
+            parse_float=exact_number,
+            parse_constant=exact_number,
+        ),
         label,
     )
 
@@ -154,6 +199,32 @@ def load_export(path: Path) -> dict:
     return data
 
 
+def validate_request(case: str, row: dict) -> None:
+    string(case, "request ID")
+    mapping(row, case)
+    if row.get("revision") is not None:
+        string(row["revision"], f"{case} revision")
+    if row.get("known_at") is not None:
+        timestamp(row["known_at"], f"{case} known_at")
+    if row.get("inputs") is not None:
+        mapping(row["inputs"], f"{case} inputs")
+    if row.get("cohort") is not None:
+        string(row["cohort"], f"{case} cohort")
+    refs = unique_ids(row.get("evidence", []), f"{case} evidence")
+    if any(any(ord(ch) < 32 for ch in ref) for ref in refs):
+        raise InputError(f"{case} evidence references must be single-line text")
+    if row.get("minutes") is not None:
+        time = mapping(row["minutes"], f"{case} minutes")
+        lower = integer(time.get("lower"), f"{case} lower minutes")
+        high = time.get("upper")
+        if high is not None:
+            integer(high, f"{case} upper minutes", minimum=lower)
+        if time.get("basis") not in ("observed", "estimated"):
+            raise InputError(f"{case} minutes basis must be observed or estimated")
+        if time["basis"] == "observed" and lower != high:
+            raise InputError(f"{case} observed minutes must have equal bounds")
+
+
 def validate_batch(shift: str, batch: dict) -> None:
     mapping(batch, shift)
     timestamp(batch.get("cutoff"), f"{shift} cutoff")
@@ -163,29 +234,7 @@ def validate_batch(shift: str, batch: dict) -> None:
         unique_ids(membership.get("ids"), "membership IDs")
     fields = mapping(batch.get("requests"), "requests")
     for case, row in fields.items():
-        string(case, "request ID")
-        mapping(row, case)
-        if row.get("revision") is not None:
-            string(row["revision"], f"{case} revision")
-        if row.get("known_at") is not None:
-            timestamp(row["known_at"], f"{case} known_at")
-        if row.get("inputs") is not None:
-            mapping(row["inputs"], f"{case} inputs")
-        if row.get("cohort") is not None:
-            string(row["cohort"], f"{case} cohort")
-        refs = unique_ids(row.get("evidence", []), f"{case} evidence")
-        if any(any(ord(ch) < 32 for ch in ref) for ref in refs):
-            raise InputError(f"{case} evidence references must be single-line text")
-        if row.get("minutes") is not None:
-            time = mapping(row["minutes"], f"{case} minutes")
-            lower = integer(time.get("lower"), f"{case} lower minutes")
-            high = time.get("upper")
-            if high is not None:
-                integer(high, f"{case} upper minutes", minimum=lower)
-            if time.get("basis") not in ("observed", "estimated"):
-                raise InputError(f"{case} minutes basis must be observed or estimated")
-            if time["basis"] == "observed" and lower != high:
-                raise InputError(f"{case} observed minutes must have equal bounds")
+        validate_request(case, row)
     for field in ("actual", "mandatory"):
         if batch.get(field) is not None:
             unique_ids(batch[field], f"{shift} {field}")

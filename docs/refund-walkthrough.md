@@ -16,7 +16,9 @@ Open the lead report and confirm that R-118 gains review and R-073 loses it.
 The report shows the 80 shared requests, the 40 requests that move, staffing, the +1
 hurdle, and the cross-checks still outstanding. Keep it with the lead.
 Share the copied packet and the rubric's allowed evidence sources with the
-reviewer.
+reviewer. The issued CSV has owner-only permissions. Keep the returned copy
+in an access-controlled folder, including when a spreadsheet editor saves a
+new file.
 
 ## Reviewer
 
@@ -60,6 +62,8 @@ python3 -m examples.refunds.app export --db runs/refunds.sqlite --out runs/sourc
 python3 -m examples.refunds.baseline --export runs/source-export/cutoff.json --grades runs/source-export/known-grades.json
 ```
 
+The export reads one database snapshot. Repeating an unchanged export can
+reuse its directory. Choose a new directory after the source changes.
 The standalone baseline checks the same Tuesday selection and safeguards.
 Pass the [worked ledger](../examples/refunds/review-ledger.json) to carry the
 SQL comparison through the five returns, a later dispute, and adjudication:
