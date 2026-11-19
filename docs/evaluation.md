@@ -51,3 +51,115 @@ Record participant roles, prior familiarity, batch IDs, method order, and
 first-attempt errors. Agree on the meaningful effort difference in advance.
 Judge time savings only when the methods reach equally well-supported
 decisions. Record adoption on the next real rule change separately.
+
+## Support QA pilot
+
+**Question to test.** Before changing which completed AI conversations get
+reviewed, can a support quality lead explain the consequential cases the two
+policies trade and whether both fit the same staffing limit? Start with the
+Head of Support Quality or AI Operations and a dated change to selection,
+risk scoring, coverage, or reviewer allocation across assistants.
+
+1. Screen five teams. Ask for the last two changes to **which cases were
+   selected**, their next decision date, and whether the team can authorize a
+   locally handled export. Review volume and policy-change frequency are
+   separate measures. Aim for two teams with a dated change and usable evidence.
+2. Start with ordinary native exports for both paths. Compare the prior
+   public release and the team's native workflow plus its usual SQL, Sheets,
+   or coding agent. Record setup and recurring analyst, reviewer, and lead
+   minutes separately. Treat an equally supported decision materially faster,
+   or a verified consequential miss found by one path, as a pilot outcome.
+   Agree on the material timing threshold and serious mistake definition
+   before reviewing results.
+3. Time evidence intake separately. A proposed target is under an hour to
+   establish fit or identify the first missing source. If an export contains
+   only reviewed conversations, ask for the independent eligible population
+   and the cutoff snapshot. Use that team's policy and authorized evidence.
+4. Test the serious-loss calculation manually on the same cases. Ask the
+   lead to document whether the threshold changes or conditions the decision.
+   Keep representative samples for workforce scoring and overall quality
+   measurement separate from this targeted audit.
+5. If the team runs a shadow trial in its own system, record actual candidate
+   picks, reviewer time, case mix, and the lead's decision. On the next dated
+   change, check whether the analyst can run the comparison independently.
+   Record a budget owner's payment only if it occurs.
+
+Measure repeat SQL reuse separately from first-time rule translation. Test
+the SQL selector when a team already owns a versioned ranking query.
+Document unsupported SQL features, any adaptations, and analyst time.
+
+| Pilot record | What to capture |
+| --- | --- |
+| Before the comparison | Queue owner, last two dated selection changes, next date, decision threshold, export authorization, actual audit cadence, expected policy-change cadence |
+| Evidence | Independent eligible IDs, ordered picks, cutoff scores and revisions, tie-breaks, substitutions, workload budget, exact transcript references, excluded sources |
+| Equal starting point | Separate setup and recurring time for each path, same permitted evidence and reviewer budget, recorded grades and adjudication |
+| Decision | Moved cases, serious cases losing review, material misses confirmed by the lead, time and staffing, verdict and next experiment |
+| Recurrence | Subsequent dated change, independent reuse, actual setup payback, and any paid commitment |
+
+For comparable decisions, divide incremental setup hours by the observed
+recurring hours saved per actual policy change. Round up to get the number
+of changes needed to recover setup. A zero or negative saving gives no
+time-based payback. Compare that number with observed policy-change frequency.
+Use a separately observed consequential miss to assess value when time is
+similar. If the cadence or gain does not support repeat use, keep the release
+as OSS and pause broader product investment.
+
+### What public evidence supports
+
+Monzo describes reducing its completed-conversation QA sampling rate over
+time. A Verint deployment paper describes ranking conversation turns by
+risk and having humans review them. Both establish that selection policies
+vary. Willingness to pay for a separate comparison is still open.
+[Monzo engineering](https://monzo.com/blog/engineering-the-future-of-customer-operations-the-monzo-ops-agent) · [Verint deployment paper](https://cdn.aaai.org/ojs/7017/7017-13-10246-1-10-20200525.pdf)
+
+Start the incumbent arm with the tools people already use. Zendesk has QA
+assignments, LangSmith can sample completed threads into annotation queues,
+and PetDesk's support lead described a working Google Sheets QA program.
+Test exact displaced cases at fixed staffing against that combination.
+[Zendesk assignments](https://support.zendesk.com/hc/en-us/articles/7043747327770-Setting-up-agent-QA-assignments) · [LangSmith thread rules](https://docs.langchain.com/langsmith/rules) · [PetDesk operator interview](https://supportman.io/live-chat/ten-ticket-method-stacy-justino/)
+
+Keep refunds as a second discovery lane. Stripe Radar and ezrules already
+backtest transaction rules, and Sift can test a route in isolation. Returns
+need particular care when the incumbent caused a photo request or inspection
+and there is no corresponding evidence for unselected returns.
+[Stripe Radar](https://stripe.com/guides/radar-rules-101) · [ezrules](https://github.com/sofeikov/ezrules) · [Sift route backtesting](https://siftscience.zendesk.com/hc/en-us/articles/13388529878547-Route-Backtesting) · [Loop workflows](https://help.loopreturns.com/en/articles/1919041)
+
+### Reproduce the synthetic cross-version benchmark
+
+Run the first intake command in the [support QA walkthrough](support-qa.md).
+Use `legacy.toml` from the current checkout with a clean v0.1.1 unpacked
+release. Replace the absolute paths in this example:
+
+```sh
+# From the unpacked v0.1.1 release
+python3 -m telryn compare /path/to/current/examples/support-qa/legacy.toml \
+  --export /path/to/current/runs/qa-cutoff.json --out runs/legacy-qa --format json
+```
+
+For a plain-SQL cross-check, load the numeric columns in
+[cutoff-inputs.csv](../examples/support-qa/cutoff-inputs.csv) independently.
+Order the original by `created_priority DESC, conversation_id ASC` and the
+candidate by `frozen_risk DESC, conversation_id ASC`, take eight for each,
+and reconcile the original with [picks.csv](../examples/support-qa/picks.csv)
+and membership with [eligible.csv](../examples/support-qa/eligible.csv).
+Apply the [archived defect grades](../examples/support-qa/defect-grades.json)
+to the cases that moved. The prior release and independent SQL agree on the
+ordered picks and exact net count of +2. The separate serious rubric applied
+to the [synthetic transcript evidence](../examples/support-qa/synthetic-evidence.json)
+identifies Q-005 losing review. The current release changes the outcome to
+**Hold** once that grade is returned. This benchmark checks behavior on
+generated exports. It leaves customer effort and adoption to the pilot.
+
+### Prepare a discovery conversation
+
+> I’m testing a small open-source tool for support teams changing which AI
+> conversations get a human audit. When you last changed the review rule,
+> how did you work out which serious misses the new rule might set aside?
+> I’d like to compare that workflow with your existing tools on one dated
+> decision, starting with the export structure. We can keep the data with
+> your team and agree on the review budget and what would count as an
+> improvement before using any records.
+
+The synthetic walkthrough exercises all five steps using generated data.
+Operator time, frequency of usable policy changes, and pricing remain
+questions for the pilot.

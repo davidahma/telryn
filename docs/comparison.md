@@ -21,10 +21,10 @@ to an independently produced snapshot.
 | `rubric`, `rubric_question`, `evidence_window_hours` | Versioned rubric, blind question, and admissible evidence window starting at cutoff. Use cutoff as the evidence time when grading the exact cutoff snapshot. |
 | `workload_method` | Human-readable description of how case time estimates were obtained. |
 | `grading_budget`, `cross_checks_per_side` | Maximum packet rows and requested controls per side across this comparison. |
-| `live`, `candidate` | Selector source `file`, Python `function`, rule `version`, and declared `tie_break`. |
+| `live`, `candidate` | Selector source `file`, rule `version`, and declared `tie_break`. Python uses `function`. SQLite uses `engine = "sqlite"` and `required_inputs`. |
 | `shifts.<shift>` | Candidate slot `capacity` and scheduled `staff_minutes`. Supply exactly one policy per required shift. |
 
-A selector is a trusted Python function `select(batch, capacity) -> list[str]`.
+A Python selector is a trusted function `select(batch, capacity) -> list[str]`.
 The batch contains request dictionaries with an `id` and the exported
 decision inputs. It carries no rubric grades, observed outcomes, staffing
 estimates, or evidence references. Return ordered, unique, eligible IDs.
@@ -134,3 +134,99 @@ output. Treat report production and recommendation as separate checks in
 automation. The historical bounds cover the accepted grades and speak to
 exception review coverage. Estimating losses avoided or customer outcomes
 requires further evidence.
+
+## Preflight for ordinary CSV exports
+
+Run `python3 -m telryn preflight INTAKE.toml --out CUTOFF.json`. Use the
+[worked manifest](../examples/support-qa/intake.toml) to map local CSV headers.
+Preflight needs no selector code. It checks structure, source reconciliation,
+cutoff availability, and recorded policy evidence. A ready result still
+requires replay of the actual picks. An independently sourced list that
+happens to contain the same IDs as the selected list requires operator
+confirmation of completeness.
+
+| Manifest field | Meaning |
+| --- | --- |
+| `schema` | Intake format version `1`. |
+| `columns` | Optional aliases for `id`, `slot`, `revision`, `known_at`, `evidence`, `cohort`, `lower_minutes`, `upper_minutes`, and `time_basis`. Any unmapped name uses its logical header. |
+| `inputs` | Logical ranking field to numeric CSV column. Use finite values and stable score precision. |
+| `shifts.<shift>` | Relative or absolute paths for `eligible`, `picks`, and `cutoff_inputs` CSVs, plus `cutoff`, `capacity`, `live_version`, `tie_break`, `membership_source`, `mandatory`, and `overrides`. Use empty lists for a verified absence of mandatory cases or overrides. |
+
+The eligibility CSV contains IDs and comes from a separate authoritative source.
+Recorded picks use consecutive slot numbers starting at 1. The cutoff CSV has
+one row per eligible ID with the actual revision, its availability timestamp,
+and ranking fields. Optional columns carry one exact evidence reference, a
+cohort, and whole-minute workload estimates. Use the full JSON export contract
+when a case needs multiple evidence references or nonnumeric ranking inputs.
+
+`preflight --format json` reports the first gap and how to capture its source
+per shift. It exits 0 when ready, 1 when any shift needs evidence, and 2 for
+an invalid manifest or output error. When ready, writing the JSON is optional.
+
+## SQLite selectors
+
+Set `engine = "sqlite"`, `file` to a UTF-8 SQL file, `version` and
+`tie_break` to their recorded values, and `required_inputs` to the logical
+input keys the query needs. The required keys must have a value for every
+eligible case. Keep rule filters, ranking, and stable tie-breaks in the query.
+`engine = "python"` is the default and retains the original Python contract.
+
+```sql
+SELECT id
+FROM requests
+ORDER BY json_extract(inputs, '$.risk') DESC, id ASC
+LIMIT :capacity
+```
+
+Telryn runs one read-only query in a new in-memory SQLite database exposing
+`requests(id TEXT, inputs TEXT)`. `inputs` is the cutoff input object as JSON.
+Supported queries can use ordinary read-only SQL, CTEs, and a bounded set of
+deterministic SQLite functions, including JSON extraction, common text and
+numeric functions, and ranking window functions. The query returns one
+column named `id`, with a deterministic order and no duplicates or foreign
+IDs. The report retains the exact query hash and SQLite runtime version in
+its embedded evidence. Review SQL as part of the comparison definition and
+verify any manual reviewer substitutions through the ordinary override log.
+
+## Cap serious cases losing review
+
+A comparison can add a `[serious]` table with `max_lost`, `rubric`,
+`rubric_question`, and an optional `grades` JSON file in the existing
+version 1 grade format. The rubric must differ from the primary rubric.
+Both use the same admissible cutoff evidence. An exclusion on an evidence
+bundle applies to both grades.
+
+Only cases the live rule selected and the candidate dropped count toward the
+limit. The lower bound counts accepted serious cases. The upper bound also
+counts unresolved serious cases. Incomplete shift coverage leaves the
+combined upper bound unknown. A lower bound above the limit supports
+**Hold** once required controls are confirmed. **Try in shadow** needs a
+complete upper bound within the limit. Improvements elsewhere cannot cancel
+a serious loss. The report lists confirmed and unresolved cases beside the
+scheduled reviewer hours.
+
+The ordinary and serious questions can share a case in the single CSV. Each
+has its own opaque row ID, grade, and adjudication history. Serious unknowns
+that could change the decision take priority after cross-checks within the
+shared grading budget. When the serious question is included, the report
+flags that a reviewer familiar with its selection rule can infer side.
+
+## Record a completed shadow trial
+
+Run `python3 -m telryn record-shadow REPORT OBSERVATIONS.json`. The report must
+support a shadow trial when a new observation is recorded. A repeated identical
+import is safe. An existing trial ID with changed contents is rejected.
+
+Use the [observation example](../examples/support-qa/shadow-observations.json).
+Supply `schema: 1`, the frozen `comparison_id`, a unique `trial_id`, an
+offset-aware `observed_at`, and a `lead_decision` with `action` and `note`.
+The allowed actions are `adopt`, `revise`, `hold`, and `continue`. Each
+entry in `batches` names a replayable `reference_shift` and lists the
+observed candidate `picks` in order. Each pick has an ID, a cohort, and
+optionally whole `minutes` recorded by the reviewer. Missing minutes stay
+unmeasured. Use the same cohort definition as the historical export.
+
+Telryn writes observations into the existing report atomically and leaves the
+grading CSV as issued. It compares observed case mix, volume, and recorded
+workload with the named historical batch. Those differences inform the lead's
+decision. The import does not schedule reviews or change live routing.

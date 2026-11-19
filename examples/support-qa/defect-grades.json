@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "rubric": "support-defect-v1",
+  "grades": {
+    "Q-001": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-001@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-002": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-002@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-003": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-003@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-004": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-004@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-005": {
+      "grade": "meets",
+      "evidence": [
+        "closed-transcript/Q-005@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-006": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-006@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-007": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-007@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-008": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-008@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-009": {
+      "grade": "meets",
+      "evidence": [
+        "closed-transcript/Q-009@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-010": {
+      "grade": "meets",
+      "evidence": [
+        "closed-transcript/Q-010@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-011": {
+      "grade": "meets",
+      "evidence": [
+        "closed-transcript/Q-011@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-012": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-012@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    }
+  }
+}

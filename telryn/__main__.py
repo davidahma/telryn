@@ -9,12 +9,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import __version__
+from . import __version__, intake
 from .contracts import InputError, canonical
 from .decision import SHADOW
 from .grades import parse_minutes
 from .report import load_report, recommendation, signed_range, stopping_text
-from .session import compare, publish, refresh
+from .session import compare, publish, record_shadow, refresh
 
 EXAMPLE = Path(__file__).resolve().parents[1] / "examples" / "refunds"
 
@@ -77,6 +77,20 @@ def _parser() -> argparse.ArgumentParser:
         help="record that a reviewer knew which requests switched",
     )
     _result_flags(update)
+    check = commands.add_parser(
+        "preflight", help="check CSV intake before translating a rule"
+    )
+    check.add_argument("intake", type=Path)
+    check.add_argument(
+        "--out", type=Path, help="write a reconciled cutoff JSON export when ready"
+    )
+    _result_flags(check, gate=False)
+    trial = commands.add_parser(
+        "record-shadow", help="record a completed shadow trial from your queue system"
+    )
+    trial.add_argument("report", type=Path)
+    trial.add_argument("observations", type=Path)
+    _result_flags(trial, gate=False)
     qualify = commands.add_parser("qualify", help="run the shipped qualification cases")
     qualify.add_argument("--case", help="run just this named case")
     return parser
@@ -139,11 +153,42 @@ def _demo(out: Path | None) -> int:
     return 0
 
 
+def preflight(args: argparse.Namespace) -> int:
+    result, export = intake.inspect(args.intake)
+    if result["ready"] and args.out is not None:
+        intake.write_export(args.out, export)
+    if args.format == "json":
+        print(canonical(result))
+    else:
+        for name, shift in result["shifts"].items():
+            print(f"{name} · {shift['status']}")
+            if shift["status"] == "Not ready":
+                print(f"  {shift['reason']}\n  {shift['capture']}")
+            else:
+                print(f"  {shift['eligible']} eligible · {shift['selected']} selected")
+                if shift.get("note"):
+                    print(f"  {shift['note']}")
+        if args.out is not None and result["ready"]:
+            print(f"Export {args.out}")
+    return int(not result["ready"])
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "demo":
             return _demo(args.out)
+        if args.command == "preflight":
+            return preflight(args)
+        if args.command == "record-shadow":
+            result = recommendation(record_shadow(args.report, args.observations))
+            if args.format == "json":
+                print(canonical(result))
+            else:
+                print(
+                    f"Recorded shadow trial. Open {args.report} for observed workload, case mix, and the lead’s decision."
+                )
+            return 0
         if args.command == "qualify":
             from tests.qualification import qualify
 

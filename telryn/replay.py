@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import sqlite3
+from contextlib import closing
 from copy import deepcopy
 from pathlib import Path
 
-from .contracts import InputError, timestamp, unique_ids, validate_batch
+from .contracts import InputError, canonical, timestamp, unique_ids, validate_batch
 
 
 class MissingInput(KeyError):
@@ -35,6 +37,7 @@ class Selector:
         source = path.read_bytes()
         self.digest = hashlib.sha256(source).hexdigest()
         self.label = f"{rule['version']} ({rule['function']})"
+        self.required_inputs = rule.get("required_inputs", [])
         namespace = {"__file__": str(path), "__name__": "_telryn_selector"}
         try:
             exec(compile(source, path.name, "exec"), namespace)
@@ -45,6 +48,7 @@ class Selector:
             raise InputError(f"{self.label} does not name a callable selector")
 
     def run(self, rows: dict, capacity: int) -> list[str]:
+        check_inputs(rows, self.required_inputs)
         inputs = [
             CutoffInputs(id=case, **deepcopy(row["inputs"]))
             for case, row in sorted(rows.items())
@@ -55,13 +59,108 @@ class Selector:
             raise
         except (Exception, SystemExit) as exc:
             raise InputError(f"selector {self.label} failed: {exc}") from exc
-        picks = unique_ids(picks, f"selector {self.label} output")
-        foreign = sorted(set(picks).difference(rows))
-        if foreign:
-            raise InputError(
-                f"selector {self.label} returned foreign IDs: {', '.join(foreign)}"
-            )
-        return picks
+        return validate_picks(picks, rows, self.label)
+
+
+def validate_picks(picks, rows: dict, label: str) -> list[str]:
+    picks = unique_ids(picks, f"selector {label} output")
+    foreign = sorted(set(picks).difference(rows))
+    if foreign:
+        raise InputError(f"selector {label} returned foreign IDs: {', '.join(foreign)}")
+    return picks
+
+
+def check_inputs(rows: dict, fields: list[str]) -> None:
+    for case, row in sorted(rows.items()):
+        for field in fields:
+            if row["inputs"].get(field) is None:
+                raise MissingInput(case, field)
+
+
+SQL_FUNCTIONS = {
+    "abs",
+    "avg",
+    "coalesce",
+    "count",
+    "dense_rank",
+    "ifnull",
+    "iif",
+    "json",
+    "json_array_length",
+    "json_extract",
+    "json_type",
+    "length",
+    "like",
+    "lower",
+    "max",
+    "min",
+    "nullif",
+    "rank",
+    "replace",
+    "round",
+    "row_number",
+    "substr",
+    "sum",
+    "trim",
+    "upper",
+}
+
+
+def _sql_authorizer(action, first, second, database, trigger):
+    if action == sqlite3.SQLITE_FUNCTION and second in SQL_FUNCTIONS:
+        return sqlite3.SQLITE_OK
+    if action in (sqlite3.SQLITE_SELECT, sqlite3.SQLITE_RECURSIVE):
+        return sqlite3.SQLITE_OK
+    if (
+        action == sqlite3.SQLITE_READ
+        and first == "requests"
+        and database in (None, "main")
+    ):
+        return sqlite3.SQLITE_OK
+    return sqlite3.SQLITE_DENY
+
+
+class SqlSelector:
+    """Run a versioned read-only ranking query over detached cutoff inputs."""
+
+    def __init__(self, base: Path, rule: dict):
+        source = (base / rule["file"]).read_bytes()
+        self.digest = hashlib.sha256(source).hexdigest()
+        self.query = source.decode("utf-8-sig")
+        self.label = f"{rule['version']} (SQLite)"
+        self.required_inputs = rule["required_inputs"]
+
+    def run(self, rows: dict, capacity: int) -> list[str]:
+        check_inputs(rows, self.required_inputs)
+        try:
+            with closing(sqlite3.connect(":memory:")) as db:
+                db.execute(
+                    "CREATE TABLE requests (id TEXT PRIMARY KEY, inputs TEXT NOT NULL)"
+                )
+                db.executemany(
+                    "INSERT INTO requests VALUES (?, ?)",
+                    [
+                        (case, canonical(row["inputs"]))
+                        for case, row in sorted(rows.items())
+                    ],
+                )
+                db.execute("PRAGMA query_only = ON")
+                db.set_authorizer(_sql_authorizer)
+                result = db.execute(self.query, {"capacity": capacity})
+                if not result.description or [
+                    field[0] for field in result.description
+                ] != ["id"]:
+                    raise InputError(f"{self.label} must return one column named id")
+                picks = [row[0] for row in result]
+        except sqlite3.Error as exc:
+            raise InputError(f"selector {self.label} failed: {exc}") from exc
+        return validate_picks(picks, rows, self.label)
+
+
+def load_selector(base: Path, rule: dict) -> Selector | SqlSelector:
+    if rule.get("engine") == "sqlite":
+        return SqlSelector(base, rule)
+    return Selector(base, rule)
 
 
 def apply_overrides(
@@ -93,53 +192,68 @@ def apply_overrides(
     return selected
 
 
-def replay_shift(
-    name: str,
-    batch: dict | None,
-    policy: dict,
-    plan: dict,
-    live: Selector,
-    candidate: Selector,
-) -> dict:
+def cutoff_issue(name: str, batch: dict | None) -> str | None:
     if batch is None:
-        return blocked("Required shift is missing from the export.")
+        return "Required shift is missing from the export."
     try:
         validate_batch(name, batch)
     except InputError as exc:
-        return blocked(str(exc))
+        return str(exc)
     membership = batch.get("membership")
     if membership is None:
-        return blocked("An independent cutoff membership record is missing.")
+        return "An independent cutoff membership record is missing."
     rows = batch["requests"]
     missing = sorted(set(membership["ids"]).difference(rows))
     extra = sorted(set(rows).difference(membership["ids"]))
     if missing or extra:
-        return blocked(
+        return (
             f"Cutoff membership differs from the extract. "
             f"Missing: {', '.join(missing) or 'none'}. Extra: {', '.join(extra) or 'none'}."
         )
     cutoff = timestamp(batch["cutoff"], "cutoff")
     for case, row in sorted(rows.items()):
         if any(row.get(field) is None for field in ("known_at", "revision", "inputs")):
-            return blocked(f"{case} lacks a material cutoff revision or input.")
+            return f"{case} lacks a material cutoff revision or input."
         if timestamp(row["known_at"], f"{case} known_at") > cutoff:
-            return blocked(f"{case} revision is later than the cutoff.")
+            return f"{case} revision is later than the cutoff."
         if "id" in row["inputs"]:
-            return blocked(f"{case} cutoff inputs use reserved field 'id'.")
-    if any(
-        batch.get(field) is None
-        for field in (
-            "capacity",
-            "live_version",
-            "tie_break",
-            "actual",
-            "mandatory",
-            "overrides",
-        )
+            return f"{case} cutoff inputs use reserved field 'id'."
+    for field, label in (
+        ("capacity", "recorded slot capacity"),
+        ("live_version", "live rule version"),
+        ("tie_break", "tie-break rule"),
+        ("actual", "ordered recorded picks"),
+        ("mandatory", "mandatory review list"),
+        ("overrides", "override history for reviewer substitutions"),
     ):
-        return blocked(
-            "Recorded live rule, capacity, picks, obligations, or override history is missing."
-        )
+        if batch.get(field) is None:
+            return f"Missing {label}."
+    if set(batch["actual"]).union(batch["mandatory"]).difference(rows):
+        return "Recorded picks or mandatory reviews refer to ineligible requests."
+    for override in batch["overrides"]:
+        if override["kind"] == "unresolved":
+            return f"An override could change selection: {override['reason']}"
+        if override["request"] not in rows or (
+            override["kind"] == "swap" and override["replace"] not in rows
+        ):
+            return "Override history refers to an ineligible request."
+    return None
+
+
+def replay_shift(
+    name: str,
+    batch: dict | None,
+    policy: dict,
+    plan: dict,
+    live: Selector | SqlSelector,
+    candidate: Selector | SqlSelector,
+) -> dict:
+    issue = cutoff_issue(name, batch)
+    if issue:
+        return blocked(issue)
+    assert batch is not None
+    membership = batch["membership"]
+    rows = batch["requests"]
     if (
         batch["live_version"] != plan["live"]["version"]
         or batch["tie_break"] != plan["live"]["tie_break"]
@@ -147,17 +261,6 @@ def replay_shift(
         return blocked(
             "The supplied live rule version or tie-break differs from the record."
         )
-    if set(batch["actual"]).union(batch["mandatory"]).difference(rows):
-        return blocked(
-            "Recorded picks or mandatory reviews refer to ineligible requests."
-        )
-    for override in batch["overrides"]:
-        if override["kind"] == "unresolved":
-            return blocked(f"An override could change selection: {override['reason']}")
-        if override["request"] not in rows or (
-            override["kind"] == "swap" and override["replace"] not in rows
-        ):
-            return blocked("Override history refers to an ineligible request.")
     try:
         live_picks = apply_overrides(
             live.run(rows, batch["capacity"]), batch["overrides"], batch["capacity"]
@@ -196,6 +299,7 @@ def replay_shift(
                 "revision": rows[case]["revision"],
                 "evidence": rows[case].get("evidence", []),
                 "minutes": rows[case].get("minutes"),
+                "cohort": rows[case].get("cohort"),
             }
             for case in sorted(set(live_picks).union(candidate_picks))
         },

@@ -1,0 +1,29 @@
+schema = 1
+export = "../../runs/qa-cutoff.json"
+grades = "defect-grades.json"
+required_shifts = ["week-1"]
+minimum_additional_exceptions = 1
+rubric = "support-defect-v1"
+rubric_question = "Did the completed conversation contain a material support QA defect?"
+evidence_window_hours = 24
+workload_method = "Synthetic reviewer estimates per conversation"
+grading_budget = 8
+cross_checks_per_side = 0
+
+[live]
+file = "rules.py"
+function = "original"
+version = "support-priority-v1"
+tie_break = "id-asc"
+required_inputs = ["priority"]
+
+[candidate]
+file = "rules.py"
+function = "candidate"
+version = "support-risk-v1"
+tie_break = "id-asc"
+required_inputs = ["risk"]
+
+[shifts.week-1]
+capacity = 8
+staff_minutes = 1200

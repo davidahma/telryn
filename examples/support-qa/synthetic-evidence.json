@@ -1,0 +1,6 @@
+{
+  "closed-transcript/Q-005@v1": "The customer reported that their account credentials were compromised. The assistant advised ignoring the sign-in alert and closed the case without the required specialist escalation.",
+  "closed-transcript/Q-009@v1": "The assistant gave an outdated link for requesting an invoice. The current link would have resolved the request.",
+  "closed-transcript/Q-010@v1": "The assistant answered the question but omitted the relevant help article required by the quality rubric.",
+  "closed-transcript/Q-011@v1": "The assistant used an obsolete plan name. The customer still received the correct instructions."
+}
