@@ -1,0 +1,222 @@
+{
+  "schema": 1,
+  "evidence": "synthetic",
+  "api_version": "2.17",
+  "scope": {
+    "workspace": "demo-payments",
+    "scorecard_id": "disputes",
+    "scorecard_version_id": "v3",
+    "since": 1793577600,
+    "until": 1794182400
+  },
+  "population": [
+    "101",
+    "102",
+    "103",
+    "104",
+    "105",
+    "106"
+  ],
+  "captures": [
+    {
+      "captured_at": 1794182300,
+      "conversation": {
+        "id": "101",
+        "created_at": 1793577610,
+        "scorecards": [
+          {
+            "scorecard_id": "disputes",
+            "scorecard_version_id": "v3",
+            "review_status": "unreviewed",
+            "reviewer": {
+              "type": "admin",
+              "admin_id": "A1"
+            },
+            "submitted_by": null,
+            "evaluated_at": null
+          }
+        ]
+      }
+    },
+    {
+      "captured_at": 1794182300,
+      "conversation": {
+        "id": "102",
+        "created_at": 1793577620,
+        "scorecards": [
+          {
+            "scorecard_id": "disputes",
+            "scorecard_version_id": "v3",
+            "review_status": "submitted",
+            "reviewer": {
+              "type": "admin",
+              "admin_id": "A1"
+            },
+            "submitted_by": {
+              "type": "ai"
+            },
+            "evaluated_at": 1793578200,
+            "passed": true,
+            "reviewed_teammate": {
+              "type": "admin",
+              "admin_id": "A1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "captured_at": 1794182300,
+      "conversation": {
+        "id": "103",
+        "created_at": 1793577630,
+        "scorecards": [
+          {
+            "scorecard_id": "disputes",
+            "scorecard_version_id": "v3",
+            "review_status": "needs_fix",
+            "reviewer": {
+              "type": "admin",
+              "admin_id": "A1"
+            },
+            "submitted_by": {
+              "type": "admin",
+              "admin_id": "B2"
+            },
+            "evaluated_at": 1793579600,
+            "reviewed_teammate": {
+              "type": "ai"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "captured_at": 1794186000,
+      "conversation": {
+        "id": "103",
+        "created_at": 1793577630,
+        "scorecards": [
+          {
+            "scorecard_id": "disputes",
+            "scorecard_version_id": "v3",
+            "review_status": "fix_complete",
+            "reviewer": {
+              "type": "admin",
+              "admin_id": "A1"
+            },
+            "submitted_by": {
+              "type": "admin",
+              "admin_id": "B2"
+            },
+            "evaluated_at": 1794182425,
+            "reviewed_teammate": {
+              "type": "ai"
+            },
+            "revised_by": {
+              "type": "admin",
+              "admin_id": "A1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "captured_at": 1793578400,
+      "conversation": {
+        "id": "104",
+        "created_at": 1793491200,
+        "scorecards": [
+          {
+            "scorecard_id": "disputes",
+            "scorecard_version_id": "v3",
+            "review_status": "unreviewed",
+            "reviewer": {
+              "type": "admin",
+              "admin_id": "A1"
+            },
+            "submitted_by": null,
+            "evaluated_at": null,
+            "reviewed_teammate": {
+              "type": "admin",
+              "admin_id": "QA-subject"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "captured_at": 1794182280,
+      "conversation": {
+        "id": "104",
+        "created_at": 1793491200,
+        "scorecards": [
+          {
+            "scorecard_id": "disputes",
+            "scorecard_version_id": "v3",
+            "review_status": "passed_review",
+            "reviewer": {
+              "type": "admin",
+              "admin_id": "A1"
+            },
+            "submitted_by": {
+              "type": "admin",
+              "admin_id": "A1"
+            },
+            "evaluated_at": 1793582100,
+            "reviewed_teammate": {
+              "type": "admin",
+              "admin_id": "QA-subject"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "captured_at": 1794183000,
+      "conversation": {
+        "id": "105",
+        "created_at": 1793577640,
+        "scorecards": [
+          {
+            "scorecard_id": "disputes",
+            "scorecard_version_id": "v3",
+            "review_status": "submitted",
+            "reviewer": {
+              "type": "admin",
+              "admin_id": "A1"
+            },
+            "submitted_by": {
+              "type": "admin",
+              "admin_id": "A1"
+            },
+            "evaluated_at": 1794182100
+          }
+        ]
+      }
+    },
+    {
+      "captured_at": 1794182200,
+      "conversation": {
+        "id": "106",
+        "created_at": 1793491200,
+        "scorecards": [
+          {
+            "scorecard_id": "disputes",
+            "scorecard_version_id": "v3",
+            "review_status": "submitted",
+            "reviewer": {
+              "type": "admin",
+              "admin_id": "A1"
+            },
+            "submitted_by": {
+              "type": "admin",
+              "admin_id": "B2"
+            },
+            "evaluated_at": 1793577800
+          }
+        ]
+      }
+    }
+  ]
+}

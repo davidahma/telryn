@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "evidence": "synthetic",
+  "scope": {
+    "workspace": "demo-payments",
+    "scorecard_id": "disputes",
+    "scorecard_version_id": "v3",
+    "since": 1793577600,
+    "until": 1794182400
+  },
+  "population": [
+    "101",
+    "102",
+    "103",
+    "104",
+    "105",
+    "106"
+  ],
+  "complete": true,
+  "submissions": [
+    {
+      "case_id": "103",
+      "submitter": "B2",
+      "submitted_at": 1793579400
+    },
+    {
+      "case_id": "104",
+      "submitter": "A1",
+      "submitted_at": 1793581800
+    },
+    {
+      "case_id": "105",
+      "submitter": "A1",
+      "submitted_at": 1794182050
+    }
+  ],
+  "setup_trial": {
+    "manual_minutes": 50,
+    "export_minutes": 15,
+    "reconciliation_minutes": 14,
+    "verification_minutes": 12,
+    "material_minutes": 15
+  }
+}

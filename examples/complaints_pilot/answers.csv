@@ -1,0 +1,12 @@
+case_id,serious,disposition,owner,action,primary_minutes,second_minutes
+C102,yes,new,Complaints lead,Request owner decision,5,3
+C103,yes,new,Complaints lead,Request owner decision,6,3
+C104,yes,already_known,,,5,3
+C105,yes,already_known,,,4,3
+C106,no,none,,,3,3
+C107,insufficient,unknown,,,4,3
+C202,yes,new,Complaints lead,Request owner decision,6,3
+C203,yes,new,Complaints lead,Request owner decision,6,3
+C204,yes,new,Complaints lead,Request owner decision,5,3
+C205,insufficient,unknown,,,5,3
+C206,no,none,,,3,3

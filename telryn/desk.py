@@ -129,14 +129,23 @@ def _plan(fields):
             lines.append(f'{config_key} = "{FILES[key]}"')
         if "planning" in fields:
             options = mapping(fields["planning"], "staffing budget")
-            required_budget = {"minutes", "minutes_per_grade", "expected_rate"}
+            required_budget = {"minutes", "minutes_per_grade"}
             if (
                 not required_budget
                 <= options.keys()
-                <= required_budget | {"flagged_rate", "unflagged_rate"}
+                <= required_budget
+                | {
+                    "expected_rate",
+                    "flagged_rate",
+                    "unflagged_rate",
+                    "detection_cases",
+                    "detection_target",
+                    "second_review_minutes",
+                    "adjudication_minutes",
+                }
             ):
                 raise InputError(
-                    "enter review minutes, minutes per grade and the expected finding rate"
+                    "enter a staffing budget with supported planning fields"
                 )
             lines.append("[planning]")
             for key, value in options.items():
@@ -201,10 +210,13 @@ class Desk:
         return ident
 
     def preview(self, fields):
-        from .planning import preview
+        from .planning import decision_lines, preview
 
         with _plan(fields) as plan:
-            return preview(plan, **mapping(fields.get("planning"), "staffing budget"))
+            if "planning" not in fields:
+                raise InputError("enter a staffing budget to preview the sample")
+            forecast = preview(plan)
+            return {**forecast, "decision_lines": decision_lines(forecast)}
 
     def report(self, ident: str) -> Path:
         path = self.runs.get(ident)

@@ -43,11 +43,13 @@ function upload(form) {
     });
     if (byId("mode").value === "budget") {
       settings.planning = {
-        minutes: Number(source.get("minutes")), minutes_per_grade: Number(source.get("minutes_per_grade")),
-        expected_rate: Number(source.get("expected_rate")) / 100
+        minutes: Number(source.get("minutes")), minutes_per_grade: Number(source.get("minutes_per_grade"))
       };
-      for (const key of ["flagged_rate", "unflagged_rate"]) {
+      for (const key of ["expected_rate", "flagged_rate", "unflagged_rate", "detection_target"]) {
         if (source.get(key)) settings.planning[key] = Number(source.get(key)) / 100;
+      }
+      for (const key of ["detection_cases", "second_review_minutes", "adjudication_minutes"]) {
+        if (source.get(key)) settings.planning[key] = Number(source.get(key));
       }
     } else {
       settings.flagged_sample = Number(source.get("flagged_sample"));
@@ -86,11 +88,14 @@ function forecast(plan) {
   const content = [textNode("h2", "Before you draw")];
   content.push(textNode("p", plan.assigned + " cases fit within " + plan.budget_minutes + " minutes; " +
       plan.unused_minutes + " minutes remain."));
+  for (const line of plan.decision_lines) content.push(textNode("p", line));
   if (plan.coverage_complete && plan.scenario_interval) {
     const range = plan.scenario_interval;
     content.push(textNode("p", "At the rates you entered, a typical count gives a 95% interval of " +
         range[0] + "–" + range[1] + ". Expected interval width: " + Number(plan.expected_interval_width).toFixed(1) +
         " cases. With zero findings the upper bound would be " + plan.zero_findings_upper + "."));
+  } else if (plan.coverage_complete) {
+    content.push(textNode("p", "With zero findings the 95% upper bound would be " + plan.zero_findings_upper + ". Enter an expected rate to forecast the interval width."));
   } else {
     content.push(textNode("p", "The budget leaves a group unsampled. Increase review minutes or use fewer grouping columns for a full-population estimate."));
   }

@@ -163,15 +163,29 @@ class DeskFlow(unittest.TestCase):
     def test_plan_before_draw_and_secondary_review(self):
         fields = {
             **self.form,
-            "planning": {"minutes": 10, "minutes_per_grade": 5, "expected_rate": 0.05},
+            "planning": {
+                "minutes": 10,
+                "minutes_per_grade": 5,
+                "expected_rate": 0.05,
+                "second_review_minutes": 3,
+                "adjudication_minutes": 2,
+                "detection_cases": 1,
+                "detection_target": 0.95,
+            },
         }
         head, preview = self.request("POST", "/testtoken/plan", fields)
         self.assertIn("200 OK", head)
         self.assertEqual(json.loads(preview)["assigned"], 1)
+        self.assertEqual(json.loads(preview)["detection"]["minimum_budget_minutes"], 10)
         self.assertFalse(list(self.desk.runs))
         head, body = self.request("POST", "/testtoken/audits", fields)
         self.assertIn("200 OK", head)
         path = "/testtoken/" + json.loads(body)["id"]
+        report = next(iter(self.desk.runs.values()))
+        self.assertEqual(
+            summarize(read_state(report))["planning"]["detection"],
+            json.loads(preview)["detection"],
+        )
         packet = self.request("GET", path + "/grades.csv")[1].decode("utf-8-sig")
 
         def answer(serious, disposition):

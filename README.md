@@ -1,28 +1,30 @@
 # Telryn
 
-**Find the serious support failures your QA sample missed this week.**
+**Which closed conversations should have reached the complaints register and still need an owner?**
 
-A QA lead can see every ticket their team graded. The harder question is what happened in the conversations nobody opened. Telryn takes the conversations resolved or closed during the week and the record of ordinary human reviews, then draws a second sample from what was left out. It works with queues handled by people, AI support agents, or both.
+Telryn helps a complaints quality lead at a lender or payments company check the conversations ordinary human QA passed over. A customer may describe a complaint without using the word. A human or AI support agent may close the conversation while the register stays empty. The lead supplies the policy and its deadline. Reviewers decide whether the conversation met that policy.
 
-The lead gets a private HTML report showing how many serious cases ordinary QA likely missed, how many may have escaped every other recorded control, and how much uncertainty remains. Each confirmed new finding has a case, an owner and a follow-up. Reviewers get a separate CSV that hides the screen's prediction. A local model can read transcripts and cite the passages behind a screen flag. If two reviewers agree a case was serious but disagree about who already knew, it stays in the serious count while the lead resolves whether it needs new follow-up.
+One local HTML report brings the human grades together with dated register entries and owner actions. It shows which sampled cases missed their deadline, which have since been registered, and where missing evidence prevents a decision. Reviewers receive one separate, blinded CSV. The weekly audit can also estimate how often serious failures occurred across the unreviewed queue when the population was probability-sampled.
 
-[Download Telryn](https://github.com/davidahma/telryn/releases/latest) · [Weekly audit guide](docs/weekly-qa.md) · [Integrations](docs/integrations.md) · [Apache-2.0](LICENSE) · [![CI](https://github.com/davidahma/telryn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/davidahma/telryn/actions/workflows/ci.yml)
+[Download Telryn](https://github.com/davidahma/telryn/releases/latest) · [Download the synthetic complaints report](https://github.com/davidahma/telryn/releases/download/v0.7.0/synthetic-complaints-audit.html) · [Weekly audit guide](docs/weekly-qa.md) · [Integrations](docs/integrations.md) · [Apache-2.0](LICENSE) · [![CI](https://github.com/davidahma/telryn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/davidahma/telryn/actions/workflows/ci.yml)
 
-## Try a weekly audit
+## Try the two-week complaints rehearsal
 
-Use CPython 3.12–3.15 with SQLite on Linux or macOS. The examples, statistics, browser report and tests use the Python standard library. Run these commands from a clone or unpacked release. Give each run a new output directory.
+Use CPython 3.12–3.15 with SQLite on Linux or macOS. Run from a clone or unpacked release. The rehearsal uses synthetic records and runs offline.
 
 ```sh
 git clone --depth 1 https://github.com/davidahma/telryn.git
 cd telryn
-python3 -m examples.fintech --out runs/fintech
+python3 -m examples.complaints_pilot --out runs/complaints-pilot
 ```
 
-Open **`runs/fintech/weekly/report.html`**. In this synthetic fintech queue, ordinary QA reviewed two of ten conversations. Reviewing the eight others confirmed four missed escalations. The complaints team already knew about one. Three needed new follow-up, including **T07**, which the screen had passed. Because all eight received a grade, the count for this batch is exact.
+Open **`runs/complaints-pilot/2026-10-05/report.html`** for the first week. Follow a case from its conversation revision to its policy deadline, register evidence and subsequent owner action. A missing entry can support a finding only when the register covers that queue through the relevant date. An incomplete export or ambiguous match stays unresolved.
 
-![Weekly QA report showing four confirmed missed escalations, three newly found, and the owner and action for each new finding.](docs/images/weekly-audit.png)
+The rehearsal gives a saved SQL search and Telryn the same queue and staff budget. Both submit their picks before the reviewers grade the combined shortlist. The terminal result counts shared and method-only complaint episodes accepted for action, and accounts for the work each method required. The report covers the graded shortlist. A real pilot needs the lead’s own native QA workflow, hours, actions and decision about paying for another run. [Rehearsal inputs](examples/complaints_pilot/README.md) · [Field comparison protocol](docs/evaluation.md#two-weeks-on-one-complaints-queue)
 
-Those eight grades alone give little evidence for changing the queue. A separate synthetic development cohort in the demo supplies a stronger signal. On held-out cases, the supported candidate picks up one additional serious case at the same two review slots and keeps the mandatory review. The example owner then records a shadow trial. [Run the three weeks individually](examples/fintech/README.md)
+For your own records, attach a dated register and action ledger to the existing weekly report. [Complaint evidence format](docs/complaint-records.md)
+
+The same weekly engine supports other serious-case rubrics. Run `python3 -m examples.fintech --out runs/fintech` for an account-compromise audit that finds three cases needing new follow-up, then tests a proposed queue change on a later batch. [Fintech example](examples/fintech/README.md)
 
 ## Run it on your queue
 
@@ -32,7 +34,7 @@ Start the private browser desk on the QA lead's machine.
 python3 -m telryn desk --out runs/desk
 ```
 
-Choose the population and ordinary-review CSVs, then enter the rubric, available minutes and expected finding rate. **Preview sample** shows the allocation and likely interval width before you spend reviewer time. **Commit and create audit** records the design and issues the blinded grading CSV. Return grades, collect an independent second review, and resolve disagreements in the same desk. The signed report preserves the original answers and the final decision. When a reviewer returns part of a packet, the desk shows what still needs a first grade, a better evidence record, or adjudication. Download just the unanswered assignments for the next reviewer. A saved audit that fails verification stays visible with recovery instructions.
+Choose the population and ordinary-review CSVs, then enter the rubric and total staff minutes. Set aside time for second reviews and disputes. **Preview sample** shows how likely the draw is to find at least one case if the queue contains the number you care about. Add an expected finding rate for an interval-width forecast. **Commit and create audit** records the design and issues the blinded grading CSV. Return grades, collect an independent second review, and resolve disagreements in the same desk. The signed report preserves the original answers and the final decision. When a reviewer returns part of a packet, the desk shows what still needs a first grade, a better evidence record, or adjudication. Download just the unanswered assignments for the next reviewer. A saved audit that fails verification stays visible with recovery instructions.
 
 For a scheduled job, save the settings in a weekly plan and run one command. The example plan is ready to run.
 
@@ -51,7 +53,7 @@ python3 -m telryn weekly examples/fintech/week.toml --out runs/weekly
 
 Each sampled conversation stands for others drawn from the same group. If ordinary QA left 1,000 unflagged conversations and you sampled 50 at random, each grade represents 20 conversations in that group. Telryn combines the flagged and unflagged estimates and reports a 95% interval. The report lists individual cases only when a human confirmed the finding.
 
-For a single group of 5,000 conversations, grading 50 and finding none still leaves a 95% upper bound of **353 cases**. At 200 grades it drops to **89**. The planner makes that trade-off visible. If one grade is insufficient, the report shows the range under both possible answers. If a group had no chance of review, the report identifies the gap. Sample by channel, agent type or product when those distinctions matter to the decision. [Statistical methods](docs/statistics.md)
+For a single group of 5,000 conversations, grading 50 and finding none still leaves a 95% upper bound of **353 cases**. At 200 grades it drops to **89**. The planner also answers a different question. With exactly 25 qualifying cases among 5,000, a random sample of 50 has only a **22.3%** chance of finding one, even if reviewers recognize every sampled case. Reaching 95% under those assumptions takes 564 first grades. If one grade is insufficient, the report shows the range under both possible answers. If a group had no chance of review, the report identifies the gap. Sample by channel, agent type or product when those distinctions matter to the decision. [Statistical methods](docs/statistics.md)
 
 A perfect screen score can come from two grades. Suppose ordinary QA left 50 flagged and 50 unflagged conversations. A reviewer grades one from each group. The flagged case is serious and the unflagged case is clear. The point estimates for precision, recall and agreement are all 100%. Their 95% ranges each span **2%–100%**. Telryn shows the ranges and denominators so the lead can judge whether the screen has earned that confidence.
 

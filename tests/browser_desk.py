@@ -47,11 +47,15 @@ def run(root: Path):
                 "rubric": "escalation-v1",
                 "rubric_question": "Was the required escalation missed?",
                 "screen_version": "synthetic-v1",
-                "minutes": "32",
+                "minutes": "40",
                 "minutes_per_grade": "4",
-                "expected_rate": "10",
+                "second_review_minutes": "6",
+                "adjudication_minutes": "2",
             }.items():
                 form.locator(f"[name={name}]").fill(value)
+            form.get_by_text("Decision this sample needs to support").click()
+            form.locator("[name=detection_cases]").fill("2")
+            form.locator("[name=detection_target]").fill("95")
             for name, filename in (
                 ("population", "population.csv"),
                 ("reviewed", "ordinary-reviews.csv"),
@@ -60,7 +64,7 @@ def run(root: Path):
 
             # Change the budget while a successfully submitted forecast is pending.
             def edit_during_preview(route):
-                form.locator("[name=minutes]").fill("40")
+                form.locator("[name=minutes]").fill("44")
                 route.continue_()
 
             page.route("**/plan", edit_during_preview)
@@ -69,9 +73,13 @@ def run(root: Path):
             expect(page.locator("#preview")).to_be_enabled()
             expect(page.locator("#forecast")).to_be_hidden()
             page.unroute("**/plan", edit_during_preview)
-            form.locator("[name=minutes]").fill("32")
+            form.locator("[name=minutes]").fill("40")
             page.locator("#preview").click()
             expect(page.locator("#forecast")).to_contain_text("8 cases fit")
+            expect(page.locator("#forecast")).to_contain_text("meets the 95% target")
+            expect(page.locator("#forecast")).to_contain_text(
+                "6 for second review and 2 for adjudication"
+            )
             assert not list((root / "runs").glob("*/report.html"))
             page.locator("#create").click()
             expect(page.locator("#message")).to_contain_text("Audit ready")
@@ -170,6 +178,7 @@ def run(root: Path):
             expect(event.value.locator("footer")).to_contain_text(
                 "Signed weekly report"
             )
+            expect(event.value.locator("main")).to_contain_text("meets the 95% target")
 
             # Returning to the audit list while the last decision is being saved
             # must leave the operator at their chosen destination.
