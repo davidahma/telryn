@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timezone
 from pathlib import Path
 
-from .contracts import InputError, integer, mapping, read_json, string, unique_ids
+from .contracts import (
+    REPORT_SCHEMA,
+    InputError,
+    integer,
+    mapping,
+    read_json,
+    string,
+    timestamp,
+    unique_ids,
+)
 from .report import recommendation
 
 MATCH_CHECKS = (
@@ -37,7 +46,7 @@ def assess(state: dict, path: Path) -> dict:
     record = read_json(path, "pilot record")
     if record.get("comparison_id") != state["comparison_id"]:
         raise InputError("pilot record belongs to a different comparison")
-    if state["schema"] != 2:
+    if state["schema"] != REPORT_SCHEMA:
         raise InputError("regenerate this legacy report before benchmarking")
     try:
         decision_date = date.fromisoformat(
@@ -45,6 +54,11 @@ def assess(state: dict, path: Path) -> dict:
         )
     except ValueError as exc:
         raise InputError("decision_date must be an ISO calendar date") from exc
+    for shift in state["shifts"].values():
+        if shift["status"] == "Replayable":
+            cutoff, _ = timestamp(shift["cutoff"], "historical cutoff")
+            if decision_date < cutoff.astimezone(timezone.utc).date():
+                raise InputError("decision_date predates a historical cutoff in UTC")
     evidence = record.get("evidence")
     if evidence not in ("synthetic", "observed"):
         raise InputError("evidence must be synthetic or observed")
@@ -72,6 +86,17 @@ def assess(state: dict, path: Path) -> dict:
         raise InputError(
             "pilot record does not match the saved decision revision; verify the evidence before updating it"
         )
+    effort = result["effort"]
+    phase_minimums = {
+        "reviewer_minutes": effort["grading"]["minutes"]
+        + effort["cross_checks"]["minutes"],
+        "adjudication_minutes": effort["adjudication"]["minutes"],
+    }
+    for phase, minimum in phase_minimums.items():
+        if telryn[phase] < minimum:
+            raise InputError(
+                f"telryn.{phase} is below the {minimum} minutes recorded in this report"
+            )
     serious = result["serious_losses"]
     confirmed = set(serious["confirmed"]) if serious else set()
     unsupported = sorted(set(misses) - confirmed)

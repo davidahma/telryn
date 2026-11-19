@@ -6,7 +6,9 @@ from collections import Counter
 from pathlib import Path
 
 from .contracts import (
+    REPORT_SCHEMA,
     InputError,
+    canonical,
     integer,
     mapping,
     read_json,
@@ -17,24 +19,43 @@ from .contracts import (
 from .decision import SHADOW, workload
 
 
-def record(state: dict, path: Path, recommendation: str) -> bool:
+def known_fields(data: dict, allowed: set[str], label: str) -> None:
+    unknown = sorted(set(data).difference(allowed))
+    if unknown:
+        raise InputError(f"unexpected {label} fields: {', '.join(unknown)}")
+
+
+def record(state: dict, path: Path, recommendation: dict) -> bool:
     data = read_json(path, "shadow observations")
     trial_id = string(data.get("trial_id"), "trial ID")
     if data.get("comparison_id") != state["comparison_id"]:
         raise InputError("shadow observations belong to a different comparison")
-    trials = state.setdefault("shadow_trials", {})
+    trials = state.get("shadow_trials", {})
     if trial_id in trials:
-        if trials[trial_id] != data:
+        if canonical(trials[trial_id]) != canonical(data):
             raise InputError(
                 "a different shadow observation already uses this trial ID"
             )
         return False
-    if recommendation != SHADOW:
+    if state["schema"] != REPORT_SCHEMA or recommendation["recommendation"] != SHADOW:
         raise InputError(
             "record-shadow requires a comparison that supports a shadow trial"
         )
+    known_fields(
+        data,
+        {
+            "schema",
+            "comparison_id",
+            "trial_id",
+            "observed_at",
+            "lead_decision",
+            "batches",
+        },
+        "observation",
+    )
     observed_at = timestamp(data.get("observed_at"), "observation timestamp")
     owner = mapping(data.get("lead_decision"), "lead decision")
+    known_fields(owner, {"action", "note"}, "lead decision")
     if owner.get("action") not in ("adopt", "revise", "hold", "continue"):
         raise InputError("lead decision must be adopt, revise, hold, or continue")
     string(owner.get("note"), "lead decision note")
@@ -43,7 +64,9 @@ def record(state: dict, path: Path, recommendation: str) -> bool:
         raise InputError("provide at least one observed batch")
     observed_ids: set[str] = set()
     for name, batch in batches.items():
+        string(name, "shadow batch name")
         mapping(batch, f"{name} observation")
+        known_fields(batch, {"reference_shift", "picks"}, "batch")
         historical = string(batch.get("reference_shift"), "reference shift")
         source = state["shifts"].get(historical)
         if source is None or source["status"] != "Replayable":
@@ -52,6 +75,7 @@ def record(state: dict, path: Path, recommendation: str) -> bool:
             raise InputError(f"{name} observation predates its historical cutoff")
         for pick in sequence(batch.get("picks"), f"{name} ordered candidate picks"):
             mapping(pick, "shadow pick")
+            known_fields(pick, {"id", "cohort", "minutes"}, "pick")
             case = string(pick.get("id"), "observed case ID")
             if case in observed_ids:
                 raise InputError(f"duplicate observed case ID: {case}")
@@ -59,7 +83,10 @@ def record(state: dict, path: Path, recommendation: str) -> bool:
             string(pick.get("cohort"), f"{case} cohort")
             if pick.get("minutes") is not None:
                 integer(pick["minutes"], f"{case} recorded minutes")
-    trials[trial_id] = data
+    state.setdefault("shadow_trials", {})[trial_id] = data
+    state.setdefault("shadow_decision_revisions", {})[trial_id] = recommendation[
+        "decision_revision"
+    ]
     return True
 
 
@@ -113,6 +140,7 @@ def summarize(state: dict) -> dict:
             }
         result[trial] = {
             "observed_at": data["observed_at"],
+            "decision_revision": state.get("shadow_decision_revisions", {}).get(trial),
             "lead_decision": data["lead_decision"],
             "batches": shifts,
         }

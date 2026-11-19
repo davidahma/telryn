@@ -9,35 +9,51 @@ from contextlib import closing
 from datetime import datetime, timedelta
 from pathlib import Path
 
+if __package__:
+    from .app import instant, parse_source_json
+else:  # Also allow running this worksheet directly as a script.
+    from app import instant, parse_source_json
+
 ROOT = Path(__file__).resolve().parent
 ANSWERS = ("meets", "outside", "insufficient")
 
 
-def instant(value: str) -> datetime:
-    result = datetime.fromisoformat(value)
-    if result.utcoffset() is None:
-        raise ValueError("timestamp needs a UTC offset")
-    return result
+def identifiers(values: list) -> set[str]:
+    if not isinstance(values, list) or any(
+        not isinstance(item, str) or not item.strip() for item in values
+    ):
+        raise ValueError("expected a list of nonempty identifiers")
+    if len(values) != len(set(values)):
+        raise ValueError("duplicate identifiers")
+    return set(values)
 
 
 def worklist(
-    gain: list[str], loss: list[str], archived: dict, rows: dict, cutoff: datetime
+    gain: list[str],
+    loss: list[str],
+    archived: dict,
+    rows: dict,
+    cutoff: tuple[datetime, str],
 ):
     initial, excluded = {}, set()
     for case in gain + loss:
         record = archived["grades"].get(case)
         if record is None:
             continue
-        refs = set(record["evidence"])
-        within_window = (
-            cutoff <= instant(record["evidence_at"]) <= cutoff + timedelta(hours=24)
-        )
+        if type(record["shared_sources"]) is not bool or record["grade"] not in ANSWERS:
+            raise ValueError(
+                f"{case} has an invalid archived grade or evidence provenance"
+            )
+        refs = identifiers(record["evidence"])
+        cutoff_time, remainder = cutoff
+        window_end = (cutoff_time + timedelta(hours=24), remainder)
+        within_window = cutoff <= instant(record["evidence_at"]) <= window_end
         if not (record["shared_sources"] and within_window):
-            if refs.intersection(rows[case]["evidence"]):
+            if refs.intersection(rows[case].get("evidence", [])):
                 excluded.add(case)
         elif (
             refs
-            and refs == set(rows[case]["evidence"])
+            and refs == set(rows[case].get("evidence", []))
             and record["grade"] in ("meets", "outside")
         ):
             initial[case] = record["grade"]
@@ -128,7 +144,7 @@ def reconcile(
 def current_decision(initial: dict, adjudicated: dict, case: str, reviews: dict) -> str:
     base = adjudicated.get(case, initial.get(case))
     answers = list(reviews.values())
-    if base in ("meets", "outside"):
+    if base is not None:
         answers.append(base)
     if len(set(answers)) > 1:
         return "disputed"
@@ -147,10 +163,29 @@ def endpoints(gain: list[str], loss: list[str], accepted: dict) -> tuple[int, in
 
 
 def analyze(export: dict, archived: dict, ledger: list[dict] = ()) -> dict:
+    for data in (export, archived):
+        if (
+            not isinstance(data, dict)
+            or type(data.get("schema")) is not int
+            or data["schema"] != 1
+        ):
+            raise ValueError("the worksheet requires version 1 cutoff and grade files")
+    if archived.get("rubric") != "order-discrepancy-v1" or not isinstance(
+        archived.get("grades"), dict
+    ):
+        raise ValueError(
+            "the worksheet requires the order-discrepancy-v1 grade archive"
+        )
     batch = export["shifts"]["tuesday-am"]
     capacity, staffing, hurdle, budget = 100, 480, 1, 10
     rows = batch["requests"]
-    if not batch.get("membership") or set(batch["membership"]["ids"]) != set(rows):
+    membership = batch.get("membership")
+    if (
+        not isinstance(membership, dict)
+        or not isinstance(membership.get("source"), str)
+        or not membership["source"].strip()
+        or identifiers(membership.get("ids")) != set(rows)
+    ):
         return {
             "batch": "Not replayable",
             "reason": "Cutoff membership differs or is missing",
@@ -167,11 +202,32 @@ def analyze(export: dict, archived: dict, ledger: list[dict] = ()) -> dict:
         }
     try:
         cutoff = instant(batch["cutoff"])
+        if identifiers(batch["mandatory"]).difference(rows):
+            raise ValueError("mandatory review refers to an ineligible request")
         for row in rows.values():
-            if not row["revision"] or instant(row["known_at"]) > cutoff:
+            if (
+                not isinstance(row["revision"], str)
+                or not row["revision"].strip()
+                or instant(row["known_at"]) > cutoff
+            ):
                 raise ValueError("cutoff revision unavailable")
+            identifiers(row.get("evidence", []))
+            if "id" in row["inputs"]:
+                raise ValueError("id is reserved on cutoff rows")
+            time = row.get("minutes")
+            if time is not None:
+                lo, hi, basis = time["lower"], time.get("upper"), time["basis"]
+                if (
+                    type(lo) is not int
+                    or lo < 0
+                    or (hi is not None and (type(hi) is not int or hi < lo))
+                    or basis not in ("estimated", "observed")
+                    or (basis == "observed" and lo != hi)
+                ):
+                    raise ValueError("invalid workload bounds")
             for name in ("refund_cents", "conflict_priority"):
-                if type(row["inputs"][name]) is not int:
+                score = row["inputs"][name]
+                if type(score) is not int or not -(2**63) <= score < 2**63:
                     raise ValueError("invalid ranking input")
     except (KeyError, TypeError, ValueError):
         return {"batch": "Not replayable", "reason": "Cutoff input unavailable"}
@@ -209,7 +265,7 @@ def analyze(export: dict, archived: dict, ledger: list[dict] = ()) -> dict:
     low_time = sum(item["lower"] for item in estimates if item is not None)
     high_time = (
         None
-        if any(item is None or item["upper"] is None for item in estimates)
+        if any(item is None or item.get("upper") is None for item in estimates)
         else sum(item["upper"] for item in estimates)
     )
     mandatory_misses = sorted(set(batch["mandatory"]) - set(proposal))
@@ -220,7 +276,7 @@ def analyze(export: dict, archived: dict, ledger: list[dict] = ()) -> dict:
     unknown = [
         case
         for case in loss + gain
-        if case not in initial and case not in excluded and rows[case]["evidence"]
+        if case not in initial and case not in excluded and rows[case].get("evidence")
     ]
     requested = controls + (unknown if low < hurdle <= high else [])
     eligibility = set() if operational_hold else set(requested[:budget])
@@ -262,7 +318,7 @@ def analyze(export: dict, archived: dict, ledger: list[dict] = ()) -> dict:
 
 
 def read(path: Path):
-    return json.loads(path.read_text(encoding="utf-8"))
+    return parse_source_json(path.read_text(encoding="utf-8"))
 
 
 def main() -> None:
@@ -281,7 +337,7 @@ def main() -> None:
             json.dumps(analyze(read(args.export), read(args.grades), ledger), indent=2)
         )
     except (OSError, KeyError, TypeError, ValueError) as exc:
-        parser.exit(2, f"baseline: {exc}\n")
+        parser.exit(2, f"baseline: {str(exc)!r}\n")
 
 
 if __name__ == "__main__":

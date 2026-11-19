@@ -10,3 +10,8 @@ source with your local Python process's permissions. Run selectors you trust,
 keep reports and packets in access-controlled locations, and open referenced
 evidence under your existing source-system permissions. See the
 [comparison reference](docs/comparison.md) for the data and retention boundaries.
+
+Telryn creates new reports and grading packets with owner-only permissions on
+Linux and macOS. Protect exports, existing packets, and any copies saved by
+reviewers under the permissions of your workspace. A saved report's checksum
+detects corruption. Verify its origin before using it for a decision.

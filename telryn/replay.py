@@ -25,6 +25,10 @@ class CutoffInputs(dict):
         raise MissingInput(self["id"], field)
 
 
+class UnrepresentableInput(ValueError):
+    """A cutoff value cannot retain its declared type and precision in SQLite."""
+
+
 def blocked(reason: str) -> dict:
     return {"status": "Not replayable", "reason": reason}
 
@@ -132,6 +136,13 @@ class SqlSelector:
 
     def run(self, rows: dict, capacity: int) -> list[str]:
         check_inputs(rows, self.required_inputs)
+        for case, row in rows.items():
+            for field in self.required_inputs:
+                if not sqlite_integers_fit(row["inputs"][field]):
+                    raise UnrepresentableInput(
+                        f"{case} ranking input {field!r} exceeds SQLite's signed "
+                        f"64-bit integer range for {self.label}."
+                    )
         try:
             with closing(sqlite3.connect(":memory:")) as db:
                 db.execute(
@@ -155,6 +166,14 @@ class SqlSelector:
         except sqlite3.Error as exc:
             raise InputError(f"selector {self.label} failed: {exc}") from exc
         return validate_picks(picks, rows, self.label)
+
+
+def sqlite_integers_fit(value) -> bool:
+    if isinstance(value, dict):
+        return all(sqlite_integers_fit(item) for item in value.values())
+    if isinstance(value, list):
+        return all(sqlite_integers_fit(item) for item in value)
+    return type(value) is not int or -(2**63) <= value < 2**63
 
 
 def load_selector(base: Path, rule: dict) -> Selector | SqlSelector:
@@ -267,6 +286,8 @@ def replay_shift(
         )
     except MissingInput as exc:
         return blocked(f"{exc.case} lacks live ranking input {exc.field!r}.")
+    except UnrepresentableInput as exc:
+        return blocked(str(exc))
     if len(live_picks) > batch["capacity"] or live_picks != batch["actual"]:
         for index in range(max(len(live_picks), len(batch["actual"]))):
             expected = (
@@ -282,6 +303,8 @@ def replay_shift(
         raw_picks = candidate.run(rows, policy["capacity"])
     except MissingInput as exc:
         return blocked(f"{exc.case} lacks candidate ranking input {exc.field!r}.")
+    except UnrepresentableInput as exc:
+        return blocked(str(exc))
     candidate_picks = apply_overrides(raw_picks, batch["overrides"], policy["capacity"])
     return {
         "status": "Replayable",

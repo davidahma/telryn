@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
 import secrets
 from datetime import timedelta
@@ -62,7 +63,8 @@ def initial_grades(
         if type(shared_sources) is not bool:
             raise InputError(f"{case} grade requires a shared_sources boolean")
         cutoff, row = by_case[case]
-        admissible_time = cutoff <= when <= cutoff + window
+        cutoff_time, remainder = cutoff
+        admissible_time = cutoff <= when <= (cutoff_time + window, remainder)
         if set(refs).intersection(row["evidence"]):
             if not shared_sources:
                 excluded[case] = (
@@ -220,7 +222,8 @@ def packet_fields(state: dict, row_id: str, row: dict) -> dict[str, str]:
 
 
 def write_packet(path: Path, state: dict) -> None:
-    with path.open("w", encoding="utf-8-sig", newline="") as stream:
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=COLUMNS)
         writer.writeheader()
         for row_id, row in state["packet"].items():
@@ -236,7 +239,7 @@ def import_packet(path: Path, state: dict, review_id: str | None = None) -> bool
         raise InputError(
             "review ID must be 1–80 letters, digits, dots, underscores, or hyphens"
         )
-    changed = False
+    additions = []
     with path.open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream, strict=True)
         if tuple(reader.fieldnames or ()) != COLUMNS:
@@ -245,15 +248,17 @@ def import_packet(path: Path, state: dict, review_id: str | None = None) -> bool
             )
         if not state["packet"]:
             raise InputError("this comparison has no grading rows; no return is needed")
-        received_row = False
+        received = set()
         for entry in reader:
-            received_row = True
             row_id = entry["row_id"]
             row = state["packet"].get(row_id)
             if None in entry or row is None or entry.get("grade") is None:
                 raise InputError(
                     f"malformed or unknown grading row at CSV line {reader.line_num}"
                 )
+            if row_id in received:
+                raise InputError(f"duplicate row {row_id} in returned grading CSV")
+            received.add(row_id)
             for key, expected in packet_fields(state, row_id, row).items():
                 if entry.get(key) != expected:
                     raise InputError(
@@ -288,7 +293,7 @@ def import_packet(path: Path, state: dict, review_id: str | None = None) -> bool
                 **delivery,
                 "review_revision": row["review_revision"],
             }
-            events = state["grade_history"].setdefault(row_id, [])
+            events = state["grade_history"].get(row_id, [])
             prior = next((item for item in events if item.get("id") == receipt), None)
             if prior is not None:
                 if prior != event:
@@ -296,11 +301,12 @@ def import_packet(path: Path, state: dict, review_id: str | None = None) -> bool
                         f"review ID {review_id!r} was already used for a different return on row {row_id}"
                     )
                 continue
-            events.append(event)
-            changed = True
-        if not received_row:
+            additions.append((row_id, event))
+        if not received:
             raise InputError("returned CSV has no rows to bind to this comparison")
-    return changed
+    for row_id, event in additions:
+        state["grade_history"].setdefault(row_id, []).append(event)
+    return bool(additions)
 
 
 def pending_reviews(events: list[dict]) -> tuple[dict | None, list[dict]]:
@@ -321,15 +327,13 @@ def grade_status(state: dict) -> tuple[dict, dict, int, dict]:
         grades = serious if row.get("criterion") == "serious" else primary
         last_decision, reviews = pending_reviews(state["grade_history"].get(row_id, []))
         reference = last_decision["grade"] if last_decision else grades.get(case)
-        if reference == "insufficient":
-            reference = None
         considered = {event["grade"] for event in reviews}
         if reference is not None:
             considered.add(reference)
         if len(considered) > 1:
             grades.pop(case, None)
             status[row_id] = "disputed"
-        elif considered == {"insufficient"} or (not considered and last_decision):
+        elif considered == {"insufficient"}:
             grades.pop(case, None)
             status[row_id] = "insufficient"
         elif reviews or last_decision:

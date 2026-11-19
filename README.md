@@ -77,7 +77,11 @@ grades and adjudication, the CLI exit codes, and the shadow trial contract.
 
 `--require-shadow` returns **0** only for **Try in shadow**, **1** for a
 withheld recommendation, and **2** for an input or execution error.
-Regenerate v0.1.0 comparisons with the current version before using the gate.
+**Upgrading from v0.3.0 or earlier?** Run `compare` again on the original
+cutoff export and issue the new grading packet before relying on the gate.
+Older HTML files still show their original verdict when opened in a browser.
+The current `explain` command can read them and withholds shadow approval
+because those snapshots omitted the source timestamps needed to verify cutoff eligibility.
 
 ## Refunds and verification
 
