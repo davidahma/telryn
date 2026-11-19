@@ -47,6 +47,7 @@ def record(state: dict, path: Path, recommendation: dict) -> bool:
         {
             "schema",
             "comparison_id",
+            "decision_revision",
             "trial_id",
             "observed_at",
             "lead_decision",
@@ -65,6 +66,12 @@ def record(state: dict, path: Path, recommendation: dict) -> bool:
         raise InputError("provide at least one observed batch")
     proposal = state.get("weekly_proposal")
     previous = set()
+    if (proposal or "decision_revision" in data) and data.get(
+        "decision_revision"
+    ) != recommendation["decision_revision"]:
+        raise InputError(
+            "shadow observations must identify the qualifying decision_revision from the start of the trial"
+        )
     if proposal:
         previous.update(proposal["prior_id_hashes"])
         previous.update(

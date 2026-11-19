@@ -14,7 +14,7 @@ from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import weekly_report
+from . import weekly_report, weekly_review
 from .contracts import InputError, integer, mapping
 from .screen import RUBRICS
 
@@ -155,6 +155,43 @@ class Desk:
     def __init__(self, root: Path):
         self.root = root
         self.runs = {}
+        if root.is_dir():
+            for directory in root.iterdir():
+                if (
+                    re.fullmatch("[a-f0-9]{24}", directory.name)
+                    and not directory.is_symlink()
+                    and directory.is_dir()
+                ):
+                    self.runs[directory.name] = directory / "report.html"
+
+    def review(self, ident: str) -> dict:
+        state = weekly_report.read_state(self.report(ident))
+        return {
+            "week": state["week"],
+            "rubric": state["rubric"],
+            "progress": weekly_review.workload(state),
+            "follow_up": weekly_review.follow_up(state),
+            **weekly_review.review_status(state),
+        }
+
+    def history(self) -> list[dict]:
+        items = []
+        for ident in list(self.runs):
+            try:
+                state = weekly_report.read_state(self.report(ident))
+            except (OSError, ValueError):
+                items.append({"id": ident, "verified": False})
+            else:
+                items.append(
+                    {
+                        "id": ident,
+                        "verified": True,
+                        "week": state["week"],
+                        "rubric": state["rubric"],
+                        "progress": weekly_review.workload(state),
+                    }
+                )
+        return sorted(items, key=lambda r: (r.get("week", ""), r["id"]), reverse=True)
 
     def create(self, fields: dict) -> str:
         with _plan(fields) as plan:
@@ -213,7 +250,7 @@ def handler(desk: Desk, token: str):
         def log_message(self, *args):
             pass  # The local entry URL contains a session secret.
 
-        def reply(self, status, body, mime, *, download=False, script_nonce=None):
+        def reply(self, status, body, mime, *, download=None, script_nonce=None):
             self.send_response(status)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(len(body)))
@@ -229,7 +266,7 @@ def handler(desk: Desk, token: str):
             )
             if download:
                 self.send_header(
-                    "Content-Disposition", 'attachment; filename="grades.csv"'
+                    "Content-Disposition", f'attachment; filename="{download}"'
                 )
             self.end_headers()
             self.wfile.write(body)
@@ -274,28 +311,17 @@ def handler(desk: Desk, token: str):
             elif parts == ["rubrics"]:
                 self.reply(200, json.dumps(RUBRICS).encode(), "application/json")
             elif parts == ["audits"]:
-                items = []
-                for ident in list(desk.runs):
-                    try:
-                        state = weekly_report.read_state(desk.report(ident))
-                        items.append(
-                            {
-                                "id": ident,
-                                "week": state["week"],
-                                "rubric": state["rubric"],
-                            }
-                        )
-                    except (OSError, ValueError):
-                        continue
-                self.reply(200, json.dumps(items).encode(), "application/json")
+                self.reply(200, json.dumps(desk.history()).encode(), "application/json")
             elif parts and len(parts) == 2 and parts[0] in desk.runs:
                 path = desk.report(parts[0])
-                if parts[1] == "grades.csv":
+                if parts[1] in ("grades.csv", "outstanding.csv"):
                     self.reply(
                         200,
-                        weekly_report.verified_packet(path),
+                        weekly_report.verified_packet(
+                            path, outstanding=parts[1] == "outstanding.csv"
+                        ),
                         "text/csv",
-                        download=True,
+                        download=parts[1],
                     )
                 elif parts[1] == "report.html":
                     self.reply(
@@ -304,7 +330,7 @@ def handler(desk: Desk, token: str):
                         "text/html; charset=utf-8",
                     )
                 elif parts[1] == "review":
-                    status = weekly_report.review_status(weekly_report.read_state(path))
+                    status = desk.review(parts[0])
                     self.reply(200, json.dumps(status).encode(), "application/json")
                 else:
                     self.reply(404, b"Unknown artifact", "text/plain")
@@ -358,16 +384,6 @@ def handler(desk: Desk, token: str):
 def serve(root: Path, *, open_browser: bool = True) -> int:
     token = secrets.token_hex(32)
     desk = Desk(root)
-    if root.is_dir():
-        for directory in root.iterdir():
-            if (
-                re.fullmatch("[a-f0-9]{24}", directory.name)
-                and not directory.is_symlink()
-                and directory.is_dir()
-                and (directory / "report.html").is_file()
-                and not (directory / "report.html").is_symlink()
-            ):
-                desk.runs[directory.name] = directory / "report.html"
     with ThreadingHTTPServer(("127.0.0.1", 0), handler(desk, token)) as server:
         url = f"http://127.0.0.1:{server.server_port}/{token}/"
         print(

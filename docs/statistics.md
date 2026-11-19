@@ -56,7 +56,23 @@ The report gives observed findings and sampling intervals per group. Its overall
 
 Suppose one group has 500 cases and 50 are sampled. Two reviewers identify positives, 45 cases receive negative grades and three lack a determinate answer. The estimated count spans **20–50**. The low endpoint counts all three unknowns as negative. The high endpoint counts all three as positive. The 95% range further includes sampling uncertainty by combining the lower confidence bound for two positives with the upper confidence bound for five.
 
-Telryn performs that calculation in each sampled group and combines the bounds with a Bonferroni correction. This covers pending returns, insufficient evidence and open grading disputes without assuming their outcomes resemble the completed grades. The report preserves individual confirmed findings. It publishes a single point estimate and screen agreement metrics after all assigned cases have determinate grades.
+Telryn performs that calculation in each sampled group and combines the bounds with a Bonferroni correction. This covers pending returns, insufficient evidence and open grading disputes without assuming their outcomes resemble the completed grades. The report preserves individual confirmed findings. It publishes a single estimate of serious cases once every sampled case has a determinate grade and every nonempty group had a chance of review.
+
+### How many cases were new to the team?
+
+A serious case already logged by the complaints team still counts toward the severity estimate. It contributes zero to the estimate of previously undiscovered findings. The latter uses a separate binary outcome in each sampling group. A confirmed serious case marked `new` contributes one. A negative grade or a serious case marked `already_known` contributes zero. A pending, insufficient or disputed severity grade and a serious case with unknown prior handling each contribute zero at the low end and one at the high end.
+
+For example, suppose a five-case census returns one new serious case, one known serious case, one serious case with unknown prior handling and one negative case. The fifth grade is outstanding. Three to four cases meet the severity rubric, and one to three would count as new. Once all five grades and their prior handling are settled, the census gives exact totals.
+
+In weekly JSON, `new` counts confirmed new cases actually found in the sample. `new_findings` estimates how many cases in the population outside ordinary QA would be recorded as new under the same rubric. Its `estimate_range` varies unresolved grades, while its `interval` also includes sampling uncertainty. When a nonempty group went unsampled, its contribution to the interval ranges from zero to its full population, and the weighted estimate is unavailable. The estimate of new cases and the estimate of all serious cases each have their own 95% coverage calculation.
+
+### How much evidence supports the screen?
+
+The report presents weighted precision, recall and agreement alongside their denominators and 95% ranges. Suppose the queue contains 50 flagged and 50 unflagged conversations. A reviewer finds one serious case in the single flagged case drawn, and a second reviewer grades the single unflagged case negative. All three point estimates are 100%. The simultaneous bounds allow 1–50 positives among the flagged cases and 0–49 among the unflagged cases. Each screen measure therefore ranges from **2% to 100%**.
+
+Telryn sums the severity-count bounds by screen flag. Precision divides the flagged positive count by all flagged cases. Recall divides flagged positives by all positives. Agreement divides flagged positives plus unflagged negatives by the whole residual population. The three ranges come from the same joint 95% set of severity counts across groups. Incomplete grades widen that set. Each unsampled group can contain anywhere from zero to its full population of positives. These ranges describe performance on the audit cohort. Another week or model version has its own performance.
+
+Each `screen_metrics` entry in weekly JSON contains the weighted estimate, interval, denominator range in cases, and denominator status. If there could be zero positives, recall has a range conditional on at least one positive case. When the denominator is known to be zero, both the rate and its interval are undefined. A random-only audit has `screen_metrics: null`. The existing top-level scalar fields keep their complete-grading requirement.
 
 ## Test a candidate within the queue budget
 

@@ -228,15 +228,15 @@ class TeamAudit(unittest.TestCase):
             self.assertRaises(OSError),
         ):
             refresh(replica, self.returned(idx=1), reviewer="B")
-        self.assertEqual(verified_html(replica), clean)
-        # Simulate the only recoverable interruption: file published just before the head commit.
-        env = json.loads(clean.split(STATE_OPEN.encode())[1].split(b"</script>")[0])
-        with audit_trust.registry() as (db, _):
-            db.execute(
-                "UPDATE reports SET revision=?,signature=? WHERE id=?",
-                (1, env["auth"]["previous"], env["state"]["publication_id"]),
-            )
-        self.assertEqual(verified_html(replica), clean)
+        self.assertEqual(replica.read_bytes(), clean)
+        # The committed head rejects the prior file on any other path, even
+        # before a reader recovers the original destination.
+        older = self.root / "old-replica.html"
+        older.write_bytes(clean)
+        with self.assertRaisesRegex(InputError, "stale"):
+            read_state(older)
+        self.assertNotEqual(verified_html(replica), clean)
+        self.assertEqual(len(read_state(replica)["grades"]), 2)
         with self.assertRaisesRegex(InputError, "stale"):
             read_state(self.report)
 

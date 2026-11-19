@@ -225,3 +225,50 @@ def review_status(state: dict) -> dict:
         "open": unresolved,
         "open_disputes": sorted(pending, key=lambda x: x["case_id"]),
     }
+
+
+def workload(state: dict) -> dict:
+    """Count primary handoffs and distinct follow-up queues in the saved revision."""
+    grades = state["grades"]
+    disputes = {item["case_id"] for item in review_status(state)["open_disputes"]}
+    return {
+        "assigned": len(state["cases"]),
+        "primary_outstanding": len(state["cases"]) - len(grades),
+        "insufficient_undisputed": sum(
+            g["serious"] is None and case not in disputes for case, g in grades.items()
+        ),
+        "open_disputes": len(disputes),
+        "handling_unknown": sum(
+            g["serious"] is True and g["disposition"] == "unknown"
+            for g in grades.values()
+        ),
+    }
+
+
+def follow_up(state: dict) -> list[dict]:
+    """Identify returned cases that need more evidence and the permitted review route."""
+    records = state.get("case_reviews", {})
+    items = []
+    for case in state["cases"]:
+        ident = case["case_id"]
+        grade = state["grades"].get(ident)
+        if not grade or grade["disposition"] != "unknown":
+            continue
+        record = records.get(ident, {})
+        checks = record.get("checks", [])
+        if checks and checks[-1]["disputed"] and not checks[-1].get("decision"):
+            continue  # The open disagreement already belongs to the adjudication queue.
+        item = {
+            "case_id": ident,
+            "revision": case["revision"],
+            "evidence_ref": case["evidence_ref"],
+            "reason": "insufficient_evidence"
+            if grade["serious"] is None
+            else "prior_handling_unknown",
+            "primary_reviewer": record.get("primary_by"),
+            "route": "independent_review" if checks else "primary_amendment",
+        }
+        if "completed_at" in case:
+            item["completed_at"] = case["completed_at"]
+        items.append(item)
+    return sorted(items, key=lambda item: item["case_id"])

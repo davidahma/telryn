@@ -136,13 +136,25 @@ must be erased, withdraw affected artifacts and generate a new comparison with
 the remaining admissible material. Loss of a material cutoff input can make a
 shift unreplayable. Loss of a grade can widen the range.
 
+### Check a weekly proposal before running a trial
+
+The saved HTML and a plain `explain` show the verdict from the frozen evidence. When the candidate came from a weekly audit, the JSON result identifies this as `weekly_source.status = "historical_snapshot"`. Use both flags in an automated gate that expects a weekly proposal.
+
+```sh
+python3 -m telryn explain RUN/report.html --require-shadow --require-weekly-source --format json
+```
+
+In the team's trust store, the gate checks the signed comparison evidence against its latest revision and the weekly audit against the revision that generated the candidate. A successful gate returns `weekly_source.status = "current"`. Retain its `comparison_id` and `decision_revision` when starting the trial. New weekly-proposal shadow observations must supply both values. If the held-out grades change before the observation arrives, investigate and qualify a new trial. Preserve the original revision on the recorded observation.
+
+A weekly grade correction invalidates the old proposal for future gated actions. Regenerate the proposal from the updated weekly report, then run the held-out evaluation again. If another copy of a comparison has advanced, use the latest saved report. Existing identical shadow returns on the latest comparison are idempotent, including when the originating weekly audit has since advanced. Pilot benchmarks on weekly proposals require current evidence. Weekly proposal comparisons from v0.5 can still be read as history. Recreating a live gate requires a replay against a signed weekly proposal.
+
 ## CLI exit codes
 
 | Code | Meaning |
 | --- | --- |
 | `0` | Requested artifact or explanation delivered. With `--require-shadow`, the recommendation is **Try in shadow**. |
 | `1` | Shadow gate withheld approval or a qualification case failed. |
-| `2` | Execution or input error. |
+| `2` | Execution or input error, including a stale source revision, missing trust store, or missing required weekly provenance. |
 | `130` | Interrupted. |
 
 Use `--format json` with `compare`, `explain`, or `refresh` for machine-readable
@@ -264,7 +276,7 @@ observed candidate `picks` in order. Each pick has an ID, a cohort, and
 optionally whole `minutes` recorded by the reviewer. Missing minutes stay
 unmeasured. Use the same cohort definition as the historical export. Remove
 unlisted fields before import, including transcript text. The report records
-the decision revision that qualified the trial when it was imported.
+the decision revision that qualified the trial. For weekly proposals this must match the `decision_revision` captured at trial start.
 
 Telryn writes observations into the existing report atomically and leaves the
 grading CSV as issued. It compares observed case mix, volume, and recorded

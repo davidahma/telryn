@@ -1,5 +1,6 @@
 """Exercise the desk in installed Google Chrome with the optional Playwright test driver."""
 
+import csv
 import os
 import subprocess
 import sys
@@ -58,12 +59,67 @@ def run(root: Path):
                 page.locator("#packet").click()
             packet = root / "packet.csv"
             event.value.save_as(packet)
-            assert "screen_flag" not in packet.read_text(encoding="utf-8-sig")
+            with packet.open(encoding="utf-8-sig", newline="") as source:
+                rows = list(csv.DictReader(source))
+            assert len(rows) == 8 and "screen_flag" not in rows[0]
+            answer = {
+                **rows[0],
+                "serious": "insufficient",
+                "disposition": "unknown",
+                "minutes": "4",
+            }
+            returned = root / "returned.csv"
+            with returned.open("w", newline="", encoding="utf-8") as file:
+                writer = csv.DictWriter(file, rows[0].keys())
+                writer.writeheader()
+                writer.writerow(answer)
+            page.locator("#grade [name=reviewer]").fill("Fixture reviewer")
+            page.locator("#grade [name=grades]").set_input_files(returned)
+            page.locator("#grade button").click()
+            expect(page.locator("#progress")).to_contain_text(
+                "7 unanswered · 1 insufficient"
+            )
+            case_row = page.locator("#follow-up tbody tr")
+            expect(case_row).to_have_count(1)
+            for value in (
+                answer["case_id"],
+                answer["revision"],
+                answer["evidence_ref"],
+                "Insufficient evidence",
+                "Fixture reviewer",
+                "First reviewer amends primary grade",
+            ):
+                expect(case_row).to_contain_text(value)
+            page.reload()
+            expect(page.locator("#progress")).to_contain_text(
+                "7 unanswered · 1 insufficient"
+            )
+            page.locator("#history summary").click()
+            expect(page.locator("#history li")).to_contain_text(
+                "7 unanswered · 1 insufficient"
+            )
+            expect(page.locator("#history li")).not_to_contain_text(
+                answer["evidence_ref"]
+            )
+            with page.expect_download() as event:
+                page.locator("#outstanding").click()
+            remaining = root / "remaining.csv"
+            event.value.save_as(remaining)
+            with remaining.open(encoding="utf-8-sig", newline="") as source:
+                assert list(csv.DictReader(source)) == rows[1:]
             with page.expect_popup() as event:
                 page.locator("#report").click()
             expect(event.value.locator("footer")).to_contain_text(
                 "Signed weekly report"
             )
+            # The same directory opened with damaged report bytes stays visible and closed for grading.
+            saved = next((root / "runs").glob("*/report.html"))
+            saved.write_text("unverified report text", encoding="utf-8")
+            page.goto(line.split(": ", 1)[1].strip())
+            expect(page.locator("#recovery")).to_be_visible()
+            expect(page.locator("#history li")).to_contain_text("Unavailable audit")
+            expect(page.locator("#history a")).to_have_count(0)
+            expect(page.locator("#current")).to_be_hidden()
             browser.close()
     finally:
         server.terminate()

@@ -8,7 +8,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from itertools import combinations
 from pathlib import Path
 
-from . import audit_trust
+from . import audit_trust, lineage
 from .artifacts import new_directory
 from .contracts import (
     InputError,
@@ -156,7 +156,7 @@ def propose(report: Path, out: Path, max_reserved: int = 1) -> dict:
     sql = _candidate_sql(selected["predicate"], selected["reserved_seats"])
     body["sql_sha256"] = hashlib.sha256(sql.encode()).hexdigest()
     with audit_trust.registry() as (db, key):
-        _check_source_head(db, body)
+        lineage.check_source_head(db, body)
         body["proposal_id"] = fingerprint(body)
         body["signature"] = audit_trust.mac(
             key, "weekly-candidate-v1", body["proposal_id"].encode("ascii")
@@ -165,17 +165,6 @@ def propose(report: Path, out: Path, max_reserved: int = 1) -> dict:
         (staging / "candidate.sql").write_text(sql, encoding="utf-8")
         (staging / "proposal.json").write_text(canonical(body) + "\n", encoding="utf-8")
     return body
-
-
-def _check_source_head(db, proposal: dict) -> None:
-    head = db.execute(
-        "SELECT revision,signature FROM reports WHERE id=?",
-        (proposal["source_publication"],),
-    ).fetchone()
-    if head != (proposal["source_revision"], proposal["source_signature"]):
-        raise InputError(
-            "weekly proposal refers to a stale or unknown audit revision; regenerate it from the current report"
-        )
 
 
 def held_out(path: Path, plan: dict, export: dict) -> tuple[dict, dict]:
@@ -200,7 +189,7 @@ def held_out(path: Path, plan: dict, export: dict) -> tuple[dict, dict]:
             raise InputError(
                 "weekly proposal signature differs from the team's signed candidate"
             )
-        _check_source_head(db, p)
+        lineage.check_source_head(db, p)
     if p["search_method"] != "simultaneous-hoeffding-95-v1":
         raise InputError("unsupported weekly proposal search")
     predicate = mapping(p.get("predicate"), "proposal predicate")
@@ -283,4 +272,10 @@ def held_out(path: Path, plan: dict, export: dict) -> tuple[dict, dict]:
             *sorted(predicate.keys() - {"screen_flag"}),
         ],
     }
-    return rule, {"id": proposal_id, "prior_id_hashes": sorted(previous_cases)}
+    return rule, {
+        "id": proposal_id,
+        "prior_id_hashes": sorted(previous_cases),
+        "source_publication": p["source_publication"],
+        "source_revision": p["source_revision"],
+        "source_signature": p["source_signature"],
+    }

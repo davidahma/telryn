@@ -1,0 +1,19 @@
+# Design review · weekly evidence and the next decision
+
+The weekly report serves three people. A reviewer needs the next case and the evidence as it stood at closure. A QA lead needs to distinguish serious cases from findings that need new follow-up. A queue owner needs to know whether last week's evidence still justifies a shadow trial. The v0.6 review tested the points where work moves between those people.
+
+| Finding in v0.5 | Consequence | Change and acceptance case |
+| --- | --- | --- |
+| A saved comparison could continue to pass a shadow gate after a development grade was disputed. | A job acting on the saved comparison could authorize work that a fresh replay would refuse. | Authenticate the source and current comparison for operational use. Preserve the frozen verdict for inspection. Test a correction after publication, a stale copy, a later trial and a historical read. |
+| A process could stop after writing a correction to disk while the registry still authorized the previous revision. | A second operator working from a copy could proceed using superseded evidence. | Commit the new head and a recovery record together before replacing the visible file. Test interruptions before and after replacement for a weekly source and a held-out comparison, including a second copy. |
+| One graded positive and one graded negative could display 100% precision, recall and agreement. | A lead could mistake two correct predictions for evidence of reliable queue coverage. | Carry the sampled count bounds into each metric and show its denominator. In a residual queue of 50 flagged and 50 unflagged cases, the same two grades give each metric a 2%–100% range. |
+| The headline estimated serious cases outside ordinary QA. Prior handling appeared only as observed sample counts. | The lead could mistake all serious cases for work that no other control had caught. | Estimate the previously undiscovered count separately. Test known, newly discovered, and unresolved dispositions. A census with unknown prior handling still has uncertainty about new findings. |
+| The only download contained the entire original sample. An unreadable saved report disappeared from desk history. | A second shift could repeat completed work or assume an entire audit had been lost. | Derive a blinded packet for outstanding first grades. Keep disputes and insufficient evidence visible separately. On a trust mismatch, show the directory identifier and recovery guidance. |
+
+The implementation follows the same dependency order as the audit itself. Derive estimates and work queues from the frozen sample and saved grades. Bind downstream actions to the evidence revision. Expose those decisions through the CLI, desk and report. Validate each handoff across a partial return, correction and restart. [Architecture](architecture.md)
+
+## What the release can establish
+
+The public Ubuntu corpus provides an independent check on the count of human-annotated friction cases. It contains no record of which cases another operational control already knew about. A census can therefore give an exact friction count while leaving the newly discovered count unresolved. The fintech example exercises a later held-out comparison and shadow trial with synthetic data. [Public data and attribution](../examples/public_demo/NOTICE.md) · [Fintech example](../examples/fintech/README.md)
+
+The outstanding product question is whether a team finds enough previously unknown cases to justify a second week of review. That requires a QA lead's own roster, recorded review minutes, prior-handling evidence and actual follow-up. Comparing percentages across weeks also requires compatible policies, source coverage and queue composition. The pilot guide describes what to collect before interpreting such a change. [Pilot evaluation](evaluation.md)

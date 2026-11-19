@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from tests.audit_support import isolate_trust
 from telryn.desk import Desk, handler
+from telryn.integrations_coverage import membership
 from telryn.weekly import summarize
 from telryn.weekly_report import read_state
 
@@ -214,6 +215,186 @@ class DeskFlow(unittest.TestCase):
             json.loads(self.request("GET", path + "/review")[1])["open_disputes"]
         )
         self.assertIn(b"item-1", self.request("GET", path + "/report.html")[1])
+
+    def test_remaining_packet_and_saved_workload_follow_a_partial_return(self):
+        fields = {
+            **self.form,
+            "population": self.form["population"]
+            + "b,r2,source-b,false\nc,r3,source-c,false\nd,r4,source-d,false\n",
+            "unflagged_sample": 4,
+        }
+        population = list(csv.DictReader(io.StringIO(fields["population"])))
+        cutoffs = {r["case_id"]: "2026-11-03T12:00:00Z" for r in population}
+        fields["coverage"] = json.dumps(
+            {
+                "schema": 1,
+                "basis": "event-ledger",
+                "scope": "Fixture queue",
+                "since": fields["week"],
+                "until": "2026-11-09",
+                "scanned": 4,
+                "eligible": 4,
+                "open": 0,
+                "unknown": 0,
+                "outside": 0,
+                "still_open": 0,
+                "dimensions": [],
+                "completed_at": cutoffs,
+                "membership": membership(population, cutoffs),
+            }
+        )
+        run = json.loads(self.request("POST", "/testtoken/audits", fields)[1])["id"]
+        path = "/testtoken/" + run
+        snapshot = self.request("GET", path + "/grades.csv")[1]
+        packet = list(csv.DictReader(io.StringIO(snapshot.decode("utf-8-sig"))))
+
+        def submit(route, reviewer, rows):
+            buf = io.StringIO()
+            writer = csv.DictWriter(buf, packet[0].keys())
+            writer.writeheader()
+            writer.writerows(rows)
+            status, body = self.request(
+                "POST",
+                path + "/" + route,
+                {"grades": buf.getvalue(), "reviewer": reviewer},
+            )
+            self.assertIn("200 OK", status, body)
+
+        submit(
+            "grades",
+            "A",
+            [
+                {**packet[0], "serious": "no", "disposition": "none", "minutes": "2"},
+                {
+                    **packet[1],
+                    "serious": "insufficient",
+                    "disposition": "unknown",
+                    "minutes": "2",
+                },
+                {
+                    **packet[2],
+                    "serious": "yes",
+                    "disposition": "unknown",
+                    "minutes": "2",
+                },
+            ],
+        )
+        submit(
+            "second-review",
+            "B",
+            [
+                {
+                    **packet[0],
+                    "serious": "yes",
+                    "disposition": "already_known",
+                    "minutes": "3",
+                },
+                {
+                    **packet[1],
+                    "serious": "insufficient",
+                    "disposition": "unknown",
+                    "minutes": "1",
+                },
+            ],
+        )
+        restarted = Desk(self.desk.root)
+        self.handle = handler(restarted, "testtoken")
+        history = json.loads(self.request("GET", "/testtoken/audits")[1])
+        self.assertTrue(history[0]["verified"])
+        self.assertNotIn("open_disputes", history[0])
+        self.assertNotIn("follow_up", history[0])
+        work = history[0]["progress"]
+        self.assertEqual(work["primary_outstanding"], 1)
+        self.assertEqual(work["insufficient_undisputed"], 1)
+        self.assertEqual(work["open_disputes"], 1)
+        self.assertEqual(work["handling_unknown"], 1)
+        review = json.loads(self.request("GET", path + "/review")[1])
+        self.assertEqual(review["progress"], work)
+        details = {item["case_id"]: item for item in review["follow_up"]}
+        self.assertEqual(set(details), {packet[1]["case_id"], packet[2]["case_id"]})
+        for row, reason, route in (
+            (packet[1], "insufficient_evidence", "independent_review"),
+            (packet[2], "prior_handling_unknown", "primary_amendment"),
+        ):
+            self.assertEqual(
+                details[row["case_id"]],
+                {
+                    "case_id": row["case_id"],
+                    "evidence_ref": row["evidence_ref"],
+                    "revision": row["revision"],
+                    "completed_at": row["completed_at"],
+                    "primary_reviewer": "A",
+                    "reason": reason,
+                    "route": route,
+                },
+            )
+        header, remaining = self.request("GET", path + "/outstanding.csv")
+        self.assertIn('filename="outstanding.csv"', header)
+        rows = list(csv.DictReader(io.StringIO(remaining.decode("utf-8-sig"))))
+        self.assertEqual(rows, [packet[3]])
+        self.assertEqual(self.request("GET", path + "/grades.csv")[1], snapshot)
+        submit(
+            "grades",
+            "C",
+            [{**rows[0], "serious": "no", "disposition": "none", "minutes": "1"}],
+        )
+        self.assertEqual(
+            json.loads(self.request("GET", path + "/review")[1])["progress"][
+                "primary_outstanding"
+            ],
+            0,
+        )
+        submit(
+            "grades",
+            "A",
+            [
+                {
+                    **packet[2],
+                    "serious": "yes",
+                    "disposition": "already_known",
+                    "minutes": "4",
+                }
+            ],
+        )
+        submit(
+            "second-review",
+            "D",
+            [{**packet[1], "serious": "no", "disposition": "none", "minutes": "3"}],
+        )
+        review = json.loads(self.request("GET", path + "/review")[1])
+        self.assertEqual(review["follow_up"], [])
+        self.assertEqual(review["progress"]["open_disputes"], 2)
+
+    def test_unavailable_history_exposes_only_directory_id_after_restart(self):
+        fields = {**self.form, "rubric": "private-rubric"}
+        run = json.loads(self.request("POST", "/testtoken/audits", fields)[1])["id"]
+        report = self.desk.report(run)
+        original = report.read_bytes()
+        report.write_text("unverified case data")
+        self.handle = handler(Desk(self.desk.root), "testtoken")
+        unavailable = [{"id": run, "verified": False}]
+        self.assertEqual(
+            json.loads(self.request("GET", "/testtoken/audits")[1]), unavailable
+        )
+        for suffix in ("report.html", "review", "grades.csv", "outstanding.csv"):
+            status, body = self.request("GET", f"/testtoken/{run}/{suffix}")
+            self.assertIn("400", status)
+            self.assertNotIn(b"unverified case data", body)
+        report.write_bytes(original)
+        with patch.dict(
+            "os.environ", {"TELRYN_TRUST_DIR": str(self.desk.root / "other-store")}
+        ):
+            self.assertEqual(
+                json.loads(self.request("GET", "/testtoken/audits")[1]), unavailable
+            )
+        self.assertTrue(
+            json.loads(self.request("GET", "/testtoken/audits")[1])[0]["verified"]
+        )
+        report.unlink()
+        self.handle = handler(Desk(self.desk.root), "testtoken")
+        self.assertEqual(
+            json.loads(self.request("GET", "/testtoken/audits")[1]), unavailable
+        )
 
     def test_foreign_origin_host_token_and_invalid_input(self):
         self.assertIn(
