@@ -71,6 +71,7 @@ class IntegrationTests(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)
         config = {
+            "TELRYN_TRUST_DIR": str(self.root / "audit-trust"),
             "TELRYN_ZENDESK_SUBDOMAIN": "demo",
             "TELRYN_INTERCOM_WORKSPACE": "demo",
             "TELRYN_FRESHDESK_SUBDOMAIN": "demo",
@@ -116,6 +117,8 @@ class IntegrationTests(unittest.TestCase):
             [
                 "pull",
                 vendor,
+                "--basis",
+                "created",
                 "--since",
                 "2025-01-06",
                 "--until",

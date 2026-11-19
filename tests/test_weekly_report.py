@@ -9,7 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest.mock import patch
 
-from telryn.contracts import InputError, canonical, fingerprint
+from telryn.contracts import InputError
 from telryn.weekly_mail import send_digest
 from telryn.weekly_report import COLUMNS, STATE_OPEN, digest, read_state, refresh, start
 
@@ -19,6 +19,11 @@ class WeeklyReportTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
+        trust_env = patch.dict(
+            os.environ, {"TELRYN_TRUST_DIR": str(self.root / "trust")}
+        )
+        trust_env.start()
+        self.addCleanup(trust_env.stop)
         self.plan = self.root / "weekly.toml"
         self.plan.write_text("""schema = 1
 week = "2026-11-16"
@@ -67,7 +72,7 @@ unflagged_sample = 2
         self.assertEqual(text.count("</script>"), 1)
         self.assertIn("&lt;/script&gt;", text)
         self.assertIn("default-src 'none'", text)
-        self.assertIn("Weekly estimate unavailable", text)
+        self.assertIn("95% range", text)
         with self.assertRaises(FileExistsError):
             start(self.plan, self.run)
         self.plan.unlink()
@@ -88,7 +93,7 @@ unflagged_sample = 2
         self.assertIn("1 of 3", output)
         self.assertIn("1 returned with insufficient evidence", output)
         self.assertIn("6 review minutes", output)
-        self.assertIn("unavailable", output)
+        self.assertIn("95% range", output)
         resolved = {
             **row_a,
             "serious": "yes",
@@ -118,7 +123,7 @@ unflagged_sample = 2
         self.assertIn("10 review minutes", output)
         self.assertNotIn("private-", output)
 
-    def test_resolving_prior_handling_preserves_all_returns_and_legacy_history(self):
+    def test_resolving_prior_handling_preserves_all_returns(self):
         row = self.rows[1]
         insufficient = {
             **row,
@@ -136,13 +141,8 @@ unflagged_sample = 2
         }
         refresh(self.report, self.packet([insufficient]))
         state = refresh(self.report, self.packet([unknown]))
-        # Exercise a schema-1 report from before the history could contain two answers.
+        # The signed grade history remains stable while prior handling is investigated.
         case_id = row["case_id"]
-        state["earlier_grades"][case_id] = state["earlier_grades"][case_id][0]
-        legacy = canonical(
-            {"schema": 1, "checksum": fingerprint(state), "state": state}
-        ).replace("<", r"\u003c")
-        self.report.write_text(STATE_OPEN + legacy + "</script>")
         self.assertEqual(read_state(self.report), state)
         self.assertIn("1 with prior handling unknown", digest(self.report))
         existing = self.report.read_bytes()
@@ -276,6 +276,7 @@ unflagged_sample = 2
 
     def test_tls_email_contains_only_aggregates_and_one_recipient(self):
         env = {
+            "TELRYN_TRUST_DIR": str(self.root / "trust"),
             "TELRYN_SMTP_HOST": "mail.test",
             "TELRYN_SMTP_PORT": "4465",
             "TELRYN_SMTP_USERNAME": "operator",
@@ -309,7 +310,11 @@ unflagged_sample = 2
         ):
             with (
                 self.subTest(who=who, config=config),
-                patch.dict(os.environ, config, clear=True),
+                patch.dict(
+                    os.environ,
+                    {**config, "TELRYN_TRUST_DIR": str(self.root / "trust")},
+                    clear=True,
+                ),
                 patch("telryn.weekly_mail.smtplib.SMTP_SSL") as smtp,
                 self.assertRaises(InputError),
             ):

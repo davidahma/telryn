@@ -8,7 +8,7 @@ import time
 from datetime import UTC, date, datetime
 from pathlib import Path
 
-from . import integrations_sierra
+from . import integrations_coverage, integrations_sierra, integrations_transcripts
 from .artifacts import sync_directory
 from .contracts import InputError
 from .integrations_http import Client, query, slug
@@ -32,21 +32,33 @@ def register_arguments(commands):
     )
     actions = command.add_subparsers(dest="integration_action", required=True)
     integrations_sierra.register_arguments(actions)
+    integrations_transcripts.register_arguments(actions)
+    cohort = actions.add_parser(
+        "cohort",
+        help="build a weekly cohort from an authoritative completion-event export",
+    )
+    cohort.add_argument("events", type=Path)
+    cohort.add_argument("--since", required=True)
+    cohort.add_argument("--until", required=True)
+    cohort.add_argument(
+        "--scope", required=True, help="source and population scanned by this ledger"
+    )
+    cohort.add_argument("--out", required=True, type=Path)
     pull = actions.add_parser(
-        "pull", help="fetch currently closed records created in a date range"
+        "pull", help="fetch cases resolved or closed in a date range"
     )
     pull.add_argument("vendor", choices=VENDORS)
     pull.add_argument(
         "--since",
         required=True,
         metavar="YYYY-MM-DD",
-        help="inclusive UTC creation date",
+        help="inclusive UTC start date",
     )
     pull.add_argument(
         "--until",
         required=True,
         metavar="YYYY-MM-DD",
-        help="exclusive UTC creation date",
+        help="exclusive UTC end date",
     )
     pull.add_argument(
         "--expected-count",
@@ -61,6 +73,18 @@ def register_arguments(commands):
     )
     pull.add_argument(
         "--closed-tag", help="Decagon tag marking a completed conversation"
+    )
+    pull.add_argument(
+        "--basis",
+        choices=("completion", "created"),
+        default="completion",
+        help="completion event time (or explicitly request v0.4 creation cohort)",
+    )
+    pull.add_argument(
+        "--dimension",
+        action="append",
+        default=[],
+        help="map channel, agent_type or product to a source field, e.g. channel=via.channel",
     )
     pull.add_argument("--out", required=True, type=Path)
     qa = actions.add_parser(
@@ -175,8 +199,7 @@ def reviewed_zendesk(client, args, since, until):
     prefix = f"zendesk:{client.scope}:"
     with args.population.open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream, strict=True)
-        if tuple(reader.fieldnames or ()) != FIELDS:
-            raise InputError("supply a Zendesk population CSV from integrations pull")
+        integrations_coverage.projection(reader.fieldnames, FIELDS)
         eligible = set()
         for row in reader:
             key = row["case_id"]
@@ -375,12 +398,25 @@ def handoff(client, state, tag, apply):
 def execute(args):
     if args.integration_action == "pull-sierra":
         return integrations_sierra.execute(args)
-    if args.integration_action in {"pull", "reviewed-zendesk"}:
+    if args.integration_action == "transcripts":
+        count = integrations_transcripts.fetch(
+            Client(args.vendor), args.population, args.out
+        )
+        print(f"Fetched {count} case revisions to the private transcript file.")
+        return 0
+    if args.integration_action in {"pull", "reviewed-zendesk", "cohort"}:
         since, until = _date(args.since), _date(args.until)
         if not since < until <= datetime.now(UTC):
-            raise InputError(
-                "choose a completed creation-date interval with since before until"
+            raise InputError("choose a completed UTC interval with since before until")
+        if args.integration_action == "cohort":
+            rows, receipt = integrations_coverage.from_events(
+                args.events, since, until, args.scope
             )
+            integrations_coverage.publish(args.out, rows, receipt)
+            print(
+                f"Included {len(rows)} conversations. Scope and exclusions: {args.out.name}.coverage.json"
+            )
+            return 0
         if args.integration_action == "reviewed-zendesk":
             rows = reviewed_zendesk(Client("zendesk_qa"), args, since, until)
             write_csv(args.out, ("case_id",), rows)
@@ -390,19 +426,21 @@ def execute(args):
             raise InputError(
                 "Decagon needs --expected-count from an independent closed-conversation count"
             )
-        rows = population(
+        rows, receipt = population(
             Client(args.vendor),
             since,
             until,
             fin_only=args.fin_only,
             flag_tag=args.flag_tag,
             closed_tag=args.closed_tag,
+            basis=args.basis,
+            dimension_specs=args.dimension,
         )
         if args.expected_count is not None and len(rows) != args.expected_count:
             raise InputError("source count does not match --expected-count")
-        write_csv(args.out, FIELDS, rows)
+        integrations_coverage.publish(args.out, rows, receipt)
         print(
-            f"Exported {len(rows)} currently closed {args.vendor} records created in [{args.since}, {args.until}) UTC."
+            f"Included {len(rows)} {args.vendor} conversations. Scope and exclusions: {args.out.name}.coverage.json"
         )
     elif args.integration_action == "import-agent":
         rows = agent_export(args)

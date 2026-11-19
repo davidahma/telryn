@@ -9,12 +9,21 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import __version__, benchmark, intake, integrations, weekly, weekly_report
+from . import (
+    __version__,
+    audit_trust,
+    benchmark,
+    intake,
+    integrations,
+    planning,
+    screen,
+    weekly,
+    weekly_report,
+)
 from .contracts import InputError, canonical
 from .decision import SHADOW
 from .grades import parse_minutes
 from .proposal import propose
-from .screen import POLICIES, screen
 from .report import load_report, recommendation, signed_range, stopping_text
 from .session import compare, publish, record_shadow, refresh
 
@@ -62,13 +71,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     week.add_argument("--email-from", help="sender address for the requested email")
     week.add_argument("--format", choices=("text", "json"), default="text")
-    screening = commands.add_parser(
-        "screen", help="screen a batch of policy events with a local Ollama model"
+    week.add_argument(
+        "--max-reserved",
+        type=int,
+        help="maximum seats to explore when proposing a rule",
     )
-    screening.add_argument("events", type=Path)
-    screening.add_argument("--model", required=True, help="exact installed model tag")
-    screening.add_argument("--policy", required=True, choices=tuple(POLICIES))
-    screening.add_argument("--out", required=True, type=Path)
+    weekly_report.register_review_arguments(week, action)
+    planning.register_arguments(commands)
+    audit_trust.register_arguments(commands)
+    screen.register_arguments(commands)
     desk = commands.add_parser(
         "desk", help="open the local browser intake for a QA lead"
     )
@@ -277,13 +288,20 @@ def pilot_benchmark(args: argparse.Namespace) -> int:
 def weekly_audit(args: argparse.Namespace) -> int:
     if (args.email_to is None) != (args.email_from is None):
         raise InputError("email delivery requires both --email-from and --email-to")
+    if args.max_reserved is not None and not args.propose:
+        raise InputError("--max-reserved applies only to --propose")
     path = args.source
+    state = weekly_report.review_action(args)
     if args.out:
         path = weekly_report.start(path, args.out)
-    if args.grades:
-        state = weekly_report.refresh(path, args.grades)
+    elif args.grades:
+        state = weekly_report.refresh(path, args.grades, reviewer=args.reviewer)
     elif args.propose:
-        result = propose(path, args.propose)
+        result = propose(
+            path,
+            args.propose,
+            max_reserved=1 if args.max_reserved is None else args.max_reserved,
+        )
         print(
             canonical(result)
             if args.format == "json"
@@ -297,15 +315,19 @@ def weekly_audit(args: argparse.Namespace) -> int:
         print("Weekly aggregate digest sent.")
         return 0
     elif args.digest:
-        print(weekly_report.digest(path))
+        print(weekly_report.digest(path, allow_legacy=args.legacy))
         return 0
-    else:
-        state = weekly_report.read_state(path)
+    if state is None:
+        state = weekly_report.read_state(path, allow_legacy=args.legacy)
     result = weekly.summarize(state)
+    result["review"] = weekly_report.review_status(state)
+    result["verification"] = (
+        "team_hmac_verified" if "draw_commitment" in state else "historical_unsigned"
+    )
     if args.format == "json":
         print(canonical(result))
     else:
-        print(weekly_report.digest(path))
+        print(weekly_report.digest(path, allow_legacy=args.legacy))
         print(f"Report: {terminal_text(path)}")
     return 0
 
@@ -322,8 +344,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "integrations":
             return integrations.execute(args)
         if args.command == "screen":
-            print(canonical(screen(args.events, args.out, args.model, args.policy)))
-            return 0
+            return screen.execute(args)
+        if args.command == "plan-week":
+            return planning.execute(args)
+        if args.command == "trust":
+            return audit_trust.execute(args)
         if args.command == "demo":
             return _demo(args.out)
         if args.command == "preflight":

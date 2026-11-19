@@ -10,13 +10,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 from examples.fintech.__main__ import FIXTURE, run, sample_return
-from telryn.contracts import InputError
+from tests.audit_support import isolate_trust
+from telryn.contracts import InputError, fingerprint
 from telryn.proposal import propose
 from telryn.replay import load_selector
 from telryn.report import load_report, recommendation
 from telryn.screen import _signals
 from telryn.session import compare, record_shadow
-from telryn.weekly_report import refresh, start
+from telryn.weekly_report import refresh, second_review, start
 
 
 class WeeklyProposalTests(unittest.TestCase):
@@ -24,12 +25,15 @@ class WeeklyProposalTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.base = Path(temp.name)
+        isolate_trust(self, self.base)
         self.out = self.base / "run"
 
     def completed_proposal(self):
-        report = start(FIXTURE / "week.toml", self.base / "weekly")
+        report = start(FIXTURE / "development.toml", self.base / "weekly")
         returned = self.base / "return.csv"
-        sample_return(report.with_name("grades.csv"), returned)
+        sample_return(
+            report.with_name("grades.csv"), returned, "development-grades.csv"
+        )
         refresh(report, returned)
         propose(report, self.base / "candidate")
         return self.base / "candidate" / "proposal.json"
@@ -83,6 +87,12 @@ class WeeklyProposalTests(unittest.TestCase):
             propose(weekly, candidate)
         returned = self.base / "returned.csv"
         sample_return(weekly.with_name("grades.csv"), returned)
+        refresh(weekly, returned)
+        with self.assertRaisesRegex(InputError, "no segment"):
+            propose(weekly, candidate)
+        # An independent fixture also checks a tie without changing any accepted grade.
+        weekly = start(FIXTURE / "week.toml", self.base / "tie")
+        sample_return(weekly.with_name("grades.csv"), returned)
         with returned.open(encoding="utf-8", newline="") as stream:
             rows = list(csv.DictReader(stream))
         for row in rows:
@@ -94,7 +104,7 @@ class WeeklyProposalTests(unittest.TestCase):
             writer.writeheader()
             writer.writerows(rows)
         refresh(weekly, returned)
-        with self.assertRaisesRegex(InputError, "same observed"):
+        with self.assertRaisesRegex(InputError, "no segment"):
             propose(weekly, candidate)
         self.assertFalse(candidate.exists())
 
@@ -114,8 +124,8 @@ class WeeklyProposalTests(unittest.TestCase):
                 data = json.loads((FIXTURE / "held-out.json").read_text())
                 batch = data["shifts"]["monday"]
                 if name == "ordinary_id":
-                    # T01 was ordinarily reviewed, so it never entered the tuning-week packet.
-                    batch["membership"]["ids"][0] = "T01"
+                    # D00 was ordinarily reviewed, so it never entered the tuning-week packet.
+                    batch["membership"]["ids"][0] = "D00"
                 elif name == "cutoff":
                     batch["cutoff"] = "2026-11-08T23:59:59Z"
                 elif name == "capacity":
@@ -142,6 +152,29 @@ class WeeklyProposalTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(InputError, "same serious rubric"):
             compare(plan, export_path=FIXTURE / "held-out.json", proposal_path=proposal)
+
+    def test_proposal_requires_authentic_current_evidence(self):
+        proposal = self.completed_proposal()
+        original = json.loads(proposal.read_text())
+        public_copy = {
+            k: v for k, v in original.items() if k not in {"proposal_id", "signature"}
+        }
+        public_copy["sampled_in_segment"] += 1
+        public_copy["proposal_id"] = fingerprint(public_copy)
+        public_copy["signature"] = original["signature"]
+        proposal.write_text(json.dumps(public_copy))
+        with self.assertRaisesRegex(InputError, "signature"):
+            compare(FIXTURE / "held-out.toml", proposal_path=proposal)
+        legacy = {"schema": 1, "priority_flag": True}
+        legacy["proposal_id"] = fingerprint(legacy)
+        proposal.write_text(json.dumps(legacy))
+        with self.assertRaisesRegex(InputError, "unsigned historical"):
+            compare(FIXTURE / "held-out.toml", proposal_path=proposal)
+        proposal.write_text(json.dumps(original))
+        source = self.base / "weekly" / "report.html"
+        second_review(source, self.base / "return.csv", reviewer="Independent check")
+        with self.assertRaisesRegex(InputError, "stale"):
+            compare(FIXTURE / "held-out.toml", proposal_path=proposal)
 
     def test_exact_bytes_of_loaded_selector_must_match_proposal(self):
         proposal = self.completed_proposal()
@@ -257,7 +290,7 @@ class WeeklyProposalTests(unittest.TestCase):
                 elif name in ("prior_trial", "tuning", "heldout"):
                     row["id"] = {
                         "prior_trial": "S01",
-                        "tuning": "T01",
+                        "tuning": "D00",
                         "heldout": "H04",
                     }[name]
                 elif name == "empty":

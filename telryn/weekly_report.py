@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import csv
-import fcntl
+import hmac
+import io
 import json
 import os
+import secrets
 import tempfile
 from html import escape
 from pathlib import Path
 
+from . import audit_trust, weekly_review
+from .weekly_review import review_status
 from .artifacts import new_directory, sync_directory
 from .contracts import InputError, canonical, fingerprint, versioned
 from .grades import render_cell
@@ -30,11 +34,17 @@ ANSWERS = ("serious", "disposition", "owner", "action", "minutes")
 COLUMNS = FIXED + ANSWERS
 
 
+def _columns(state: dict) -> tuple:
+    if "coverage_sha256" in state:
+        return FIXED + ("completed_at",) + ANSWERS
+    return COLUMNS
+
+
 def _audit_id(state: dict) -> str:
     frozen = {
         key: value
         for key, value in state.items()
-        if key not in ("grades", "earlier_grades")
+        if key not in ("grades", "earlier_grades", "case_reviews")
     }
     return "W-" + fingerprint(frozen)
 
@@ -53,6 +63,8 @@ def _packet(state: dict) -> dict:
             "rubric": state["rubric"],
             "rubric_question": state["rubric_question"],
         }
+        if "completed_at" in case:
+            fields["completed_at"] = case["completed_at"]
         rows[row_id] = (
             case["case_id"],
             {key: render_cell(value) for key, value in fields.items()},
@@ -61,6 +73,12 @@ def _packet(state: dict) -> dict:
 
 
 def _estimate(result: dict, label: str = "serious failures") -> str:
+    if (
+        result.get("range_kind") == "incomplete"
+        and result.get("estimate_range") is not None
+    ):
+        lo, hi = result["estimate_range"]
+        return f"Estimated {label} outside ordinary QA · {lo:,.1f} to {hi:,.1f}"
     if result["estimate"] is None:
         return "Weekly estimate unavailable"
     count = f"{result['estimate']:,.1f}".removesuffix(".0")
@@ -71,6 +89,9 @@ def _uncertainty(result: dict, label: str = "serious failures") -> str:
     if result["interval"] is None:
         return result["estimate_reason"]
     lower, upper = result["interval"]
+    if result.get("range_kind") == "incomplete":
+        return f"Unknown grades could change the result. Including sampling uncertainty, the 95% range is {lower:,} to {upper:,} {label}."
+
     if result["graded"] == result["unreviewed"]:
         return f"All {result['unreviewed']:,} conversations outside ordinary QA have a determinate grade."
     return f"The 95% sampling interval is {lower:,} to {upper:,} {label}."
@@ -95,6 +116,12 @@ def _digest_lines(state: dict, result: dict) -> list[str]:
         f"{result['insufficient']} returned with insufficient evidence. {result['review_minutes']} review minutes recorded.",
         f"Ordinary QA reviewed {result['reviewed']} of {result['population']} eligible conversations.",
     ]
+    lines.extend(_coverage_lines(state))
+    reviews = review_status(state)
+    if reviews["paired"]:
+        lines.append(
+            f"Independent reviewers agreed on severity for {reviews['agreed']} of {reviews['compared']} definite pairs. {reviews['open']} disputes need adjudication."
+        )
     if demo:
         lines.append(
             "Public demonstration using archived human labels and simulated ordinary reviews."
@@ -102,15 +129,76 @@ def _digest_lines(state: dict, result: dict) -> list[str]:
     return lines
 
 
-def digest(report_path: Path) -> str:
-    state = read_state(report_path)
-    return "\n".join(_digest_lines(state, summarize(state))) + "\n"
+def digest(report_path: Path, *, allow_legacy=False) -> str:
+    state = read_state(report_path, allow_legacy=allow_legacy)
+    lines = _digest_lines(state, summarize(state))
+    if "draw_commitment" not in state:
+        lines.insert(0, "Historical unsigned weekly report · provenance unverified")
+    return "\n".join(lines) + "\n"
 
 
-def _render(state: dict) -> str:
+def _review_section(state: dict) -> str:
+    status = review_status(state)
+    if not status["paired"]:
+        return "<section><h2>Independent review</h2><p>No second grades recorded.</p></section>"
+    rows = []
+    for case, record in state["case_reviews"].items():
+        for check in record["checks"]:
+
+            def vote(grade):
+                label = {True: "Yes", False: "No", None: "Insufficient"}[
+                    grade["serious"]
+                ]
+                return f"{label} ({grade['disposition']})"
+
+            result = "Agreement"
+            if check.get("decision"):
+                d = check["decision"]
+                result = f"{d['reviewer']} accepted the {d['choice']} answer: {d['reason']} ({d['minutes']} minutes, {d['at']})"
+            elif check["disputed"]:
+                result = "Open dispute " + check["id"]
+            values = (
+                case,
+                f"{check['primary_by']}: {vote(check['primary'])}",
+                f"{check['second_by']}: {vote(check['second'])}",
+                result,
+            )
+            rows.append(
+                "<tr>"
+                + "".join(f"<td>{escape(value)}</td>" for value in values)
+                + "</tr>"
+            )
+    return (
+        "<section><h2>Independent review</h2>"
+        f"<p>First and second reviewers agreed on severity for {status['agreed']} of {status['compared']} determinate pairs. "
+        f"{status['paired']} cases received a second grade. {status['open']} disputes await adjudication.</p>"
+        '<div class="table" tabindex="0"><table><thead><tr><th>Case</th><th>First grade</th><th>Second grade</th><th>Decision</th></tr></thead><tbody>'
+        + "".join(rows)
+        + "</tbody></table></div></section>"
+    )
+
+
+def _coverage_lines(state: dict) -> list[str]:
+    cov = state.get("coverage")
+    if not cov:
+        return [
+            "This audit describes the supplied population. Source exclusions and still-open counts were not supplied."
+        ]
+    return [
+        f"Source basis: {cov['basis']}. Scanned {cov['scanned']:,} records. "
+        f"{cov['eligible']:,} eligible, {cov['open']:,} excluded as open, "
+        f"{cov['outside']:,} outside the interval and {cov['unknown']:,} with unknown completion.",
+        f"At export, {cov['still_open']:,} scanned records were still open.",
+    ]
+
+
+def _render(state: dict, auth: dict) -> str:
     result = summarize(state)
     label = state.get("finding_label", "serious failures")
     scope = f"<p>{escape(state['scope_note'])}</p>" if state.get("scope_note") else ""
+    scope += "".join(f"<p>{escape(line)}</p>" for line in _coverage_lines(state))
+    if cov := state.get("coverage"):
+        scope += f"<p>Source scope: {escape(cov['scope'])}. UTC interval [{escape(cov['since'])}, {escape(cov['until'])}).</p>"
     cover = "".join(
         (
             stat("Human-confirmed findings", str(result["confirmed_serious"])),
@@ -151,12 +239,18 @@ def _render(state: dict) -> str:
         else "<p>No human-confirmed findings so far.</p>"
     )
     sample_rows = []
-    for key, stratum_label in (("flagged", "Flagged"), ("unflagged", "Unflagged")):
-        group = state["strata"][key]
+    for key, group in state["strata"].items():
+        stratum_label = escape(group.get("label", key.title()))
         total, sampled = group["population"], group["sample"]
         chance = f"{sampled / total:.2%}" if total else "—"
+        observed = result["stratum_results"][key]
+        bounds = observed["interval"]
+        interval = (
+            f"{bounds[0]:,}–{bounds[1]:,}" if bounds is not None else "Unavailable"
+        )
         sample_rows.append(
-            f"<tr><th>{stratum_label}</th><td>{total:,}</td><td>{sampled:,}</td><td>{chance}</td></tr>"
+            f"<tr><th>{stratum_label}</th><td>{total:,}</td><td>{sampled:,}</td><td>{chance}</td>"
+            f"<td>{observed['confirmed']:,}</td><td>{sampled - observed['graded']:,}</td><td>{interval}</td></tr>"
         )
     scores = "".join(
         (
@@ -170,7 +264,7 @@ def _render(state: dict) -> str:
             ),
         )
     )
-    payload = canonical({"schema": 1, "checksum": fingerprint(state), "state": state})
+    payload = canonical({"schema": 2, "auth": auth, "state": state})
     payload = (
         payload.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     )
@@ -193,7 +287,9 @@ def _render(state: dict) -> str:
         f'<section><h2>Confirmed cases</h2><div class="grid">{cover}</div>{follow_up}</section>'
         f"<section><h2>Grading handoff</h2><p>{grade_text}</p>"
         "<p>Give the reviewer <code>grades.csv</code>. Keep this lead report private so the reviewer can grade each case "
-        "without seeing its screen flag. Review the listed evidence revision against the question in the packet.</p>"
+        "without seeing its screen flag. Review the listed evidence revision against the question in the packet. "
+        "When the packet includes <code>completed_at</code>, use the evidence available at that UTC cutoff. "
+        "If only a later revision is available, return <code>insufficient</code>.</p>"
         "<p>Enter <code>yes</code>, <code>no</code> or <code>insufficient</code> under <code>serious</code>. "
         "For a serious finding, enter <code>new</code>, <code>already_known</code> or <code>unknown</code> under "
         "<code>disposition</code>. Record an owner and action for each new finding. For other answers, use "
@@ -202,58 +298,155 @@ def _render(state: dict) -> str:
         "<p>Import the return with <code>python3 -m telryn weekly report.html --grades returned.csv</code>.</p></section>"
         "<section><h2>Sampling and screen performance</h2><p>Cases were drawn without replacement within each group. "
         "Population estimates weight each grade by the inverse of its selection probability.</p>"
-        '<div class="table" tabindex="0"><table><thead><tr><th>Screen result</th><th>Outside ordinary QA</th>'
-        "<th>Assigned</th><th>Selection probability</th></tr></thead><tbody>"
+        '<div class="table" tabindex="0"><table><thead><tr><th>Sampling group</th><th>Outside ordinary QA</th>'
+        "<th>Assigned</th><th>Selection probability</th><th>Confirmed findings</th>"
+        "<th>Awaiting a definite grade</th><th>95% range in group</th></tr></thead><tbody>"
         + "".join(sample_rows)
         + "</tbody></table></div>"
         f'<h3>Screen version · {escape(state["screen_version"])}</h3><div class="grid">{scores}</div>'
         "<p>These weighted measures compare the frozen screen to human grades for the ordinary-unreviewed population. "
-        "A measure requires completed sampling and a nonzero denominator.</p></section>"
-        f"<footer><p>Rubric {escape(state['rubric'])}</p><p>Audit <code>{_audit_id(state)}</code></p></footer></main>"
+        "A measure requires the evidence and denominators shown in the report.</p></section>"
+        f"{_review_section(state)}"
+        f"<section><h2>Sampling commitment</h2><p>Draw <code>{state['draw_commitment']['draw_id']}</code> "
+        f"was recorded in the team's draw registry before assignment. Use <code>telryn trust draws</code> to compare designs for this week.</p></section>"
+        f"<footer><p>Signed weekly report · revision {auth['revision']} · team key <code>{auth['key_id']}</code>. Verify this file in the original Telryn trust store before relying on its contents.</p><p>Rubric {escape(state['rubric'])}</p><p>Audit <code>{_audit_id(state)}</code></p></footer></main>"
         + STATE_OPEN
         + payload
         + "</script></body></html>\n"
     )
 
 
-def read_state(report_path: Path) -> dict:
-    source = report_path.read_text(encoding="utf-8")
-    _, opening, tail = source.partition(STATE_OPEN)
-    raw, closing, _ = tail.partition("</script>")
-    if not opening or not closing:
+TRAILER = b"<!-- telryn-weekly-hmac-sha256:"
+
+
+def _envelope(raw: bytes) -> dict:
+    _, marker, tail = raw.partition(STATE_OPEN.encode())
+    text, closing, _ = tail.partition(b"</script>")
+    if not marker or not closing:
         raise InputError("this file has no Telryn weekly audit snapshot")
-    try:
-        envelope = versioned(json.loads(raw), "weekly report")
-    except json.JSONDecodeError as exc:
-        raise InputError("the embedded weekly snapshot has invalid JSON") from exc
+    envelope = json.loads(text)
+    if not isinstance(envelope, dict):
+        raise InputError("invalid weekly report envelope")
+    return envelope
+
+
+def _signed(state, key, revision, previous):
+    auth = {
+        "key_id": audit_trust.key_id(key),
+        "revision": revision,
+        "previous": previous,
+    }
+    data = _render(state, auth).encode("utf-8")
+    signature = audit_trust.mac(key, "weekly-html-v2", data)
+    return data + TRAILER + signature.encode() + b" -->\n", signature
+
+
+def _verify_signed(raw, db, key):
+    data, marker, tail = raw.rpartition(TRAILER)
+    if not marker or len(tail) != 69 or not tail.endswith(b" -->\n"):
+        raise InputError("weekly report signature missing or malformed")
+    signature = tail[:-5]
+    actual = audit_trust.mac(key, "weekly-html-v2", data)
+    if not hmac.compare_digest(actual.encode(), signature):
+        raise InputError(
+            "weekly report signature does not match the team's local key or report bytes"
+        )
+    envelope = _envelope(data)
+    if type(envelope.get("schema")) is not int or envelope["schema"] != 2:
+        raise InputError("unrecognized signed weekly report version")
     state = versioned(envelope.get("state"), "weekly evidence")
-    if fingerprint(state) != envelope.get("checksum"):
-        raise InputError("the weekly audit snapshot is damaged or modified")
+    auth = envelope["auth"]
+    if auth["key_id"] != audit_trust.key_id(key):
+        raise InputError("weekly report belongs to another team key")
+    audit_trust.check_draw(db, key, state)
+    ident = state["publication_id"]
+    revision = auth["revision"]
+    head = db.execute(
+        "SELECT revision,signature FROM reports WHERE id=?", (ident,)
+    ).fetchone()
+    if head != (revision, actual):
+        # Recover after publication reached the filesystem just before a registry commit.
+        if revision == 1 and auth["previous"] is None and head is None:
+            db.execute("INSERT INTO reports VALUES(?,?,?)", (ident, revision, actual))
+        elif head and revision == head[0] + 1 and auth["previous"] == head[1]:
+            db.execute(
+                "UPDATE reports SET revision=?,signature=? WHERE id=?",
+                (revision, actual, ident),
+            )
+        else:
+            raise InputError(
+                "stale or diverging weekly report; open the latest signed revision"
+            )
+    validate_state(state)
+    return state, revision, actual
+
+
+def _legacy(raw):
+    envelope = versioned(_envelope(raw), "historical weekly report")
+    state = versioned(envelope.get("state"), "weekly evidence")
+    if (
+        "draw_commitment" in state
+        or "publication_id" in state
+        or fingerprint(state) != envelope.get("checksum")
+    ):
+        raise InputError("invalid historical weekly report or checksum")
     validate_state(state)
     return state
 
 
-def _write_report(fd: int, state: dict) -> None:
-    with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
-        stream.write(_render(state))
-        stream.flush()
-        os.fsync(stream.fileno())
+def read_state(report_path: Path, *, allow_legacy=False) -> dict:
+    raw = report_path.read_bytes()
+    if TRAILER not in raw:
+        if not allow_legacy:
+            raise InputError(
+                "unsigned weekly report; use --legacy for an explicitly unverified historical read"
+            )
+        return _legacy(raw)
+    with audit_trust.registry() as (db, key):
+        return _verify_signed(raw, db, key)[0]
+
+
+def verified_snapshot(report_path: Path) -> tuple[dict, int, str]:
+    """Return the authenticated state, revision and signature for a dependent artifact."""
+    raw = report_path.read_bytes()
+    with audit_trust.registry() as (db, key):
+        return _verify_signed(raw, db, key)
+
+
+def verified_html(path: Path) -> bytes:
+    raw = path.read_bytes()
+    with audit_trust.registry() as (db, key):
+        _verify_signed(raw, db, key)
+    return raw
+
+
+def _packet_bytes(state: dict) -> bytes:
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=_columns(state))
+    writer.writeheader()
+    for _, (_, fields) in sorted(_packet(state).items()):
+        writer.writerow(fields)
+    return stream.getvalue().encode("utf-8-sig")
+
+
+def verified_packet(path: Path) -> bytes:
+    return _packet_bytes(read_state(path))
 
 
 def start(plan_path: Path, out_dir: Path) -> Path:
-    with new_directory(out_dir) as staging:
-        state = prepare(plan_path)
-        (staging / "report.html").write_text(
-            _render(state), encoding="utf-8", newline="\n"
+    if out_dir.exists() or out_dir.is_symlink():
+        raise FileExistsError(f"output directory already exists: {out_dir}")
+    state = prepare(plan_path)
+    state["publication_id"] = secrets.token_hex(16)
+    with audit_trust.registry() as (db, key):
+        audit_trust.check_draw(db, key, state)
+        data, signature = _signed(state, key, 1, None)
+        db.execute(
+            "INSERT INTO reports VALUES (?,1,?)", (state["publication_id"], signature)
         )
-        with (staging / "grades.csv").open(
-            "w", encoding="utf-8-sig", newline=""
-        ) as stream:
-            writer = csv.DictWriter(stream, fieldnames=COLUMNS)
-            writer.writeheader()
-            # Opaque row order does not reveal which cases shared a stratum.
-            for _, (_, fields) in sorted(_packet(state).items()):
-                writer.writerow(fields)
+        with new_directory(out_dir) as staging:
+            (staging / "report.html").write_bytes(data)
+            (staging / "grades.csv").write_bytes(_packet_bytes(state))
     return out_dir / "report.html"
 
 
@@ -281,41 +474,13 @@ def _answer(row: dict) -> dict | None:
     }
 
 
-def _record_grade(state: dict, case_id: str, grade: dict) -> bool:
-    current = state["grades"].get(case_id)
-    history = state.get("earlier_grades", {}).get(case_id, [])
-    # The initial schema-1 writer saved the single prior insufficient grade directly.
-    if isinstance(history, dict):
-        history = [history]
-    if grade == current or grade in history:
-        return False
-    if current is not None:
-        resolved_grade = current["serious"] is None and grade["serious"] is not None
-        resolved_handling = (
-            current["serious"] is True
-            and grade["serious"] is True
-            and current["disposition"] == "unknown"
-            and grade["disposition"] in ("new", "already_known")
-        )
-        if (
-            not (resolved_grade or resolved_handling)
-            or grade["minutes"] < current["minutes"]
-        ):
-            raise InputError(
-                f"conflicting return for {case_id}; existing grade preserved"
-            )
-        state.setdefault("earlier_grades", {})[case_id] = [*history, current]
-    state["grades"][case_id] = grade
-    return True
-
-
-def _import(path: Path, state: dict) -> bool:
+def _import(path: Path, state: dict, reviewer: str, record) -> bool:
     expected = _packet(state)
     seen = set()
     changed = False
     with path.open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream, strict=True)
-        if tuple(reader.fieldnames or ()) != COLUMNS:
+        if tuple(reader.fieldnames or ()) != _columns(state):
             raise InputError(
                 "returned CSV columns differ from the weekly grading packet"
             )
@@ -337,29 +502,144 @@ def _import(path: Path, state: dict) -> bool:
                     f"row {row_id} no longer matches its frozen audit or evidence"
                 )
             grade = _answer(row)
-            if grade is not None and _record_grade(state, case_id, grade):
+            if grade is not None and record(state, case_id, grade, reviewer):
                 changed = True
     if not seen:
         raise InputError("returned CSV has no rows to bind to the weekly audit")
     return changed
 
 
-def refresh(report_path: Path, grades_path: Path) -> dict:
+def _update(report_path: Path, change) -> dict:
     report_path = report_path.resolve(strict=True)
-    lock = report_path.with_name(f".{report_path.name}.lock")
-    fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-    with os.fdopen(fd, "a") as stream:
-        fcntl.flock(stream, fcntl.LOCK_EX)
-        state = read_state(report_path)
-        if _import(grades_path, state):
-            report_fd, name = tempfile.mkstemp(
+    # Registry transactions also serialize updates made through different copies.
+    with audit_trust.registry() as (db, key):
+        state, revision, previous = _verify_signed(report_path.read_bytes(), db, key)
+        if change(state):
+            validate_state(state)
+            data, signature = _signed(state, key, revision + 1, previous)
+            fd, name = tempfile.mkstemp(
                 prefix=".weekly-report-", dir=report_path.parent
             )
             temp = Path(name)
             try:
-                _write_report(report_fd, state)
+                with os.fdopen(fd, "wb") as stream:
+                    stream.write(data)
+                    stream.flush()
+                    os.fsync(stream.fileno())
+                db.execute(
+                    "UPDATE reports SET revision=?,signature=? WHERE id=?",
+                    (revision + 1, signature, state["publication_id"]),
+                )
                 temp.replace(report_path)
                 sync_directory(report_path.parent)
             finally:
                 temp.unlink(missing_ok=True)
         return state
+
+
+def refresh(report_path: Path, grades_path: Path, reviewer=None) -> dict:
+    actor = weekly_review.identity(reviewer, default=True)
+    return _update(
+        report_path,
+        lambda state: _import(grades_path, state, actor, weekly_review.record_primary),
+    )
+
+
+def second_review(report_path: Path, grades_path: Path, reviewer: str) -> dict:
+    actor = weekly_review.identity(reviewer)
+    return _update(
+        report_path,
+        lambda state: _import(grades_path, state, actor, weekly_review.record_second),
+    )
+
+
+def adjudicate(
+    report_path: Path,
+    case_id: str,
+    dispute_id: str,
+    reviewer: str,
+    choice: str,
+    reason: str,
+    minutes: int,
+) -> dict:
+    actor = weekly_review.identity(reviewer)
+    return _update(
+        report_path,
+        lambda state: weekly_review.decide(
+            state, case_id, dispute_id, actor, choice, reason, minutes
+        ),
+    )
+
+
+def register_review_arguments(parser, actions):
+    actions.add_argument(
+        "--second-review",
+        type=Path,
+        help="import an independently completed copy of the original packet",
+    )
+    actions.add_argument(
+        "--adjudicate",
+        metavar="CASE",
+        help="resolve an independent weekly review dispute",
+    )
+    parser.add_argument(
+        "--reviewer",
+        help="operator-recorded identity of the person grading or adjudicating",
+    )
+    parser.add_argument("--dispute", help="dispute ID shown in the verified report")
+    parser.add_argument(
+        "--accept",
+        choices=("primary", "second"),
+        help="which independent answer to accept",
+    )
+    parser.add_argument("--reason", help="reason for the adjudication")
+    parser.add_argument(
+        "--review-minutes", type=int, help="additional minutes spent adjudicating"
+    )
+    parser.add_argument(
+        "--legacy",
+        action="store_true",
+        help="read a historical unsigned weekly report with provenance unverified",
+    )
+
+
+def review_action(args):
+    if args.legacy and any(
+        (
+            args.out,
+            args.grades,
+            args.second_review,
+            args.adjudicate,
+            args.email_to,
+            args.propose,
+        )
+    ):
+        raise InputError(
+            "--legacy is available for a read-only historical summary or digest"
+        )
+    if args.reviewer is not None and not any(
+        (args.grades, args.adjudicate, args.second_review)
+    ):
+        raise InputError(
+            "--reviewer applies only when recording a grade or an adjudication"
+        )
+    fields = (args.dispute, args.accept, args.reason, args.review_minutes)
+    if args.adjudicate is None and any(item is not None for item in fields):
+        raise InputError("dispute resolution options require --adjudicate")
+    if args.second_review is not None:
+        return second_review(args.source, args.second_review, args.reviewer)
+    if args.adjudicate is not None:
+        if any(item is None for item in fields):
+            raise InputError(
+                "supply --dispute, --accept, --reason and --review-minutes to adjudicate"
+            )
+        return adjudicate(
+            args.source,
+            args.adjudicate,
+            args.dispute,
+            args.reviewer,
+            args.accept,
+            args.reason,
+            args.review_minutes,
+        )
+    return None
