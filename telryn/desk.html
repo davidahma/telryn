@@ -5,39 +5,51 @@
 :root{font-family:"Source Sans 3",system-ui,sans-serif;color:#18332e;background:#f7f6f0;line-height:1.5}
 body{margin:0}main{max-width:46rem;margin:auto;padding:2rem 1.4rem 4rem}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #b8bfb3;padding-bottom:1rem}
 header b{font-family:Georgia,serif;letter-spacing:-.06em;font-size:1.8rem}header span,small{color:#4c6059}h1,h2{font-family:Georgia,serif;font-weight:500;line-height:1.12}h1{font-size:clamp(2.4rem,7vw,3.7rem);margin:2rem 0 .65rem}h2{font-size:1.7rem;margin:.2rem 0 1rem}p{margin:.4rem 0 1.4rem}section,details{border-top:1px solid #b8bfb3;padding:1.4rem 0}select{font:inherit;padding:.6rem;border:1px solid #99a69b;border-radius:.25rem}label{display:grid;gap:.35rem;font-weight:600;font-size:.95rem;margin-bottom:1rem}input,textarea{max-width:100%;min-width:0;box-sizing:border-box;font:inherit;color:#18332e;padding:.55rem;border:1px solid #99a69b;background:#fffef8;border-radius:.25rem}input[type=file]{width:100%;font-weight:400}
+fieldset{margin:.8rem 0 1.4rem;padding:0;border:0}legend{font-weight:650;margin-bottom:.5rem}.checks{display:flex;flex-wrap:wrap;gap:1rem}.checks label{display:flex;align-items:center;gap:.4rem}.compact{border:1px solid #b8bfb3;border-radius:.3rem;padding:1rem;margin:1rem 0;background:#fffef8}
+table{border-collapse:collapse;width:100%;margin:.75rem 0}td,th{border-bottom:1px solid #d4d8cf;text-align:left;padding:.3rem}.scroll{overflow:auto}button.secondary{background:white;color:#175146;margin-right:.5rem}.list{padding-left:1.3rem}textarea{width:100%;font:inherit}p.note{color:#4c6059;font-size:.9rem}.buttons{display:flex;gap:.6rem;flex-wrap:wrap}section[hidden],[hidden]{display:none}
 summary{font-weight:600;cursor:pointer}details[open] summary{margin-bottom:1rem}.pair{display:grid;grid-template-columns:1fr 1fr;gap:1rem}button,.link{display:inline-block;font:inherit;font-weight:650;padding:.65rem 1rem;border-radius:.25rem;border:1px solid #175146;color:white;background:#175146;cursor:pointer;text-decoration:none}button:disabled{opacity:.6}a{color:#15514a}.links{display:flex;align-items:center;gap:1.4rem;margin:1rem 0 1.5rem}#message{font-weight:600;margin-top:1rem}small{font-weight:400}#current{margin-top:2rem}code{overflow-wrap:anywhere}@media(max-width:480px){.pair{grid-template-columns:1fr;gap:0}main{padding-top:1rem}}
 </style></head>
 <body><main><header><b>Telryn</b><span>Support QA</span></header>
-<h1>Weekly support audit</h1><p>Sample the conversations your usual QA review left out.</p>
+<h1>Weekly support audit</h1><p>Plan a sample of completed conversations that ordinary QA left unreviewed. Give reviewers the frozen cases and track what they find.</p>
 <details id="history" hidden><summary>Open a saved audit</summary><ul></ul></details>
 <form id="intake">
-<section><h2>Weekly exports</h2>
+<section><h2>Weekly exports</h2><p class="note">Choose UTF-8 files up to 24 MiB each and 64 MiB combined. Use the CLI for larger batches.</p>
 <label>Week starting (UTC)<input name="week" type="date" required></label>
-<label>Eligible conversations <input name="population" type="file" accept=".csv" required><small>CSV with case_id, revision, evidence_ref and screen_flag.</small></label>
-<label>Ordinary human reviews <input name="reviewed" type="file" accept=".csv" required><small>CSV with one case_id per reviewed conversation.</small></label></section>
+<label>Eligible conversations <input name="population" type="file" accept=".csv" required><small>CSV with case_id, revision, evidence_ref and screen_flag. It may also contain channel, agent_type and product.</small></label>
+<label>Ordinary human reviews <input name="reviewed" type="file" accept=".csv" required><small>CSV with one case_id per reviewed conversation.</small></label>
+<details><summary>Coverage and screen receipts</summary>
+<label>Population coverage receipt<input name="coverage" type="file" accept=".json"><small>Use the receipt supplied by the connector to show completion dates and exclusions.</small></label>
+<label>Screen receipt<input name="receipt" type="file" accept=".json"><small>Attach the receipt issued with the screened population.</small></label></details></section>
 <section><h2>Review instructions</h2>
 <label>Policy template<select id="starter"><option value="">Use your own rubric</option></select><small>Fintech examples are editable. Use a version your policy owner approved.</small></label>
 <label>Question for the reviewer<input name="rubric_question" required placeholder="Did the agent close a reported account compromise without the required escalation?"></label>
 <div class="pair"><label>Rubric version<input name="rubric" required placeholder="account-escalation-v1"></label>
 <label>Screen version<input name="screen_version" value="none" required><small>Use none for a random audit with all flags false.</small></label></div>
-<div class="pair"><label>Flagged cases to grade<input name="flagged_sample" type="number" min="0" step="1" required></label>
-<label>Unflagged cases to grade<input name="unflagged_sample" type="number" min="0" step="1" required></label></div>
-<details><summary>Local model receipt</summary><label>Receipt from Telryn screen<input name="receipt" type="file" accept=".json"></label></details></section>
-<button>Create audit</button></form>
+</section>
+<section><h2>Sampling plan</h2>
+<fieldset><legend>Group the sample by</legend><div class="checks">
+<label><input type="checkbox" name="group_by" value="channel">Channel</label>
+<label><input type="checkbox" name="group_by" value="agent_type">AI or human agent</label>
+<label><input type="checkbox" name="group_by" value="product">Product</label>
+</div><small>Selected columns must be present in the population. The screen flag always defines the first two groups.</small></fieldset>
+<label>How will you budget the reviews?<select id="mode"><option value="budget">Plan from staff minutes</option><option value="counts">Set the number of cases</option></select></label>
+<fieldset id="budget"><div class="pair"><label>Minutes available<input name="minutes" type="number" min="1" step="1" required></label>
+<label>Minutes per grade<input name="minutes_per_grade" type="number" min="1" step="1" required></label></div>
+<label>Expected finding rate (%)<input name="expected_rate" type="number" min="0" max="100" step="any" required><small>Use a prior week or your best estimate. Preview the range before committing.</small></label>
+<details><summary>Different rates for screen flags</summary><div class="pair"><label>Flagged (%)<input name="flagged_rate" type="number" min="0" max="100" step="any"></label>
+<label>Unflagged (%)<input name="unflagged_rate" type="number" min="0" max="100" step="any"></label></div></details></fieldset>
+<fieldset id="counts" hidden disabled><div class="pair"><label>Flagged cases to grade<input name="flagged_sample" type="number" min="0" step="1" required></label>
+<label>Unflagged cases to grade<input name="unflagged_sample" type="number" min="0" step="1" required></label></div></fieldset>
+<div id="forecast" class="compact" hidden aria-live="polite"></div>
+<div class="buttons"><button type="submit" id="preview" class="secondary">Preview sample</button><button type="submit" id="create">Commit and create audit</button></div></section></form>
 <div id="message" role="status" aria-live="polite"></div>
 <section id="current" hidden><h2>Review this audit</h2><div class="links"><a id="report" class="link" target="_blank" rel="noopener">Open report</a><a id="packet" download="grades.csv">Download grading CSV</a></div>
-<form id="grade"><label>Returned grades<input type="file" name="grades" accept=".csv" required></label><button>Update report</button></form></section>
-</main>
-<script nonce="SESSION_NONCE">
-const intake=document.querySelector('#intake'),grade=document.querySelector('#grade'),message=document.querySelector('#message');
-let active='';
-function select(id){active=id;document.querySelector('#current').hidden=false;document.querySelector('#report').href=id+'/report.html';document.querySelector('#packet').href=id+'/grades.csv';location.hash=id;}
-async function submit(form,url,body){const button=form.querySelector('button');button.disabled=true;message.textContent='Reading the export…';try{const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!res.ok)throw Error(await res.text());select((await res.json()).id);historyList().catch(()=>{});message.textContent=form===intake?'Audit ready. Give the grading CSV to your reviewer.':'Grades recorded. Open the updated report.';document.querySelector('#current').scrollIntoView();}catch(e){message.textContent=e.message;}finally{button.disabled=false;}}
-async function values(form){const data={};for(const [key,val] of new FormData(form)){if(val instanceof File){if(val.size>24*1024*1024)throw Error('For exports above 24 MiB, use the CLI.');data[key]=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(await val.arrayBuffer());}else{data[key]=key.endsWith('_sample')?Number(val):val;}}return data;}
-for(const form of [intake,grade]){form.addEventListener('submit',async event=>{event.preventDefault();try{await submit(form,form===intake?'audits':active+'/grades',await values(form));}catch(e){message.textContent=e.message;}});}
-async function historyList(){const res=await fetch('audits');if(!res.ok)return;const panel=document.querySelector('#history'),list=panel.querySelector('ul');list.replaceChildren();for(const run of await res.json()){const li=document.createElement('li'),a=document.createElement('a');a.textContent=run.week+' · '+run.rubric+' · '+run.id.slice(0,6);a.href='#'+run.id;a.addEventListener('click',()=>{select(run.id);document.querySelector('#current').scrollIntoView();});li.append(a);list.append(li);}panel.hidden=!list.children.length;}
-historyList().catch(()=>{});
-async function loadRubrics(){const response=await fetch('rubrics');if(!response.ok)return;const values=await response.json(),field=document.querySelector('#starter');for(const [key,preset] of Object.entries(values)){field.add(new Option(preset[0],key));}field.addEventListener('change',()=>{if(values[field.value]){intake.elements.rubric_question.value=values[field.value][1];intake.elements.rubric.value='fintech-'+field.value+'-v1';}});}
-loadRubrics().catch(()=>{});
-if(/^#[a-f0-9]{24}$/.test(location.hash))select(location.hash.slice(1));
-</script></body></html>
+<form id="grade"><label>Review round<select name="round"><option value="grades">Primary review</option><option value="second-review">Independent second review</option></select></label>
+<label>Reviewer identifier<input name="reviewer" required autocomplete="off"><small>Use the identifier of the person who independently graded this packet.</small></label>
+<label>Returned grades<input type="file" name="grades" accept=".csv" required></label><button>Update report</button></form>
+<div id="agreement" role="status"></div>
+<form id="resolution" class="compact" hidden><h2>Resolve a disagreement</h2><label>Disputed case<select name="dispute" required></select></label>
+<p id="answers"></p><div class="pair"><label>Adjudicator identifier<input name="reviewer" required autocomplete="off"></label><label>Minutes spent<input name="minutes" type="number" min="0" step="1" required></label></div>
+<label>Accepted answer<select name="choice"><option value="primary">Primary review</option><option value="second">Second review</option></select></label>
+<label>Reason<textarea name="reason" rows="2" required></textarea></label><button>Record decision</button></form>
+</section></main><script nonce="SESSION_NONCE" src="desk.js"></script></body></html>

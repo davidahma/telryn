@@ -6,6 +6,7 @@ import csv
 import hashlib
 import json
 import math
+import os
 import tempfile
 import unittest
 from fractions import Fraction
@@ -21,6 +22,9 @@ class WeeklyAuditTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.root = Path(tmp.name)
+        env = patch.dict(os.environ, {"TELRYN_TRUST_DIR": str(self.root / "trust")})
+        env.start()
+        self.addCleanup(env.stop)
         self.plan = self.root / "weekly.toml"
         self.population = self.root / "population.csv"
         self.reviewed = self.root / "reviewed.csv"
@@ -65,10 +69,9 @@ class WeeklyAuditTests(unittest.TestCase):
         )
 
     def test_stratified_probabilities_replay_independent_of_file_order(self):
-        with patch("telryn.weekly.secrets.token_hex", return_value="af" * 32):
-            original = prepare(self.plan)
-            self.write_csv(self.population, CASE_COLUMNS, self.rows[::-1])
-            replay = prepare(self.plan)
+        original = prepare(self.plan)
+        self.write_csv(self.population, CASE_COLUMNS, self.rows[::-1])
+        replay = prepare(self.plan)
         self.assertEqual(original["week"], "2026-11-16")
         self.assertEqual(original["cases"], replay["cases"])
         self.assertNotEqual(original["population_sha256"], replay["population_sha256"])
@@ -86,7 +89,7 @@ class WeeklyAuditTests(unittest.TestCase):
         self.assertTrue(
             {"case00", "case05"}.isdisjoint(r["case_id"] for r in original["cases"])
         )
-        self.assertNotEqual(original["seed"], prepare(self.plan)["seed"])
+        self.assertEqual(original["seed"], prepare(self.plan)["seed"])
 
     def test_estimates_and_agreement_use_the_actual_selection_probabilities(self):
         state = prepare(self.plan)
@@ -143,7 +146,11 @@ class WeeklyAuditTests(unittest.TestCase):
                 result["confirmed_serious"],
             ),
         )
-        for metric in ("estimate", "interval", "recall", "precision", "agreement"):
+        self.assertEqual("incomplete", result["range_kind"])
+        self.assertLess(result["estimate_range"][0], result["estimate_range"][1])
+        self.assertLessEqual(result["interval"][0], result["estimate_range"][0])
+        self.assertGreaterEqual(result["interval"][1], result["estimate_range"][1])
+        for metric in ("estimate", "recall", "precision", "agreement"):
             self.assertIsNone(result[metric])
         self.assertTrue(result["estimate_reason"])
 
@@ -156,7 +163,17 @@ class WeeklyAuditTests(unittest.TestCase):
         result = summarize(state)
         self.assertEqual(4, result["new"])
         self.assertIsNone(result["estimate"])
+        self.assertIsNone(result["interval"])
         self.assertIn("zero probability", result["estimate_reason"])
+        groups = result["stratum_results"]
+        self.assertEqual(4, groups["flagged"]["graded"])
+        self.assertEqual(4, groups["flagged"]["confirmed"])
+        self.assertEqual([4, 4], groups["flagged"]["interval"])
+        self.assertEqual("uncovered", groups["unflagged"]["range_kind"])
+        self.assertIsNone(groups["unflagged"]["estimate_range"])
+        self.assertEqual([0, 8], groups["unflagged"]["interval"])
+        self.assertEqual(state["draw_commitment"], result["draw_commitment"])
+        self.assertIsNone(result["coverage"])
 
     def test_oversubscribed_strata_are_censused_and_empty_populations_are_exact(self):
         self.write_plan(flagged=200, unflagged=20)

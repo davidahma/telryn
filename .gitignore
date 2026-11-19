@@ -9,3 +9,6 @@ runs/
 *.sqlite-*
 *.db
 *.db-*
+audit.key
+ledger.sqlite3*
+.*.checkpoint/

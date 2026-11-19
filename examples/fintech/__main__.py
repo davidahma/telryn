@@ -16,8 +16,10 @@ from telryn.weekly_report import refresh, start
 FIXTURE = Path(__file__).resolve().parent
 
 
-def sample_return(packet: Path, returned: Path) -> None:
-    with (FIXTURE / "staged-grades.csv").open(encoding="utf-8", newline="") as grades:
+def sample_return(
+    packet: Path, returned: Path, answers_file: str = "staged-grades.csv"
+) -> None:
+    with (FIXTURE / answers_file).open(encoding="utf-8", newline="") as grades:
         answers = {r["case_id"]: r for r in csv.DictReader(grades)}
     with (
         packet.open(encoding="utf-8-sig", newline="") as source,
@@ -43,8 +45,16 @@ def run(out: Path) -> dict:
         weekly = start(FIXTURE / "week.toml", work / "weekly")
         returned = work / "synthetic-return.csv"
         sample_return(weekly.with_name("grades.csv"), returned)
-        audit = refresh(weekly, returned)
-        proposal = propose(weekly, work / "proposal")
+        audit = refresh(weekly, returned, reviewer="Staged reviewer")
+        development = start(FIXTURE / "development.toml", work / "development")
+        development_return = work / "development-return.csv"
+        sample_return(
+            development.with_name("grades.csv"),
+            development_return,
+            "development-grades.csv",
+        )
+        refresh(development, development_return, reviewer="Staged reviewer")
+        proposal = propose(development, work / "proposal")
         state = compare(
             FIXTURE / "held-out.toml", proposal_path=work / "proposal" / "proposal.json"
         )
@@ -66,6 +76,7 @@ def run(out: Path) -> dict:
             if grade["disposition"] == "new"
         ),
         "proposal_id": proposal["proposal_id"],
+        "development_report": str(out / "development" / "report.html"),
         "reserved_seat": "flagged" if proposal["priority_flag"] else "unflagged",
         "held_out": result["recommendation"],
         "net_additional_serious_cases": result["bounds"],

@@ -32,6 +32,11 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m compileall -q telryn examples tests
       - run: python -m telryn qualify
+      - name: Exercise the QA desk in Google Chrome
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        run: |
+          python -m pip install playwright==1.65.2
+          python -m tests.browser_desk
 
   offline:
     name: Offline checkout and archive

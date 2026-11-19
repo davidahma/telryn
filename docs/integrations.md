@@ -1,33 +1,54 @@
 # Bring your support queue into a weekly audit
 
-A live pull produces the four columns the weekly audit accepts. It reads the provider's current records for one tenant. The cohort consists of conversations **created on or after the first date and before the second date, in UTC, and closed when retrieved**. A conversation opened earlier and closed this week falls outside that definition. Reopening a ticket or exporting it later can change membership. For a cohort defined by an exact historical closure event, use your event warehouse's reconciled export.
+A weekly cohort contains each visible conversation that reached resolution or closure during the agreed UTC week. A case opened months ago can qualify. Count a case once even when it reopened, or completed twice in the same week. An administrative move from resolved to closed ends the same episode.
 
-## Pull closed conversations
+## Pull the completion cohort
 
-Set credentials through your secret manager or shell environment. Use a customer-controlled credential with access to the whole eligible queue. A token limited to one team produces that team's population. Each invocation writes a new file privately, with mode `0600`. Check `--expected-count` against an independent count for the same dates, closure definition, and credential scope.
-
-| Source | Environment | Closure and screen |
-| --- | --- | --- |
-| Intercom, including Fin | `TELRYN_INTERCOM_TOKEN`, `TELRYN_INTERCOM_WORKSPACE`, optional `TELRYN_INTERCOM_REGION` (`us`, `eu`, `au`) | Conversation state `closed`. Add `--fin-only` for conversations with Fin participation. `--flag-tag` takes a conversation tag name. The token needs conversation reads and access to identify its workspace through `/me`. |
-| Zendesk Support | `TELRYN_ZENDESK_TOKEN` (OAuth bearer), `TELRYN_ZENDESK_SUBDOMAIN` | Status `closed`, retrieved through cursor-paginated Search Export. `--flag-tag` takes a ticket tag name. |
-| Salesforce Service Cloud | `TELRYN_SALESFORCE_TOKEN` (OAuth bearer), `TELRYN_SALESFORCE_HOST` (My Domain hostname, e.g. `example.my.salesforce.com`) | Cases with `IsClosed = true`. The SOQL query selects the case ID, creation time, modification time, and closed flag. Apply your screen separately. |
-| Freshdesk | `TELRYN_FRESHDESK_TOKEN` (agent API key), `TELRYN_FRESHDESK_SUBDOMAIN` | Ticket status 5, Closed. The default list excludes spam and deleted tickets. `--flag-tag` takes a ticket tag name. At the provider's 300-page ceiling, Telryn stops if the cohort may extend past that page. |
-| Decagon | `TELRYN_DECAGON_TOKEN`, `TELRYN_DECAGON_WORKSPACE` (a stable local label for this token's workspace) | Supply `--closed-tag` with the tag your team uses for completed conversations. Supply an independent cohort count with `--expected-count`. An unfamiliar pagination contract can otherwise hide missing cases. Optionally supply a separate `--flag-tag`. The connector spaces consecutive export pages one second apart. |
-| Sierra | Your AWS profile or role and versioned customer export | `pull-sierra` retrieves one immutable S3 object from your team's Sierra delivery. See [Sierra setup](integrations-sierra.md). |
-
-For example, a lead who counted 412 closed Zendesk tickets for this creation week can run:
+Use a credential scoped to the queue the report should cover. The first date is inclusive and the second exclusive. Supply an independent count for the same definition when available.
 
 ```sh
 python3 -m telryn integrations pull zendesk \
   --since 2026-11-02 --until 2026-11-09 \
-  --flag-tag risk_screen_v3 --expected-count 412 --out population.csv
+  --expected-count 412 --out population.csv
 ```
 
-The CSV contains `case_id,revision,evidence_ref,screen_flag`. A ticket can appear as `zendesk:acme:902`, with its source modification time as the revision. The evidence reference joins the source, tenant, native ID and revision. Give reviewers access to the underlying ticket history or an archived snapshot keyed by that reference. A saved ID and timestamp alone cannot reconstruct an overwritten transcript. Pulls discard vendor message bodies, names, email addresses and attachments after parsing the response.
+The private CSV contains `case_id,revision,evidence_ref,screen_flag` and optional dimensions. Use `--dimension channel=via.channel` on Zendesk, or repeat `--dimension` to map other source fields to `channel`, `agent_type` or `product`. Every included row needs a value for each mapped field. A native tag, mapped dimension or Fin-participation flag from a later revision could leak future information. For those cases supply the metadata as it stood at completion in a warehouse ledger. Use a customer ledger to derive group names that require a lookup. The adjacent `population.csv.coverage.json` records the scope, dates, counts, and the earliest observed in-week completion per case (`completed_at`). A fingerprint binds these cutoffs to the included IDs, revisions, references and groups. Keep both files. Reviewers need the archived case or ticket history behind each reference. An ID and timestamp cannot recover overwritten text.
 
-Without `--flag-tag`, every row has `screen_flag=false`. Use `screen_version="none"` in the weekly plan for a random-only audit. When you do use a tag, record the screen's version in the plan. Absence of the tag is a negative classification only if the screen had a chance to process the entire eligible cohort. Fin participation alone describes the conversation's participants.
+| Source and credentials | Completion evidence |
+| --- | --- |
+| Zendesk. `TELRYN_ZENDESK_TOKEN` (OAuth bearer), `TELRYN_ZENDESK_SUBDOMAIN` | Paged ticket audits identify transitions into solved or closed. A later reopen keeps the earlier episode eligible. An automatic solved-to-closed transition adds no episode. Requires audit read access. [Search Export](https://developer.zendesk.com/api-reference/ticketing/ticket-management/search/#export-search-results) · [Ticket audits](https://developer.zendesk.com/api-reference/ticketing/tickets/ticket_audits/#list-audits-for-a-ticket) |
+| Freshdesk. `TELRYN_FRESHDESK_TOKEN` (agent API key), `TELRYN_FRESHDESK_SUBDOMAIN` | Uses ticket stats, preferring `resolved_at` and falling back to `closed_at`. Status 4 (Resolved) and 5 (Closed) are both terminal. Latest stats can hide earlier episodes. The default list excludes spam and deleted tickets. The connector stops at a potentially incomplete 300-page result. [Freshdesk tickets](https://developers.freshdesk.com/api/#list_all_tickets) |
+| Intercom, including Fin. `TELRYN_INTERCOM_TOKEN`, `TELRYN_INTERCOM_WORKSPACE`, optional `TELRYN_INTERCOM_REGION` (`us`, `eu`, `au`) | Reads first and last close timestamps. An intervening closure can be missing. Use `--fin-only` to restrict the scan to Fin conversations. The token must identify its workspace via `/me`. [Conversation search](https://developers.intercom.com/docs/references/2.14/rest-api/api.intercom.io/conversations/searchconversations) |
+| Salesforce. `TELRYN_SALESFORCE_TOKEN` (OAuth bearer), `TELRYN_SALESFORCE_HOST` (My Domain hostname, e.g. `example.my.salesforce.com`) | Reads `ClosedDate` and `IsClosed` from modified cases, including old cases. A reopen or multiple closures can overwrite evidence. Use a field-history ledger for those queues. [Salesforce Query](https://developer.salesforce.com/docs/platform/api-rest/guide/resources-query.html) |
+| Decagon. `TELRYN_DECAGON_TOKEN`, `TELRYN_DECAGON_WORKSPACE` (stable local label) | The connector's completion tag lacks an event time. Use a dated ledger for a completion week. For a historical creation-based comparison, supply `--basis created --closed-tag TAG --expected-count N`. The connector spaces export pages one second apart. [Decagon export connector reference](https://github.com/PostHog/posthog/tree/df5cb5727890f4743aff8704bd66fe7472ed860c/products/warehouse_sources/sources/decagon) |
+| Sierra. Customer AWS profile or role and versioned export | Use a dated ledger, or `pull-sierra` for a weekly roster your warehouse has already reconciled. [Customer-managed Sierra delivery](integrations-sierra.md) |
 
-Intercom documents the searchable fields, including Fin participation. Zendesk's export API and Salesforce's query locator support paging large sets. Freshdesk documents paging limits and ticket status codes. Decagon restricts its developer reference to customers. Its public integration in PostHog supplies the conversation export route, timestamp filters, cursor names, and rate limit used here. [Intercom search](https://developers.intercom.com/docs/references/2.14/rest-api/api.intercom.io/conversations/searchconversations) · [Zendesk Search Export](https://developer.zendesk.com/api-reference/ticketing/ticket-management/search/#export-search-results) · [Salesforce Query](https://developer.salesforce.com/docs/platform/api-rest/guide/resources-query.html) · [Freshdesk tickets](https://developers.freshdesk.com/api/#list_all_tickets) · [PostHog's Decagon connector](https://github.com/PostHog/posthog/tree/df5cb5727890f4743aff8704bd66fe7472ed860c/products/warehouse_sources/sources/decagon)
+Without a tag, all rows receive `screen_flag=false`. Set `screen_version="none"` for a random-only audit. For Zendesk, Freshdesk, Intercom or Decagon, `--flag-tag` reads an existing versioned risk tag. Confirm that every eligible case encountered that screen. To read the conversation text, follow the [transcript workflow](transcripts.md).
+
+### Read the exclusions
+
+`eligible`, `open`, `outside` and `unknown` sum to `scanned`. An open exclusion has no observed in-week completion. Outside rows have an established exclusion such as a completion before the week. Unknown means the history or state leaves membership unresolved. The separate `still_open` count includes all observed currently open records, including cases that finished in the week and later reopened. A live scan covers visible records modified since the start and created before the end. An untouched backlog or a deleted case can fall outside it. Check the scope and unknowns before describing an estimate as applying to the whole queue.
+
+On snapshot sources a later completion can erase an earlier one. Restore the history from an event ledger when unknowns matter to the decision. `--basis created` reproduces the old created-in-range, closed-at-retrieval definition. Its open counts are limited by vendor-side filters.
+
+### Use a dated lifecycle ledger
+
+For any provider, export one row per distinct conversation in a declared scope. `completion_events` contains all resolution episodes, with timezone-qualified timestamps. Use `[]` for a known empty history or `null` for unavailable history. Use `open`, `completed` or `unknown` for the retrieval state. Reconcile duplicates and delayed events before export. Freeze any screen flag and dimensions as of the first in-week completion. Point the evidence reference at the corresponding archived case history. This synthetic ledger includes an eligible reopened case, an open exclusion, an outside completion and an unknown.
+
+```csv
+case_id,revision,evidence_ref,screen_flag,state,completion_events,channel
+c01,r4,archive/c01/r4,false,open,"[""2026-11-04T11:00:00Z""]",email
+c02,r2,archive/c02/r2,false,open,[],chat
+c03,r3,archive/c03/r3,false,completed,"[""2026-10-20T12:00:00Z""]",chat
+c04,r9,archive/c04/r9,false,unknown,null,email
+```
+
+```sh
+python3 -m telryn integrations cohort lifecycle.csv \
+  --since 2026-11-02 --until 2026-11-09 --scope "UK support warehouse" --out population.csv
+```
+
+The weekly plan discovers the adjacent coverage receipt. When it is stored elsewhere, set `coverage_receipt="path/to/coverage.json"`. Telryn checks the seven-day interval and exact membership before drawing. To fetch transcripts or hand off through a native connector, keep its namespaced case IDs, such as `zendesk:acme:902`.
 
 ## Match the ordinary QA reviews
 
@@ -39,7 +60,7 @@ python3 -m telryn integrations reviewed-zendesk population.csv \
   --since 2026-11-02 --until 2026-11-10 --out reviewed.csv
 ```
 
-The dates here bound review creation, so the end date can extend past the conversation creation week. Telryn matches the ticket URL and external ID, ignores other scorecards and tickets outside the population, and writes each matched ID once. Set the review window through your ordinary QA cutoff and supply every review source in the baseline. For multiple scorecards or tools, combine their records locally into one `case_id` column and remove duplicates. Store the original dated exports beside the weekly evidence. [Zendesk QA workspace review export](https://developer.zendesk.com/documentation/qa/exporting-data/)
+The dates here bound review creation, so the end date can extend past the conversation completion week. Telryn matches the ticket URL and external ID, ignores other scorecards and tickets outside the population, and writes each matched ID once. Set the review window through your ordinary QA cutoff and supply every review source in the baseline. For multiple scorecards or tools, combine their records locally into one `case_id` column and remove duplicates. Store the original dated exports beside the weekly evidence. [Zendesk QA workspace review export](https://developer.zendesk.com/documentation/qa/exporting-data/)
 
 ## Use a customer-exported agent file
 
@@ -56,7 +77,7 @@ Record the export's date range, row count, and source version. The mapper copies
 
 ## Hand the sample to your QA tool
 
-Use a tag unique to the audit week. The handoff reads the sampled case IDs and revisions from the frozen weekly report. Both sample strata receive the same tag. Preview lists the count and tenant without making an HTTP request.
+Use a tag unique to the audit week. The handoff reads the sampled case IDs and revisions from the frozen weekly report. Every sampled group receives the same tag. Preview lists the count and tenant without making an HTTP request.
 
 ```sh
 python3 -m telryn integrations handoff zendesk runs/weekly/report.html --tag telryn_2026w45
@@ -76,4 +97,4 @@ Telryn rejects a mismatched tenant or a changed, untagged revision before attemp
 
 ## Validation
 
-Run `python3 -m unittest tests.test_integrations tests.test_integrations_sierra` for the vendor contracts. Tests exercise the CLI, HTTP request encoding and response parsing, cursor handling, per-record results, tenant checks, and the path from a source pull to a weekly report and review handoff with fixture responses. Those checks run offline. Access scopes, QA subscription features, sync schedules, and downstream assignment rules require confirmation in your tenant.
+Run `python3 -m unittest tests.test_integrations tests.test_integrations_sierra tests.test_integrations_coverage tests.test_transcripts` for the vendor contracts. Tests exercise the CLI, HTTP request encoding and response parsing, cursor handling, per-record results, tenant checks, and the path from a source pull to a weekly report and review handoff with fixture responses. Those checks run offline. Access scopes, QA subscription features, sync schedules, and downstream assignment rules require confirmation in your tenant.

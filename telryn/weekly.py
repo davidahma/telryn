@@ -8,15 +8,16 @@ import hmac
 import io
 import math
 import re
-import secrets
 import tomllib
 from collections import Counter
+from dataclasses import dataclass
 from datetime import date
 from fractions import Fraction
 from pathlib import Path
 
 from .contracts import (
     InputError,
+    canonical,
     fingerprint,
     integer,
     mapping,
@@ -27,6 +28,7 @@ from .contracts import (
 )
 
 STRATA = ("flagged", "unflagged")
+DIMENSIONS = ("channel", "agent_type", "product")
 CASE_COLUMNS = ("case_id", "revision", "evidence_ref", "screen_flag")
 HEX_DIGEST = re.compile(r"[0-9a-f]{64}")
 SAMPLING = "hmac-sha256-without-replacement-v1"
@@ -61,17 +63,22 @@ def _digest(value: object, label: str) -> str:
     return value
 
 
-def _csv(raw: bytes, columns: tuple[str, ...], label: str) -> dict[str, dict]:
+def _csv(
+    raw: bytes, columns: tuple[str, ...], label: str, *, optional: tuple = ()
+) -> dict[str, dict]:
     reader = csv.DictReader(
         io.StringIO(raw.decode("utf-8-sig"), newline=""), strict=True
     )
-    if sorted(reader.fieldnames or ()) != sorted(columns):
+    header = reader.fieldnames or []
+    if len(header) != len(set(header)) or not set(columns) <= set(header) <= set(
+        columns + optional
+    ):
         raise InputError(
             f"{label} CSV must have exactly these columns: {', '.join(columns)}"
         )
     rows = {}
     for row in reader:
-        if None in row or any(row[key] is None for key in columns):
+        if None in row or any(row[key] is None for key in header):
             raise InputError(
                 f"{label} CSV line {reader.line_num} has the wrong field count"
             )
@@ -93,8 +100,48 @@ def _csv(raw: bytes, columns: tuple[str, ...], label: str) -> dict[str, dict]:
     return rows
 
 
-def _stratum(row: dict) -> str:
-    return "flagged" if row["screen_flag"] else "unflagged"
+def _stratum(row: dict, dimensions: tuple | list = ()) -> str:
+    side = "flagged" if row["screen_flag"] else "unflagged"
+    return canonical([side, *(row[k] for k in dimensions)]) if dimensions else side
+
+
+def _dimensions(value: object) -> list[str]:
+    dims = sequence(value, "group_by")
+    if any(d not in DIMENSIONS for d in dims) or len(dims) != len(set(dims)):
+        raise InputError(
+            "group_by must contain distinct channel, agent_type or product fields"
+        )
+    return dims
+
+
+def cell_label(key: str, info: dict) -> str:
+    return info.get("label", key.capitalize())
+
+
+def cell_flag(key: str, info: dict) -> bool:
+    return info.get("screen_flag", key == "flagged")
+
+
+@dataclass
+class Frame:
+    plan: dict
+    week: str
+    meta: dict
+    population: dict
+    reviewed: dict
+    pools: dict
+    cells: dict
+    dimensions: list
+
+
+def _cell_descriptor(row: dict, dims: list) -> dict:
+    if not dims:
+        return {}
+    groups = {k: row[k] for k in dims}
+    label = " · ".join(
+        [_stratum(row).capitalize(), *(f"{k}={v}" for k, v in groups.items())]
+    )
+    return {"label": label, "screen_flag": row["screen_flag"], "groups": groups}
 
 
 def _sample_size(target: object, size: int, label: str) -> int:
@@ -110,8 +157,8 @@ def _sample_size(target: object, size: int, label: str) -> int:
     return min(size, integer(target, label))
 
 
-def prepare(plan_path: Path) -> dict:
-    """Draw once from both parts of the eligible, ordinarily unreviewed population."""
+def load_frame(plan_path: Path) -> Frame:
+    """Read and reconcile the eligible population without touching the draw ledger."""
     plan = versioned(
         tomllib.loads(plan_path.read_text(encoding="utf-8")), "weekly plan"
     )
@@ -123,9 +170,14 @@ def prepare(plan_path: Path) -> dict:
         if key in plan:
             meta[key] = _field(plan[key], key)
     week = _week(plan.get("week"))
-    raw = (plan_path.parent / string(plan.get("population"), "population")).read_bytes()
+    path = plan_path.parent / string(plan.get("population"), "population")
+    raw = path.read_bytes()
     raw_digest = hashlib.sha256(raw).hexdigest()
     receipt_digest = None
+    receipt = {}
+    generated_screen = meta["screen_version"].startswith(
+        ("local-model:", "policy-events:")
+    )
     if "screen_receipt" in plan:
         receipt = read_json(
             plan_path.parent / string(plan["screen_receipt"], "screen_receipt"),
@@ -139,9 +191,30 @@ def prepare(plan_path: Path) -> dict:
                 "screen receipt does not match the weekly population or screen version"
             )
         receipt_digest = fingerprint(receipt)
-    elif meta["screen_version"].startswith("local-model:"):
-        raise InputError("a local model weekly plan requires its screen_receipt")
-    population = _csv(raw, CASE_COLUMNS, "population")
+    elif generated_screen:
+        raise InputError("a built-in screen weekly plan requires its screen_receipt")
+    dims = _dimensions(plan.get("group_by", []))
+    population = _csv(
+        raw, CASE_COLUMNS + tuple(dims), "population", optional=DIMENSIONS
+    )
+    coverage = path.with_name(path.name + ".coverage.json")
+    if "coverage_receipt" in plan:
+        coverage = plan_path.parent / string(
+            plan["coverage_receipt"], "coverage_receipt"
+        )
+    if "coverage_receipt" in plan or coverage.exists():
+        from .integrations_coverage import load_coverage
+
+        meta["coverage"] = load_coverage(coverage, population, week)
+    if generated_screen or "coverage_sha256" in receipt:
+        expected = fingerprint(meta["coverage"]) if "coverage" in meta else None
+        if receipt.get("coverage_sha256") != expected:
+            raise InputError(
+                "screen receipt does not match the source coverage or completion cutoffs"
+            )
+    population = {
+        i: {k: r[k] for k in (*CASE_COLUMNS, *dims)} for i, r in population.items()
+    }
     if meta["screen_version"] == "none" and any(
         row["screen_flag"] for row in population.values()
     ):
@@ -156,32 +229,99 @@ def prepare(plan_path: Path) -> dict:
     if not reviewed.keys() <= population.keys():
         raise InputError("ordinary reviewed IDs must belong to the weekly population")
 
-    seed = secrets.token_hex(32)
-    key = bytes.fromhex(seed)
+    pools = {} if dims else {s: [] for s in STRATA}
+    cells = {} if dims else {s: {} for s in STRATA}
+    for ident, row in population.items():
+        if ident in reviewed:
+            continue
+        cell = _stratum(row, dims)
+        pools.setdefault(cell, []).append(ident)
+        cells.setdefault(cell, _cell_descriptor(row, dims))
+    # A stable ordering makes identical budgets independent of the export's row order.
+    cells = {
+        key: {**cells[key], "population": len(pools[key])} for key in sorted(cells)
+    }
+    meta.update(population_sha256=raw_digest, screen_receipt_digest=receipt_digest)
+    return Frame(plan, week, meta, population, reviewed, pools, cells, dims)
 
-    # Separate selection from display. Sorting the final packet by case ID hides rank.
+
+def prepare(plan_path: Path) -> dict:
+    """Commit the sampling frame and frozen design, then issue the assignments."""
+    from .audit_trust import committed_draw
+    from .planning import allocate, design
+
+    frame = load_frame(plan_path)
+    plan, population, reviewed = frame.plan, frame.population, frame.reviewed
+    meta = frame.meta.copy()
+    if "planning" in plan:
+        planned = design(frame.cells, mapping(plan["planning"], "planning"))
+        if not planned["coverage_complete"]:
+            raise InputError(
+                "planned minutes cannot cover every nonempty stratum; increase the budget or combine groups"
+            )
+        targets = {row["key"]: row["sample"] for row in planned["allocations"]}
+        meta["planning"] = planned
+    else:
+        targets = {}
+        for side in STRATA:
+            members = {
+                k: info
+                for k, info in frame.cells.items()
+                if cell_flag(k, info) == (side == "flagged")
+            }
+            size = sum(g["population"] for g in members.values())
+            target = _sample_size(plan.get(f"{side}_sample"), size, f"{side}_sample")
+            if members:
+                targets.update(allocate(members, target))
+    sample_targets = (
+        targets
+        if frame.dimensions or "planning" in plan
+        else {s: plan[f"{s}_sample"] for s in STRATA}
+    )
+    frame_id = fingerprint([sorted(population), sorted(reviewed)])
+    design_id = fingerprint(
+        [
+            frame.week,
+            plan["rubric"],
+            plan["rubric_question"],
+            plan["screen_version"],
+            frame.dimensions,
+            meta.get("coverage"),
+            meta.get("screen_receipt_digest"),
+            plan.get("planning"),
+            sample_targets,
+            targets,
+            sorted(population.values(), key=lambda row: row["case_id"]),
+        ]
+    )
+    seed, commitment = committed_draw(frame.week, frame_id, design_id)
+    key = bytes.fromhex(seed)
+    coverage = meta.get("coverage", {})
+    cutoffs = coverage.get("completed_at", {})
+    if "completed_at" in coverage:
+        # The lead needs the cutoff for each assignment. Retain other case IDs only as hashes.
+        meta["coverage_sha256"] = fingerprint(coverage)
+        meta["coverage"] = {k: v for k, v in coverage.items() if k != "completed_at"}
+
     def rank(case: str) -> tuple[bytes, str]:
         return hmac.digest(key, case.encode("utf-8"), "sha256"), case
 
-    eligible = {s: [] for s in STRATA}
-    for case, row in population.items():
-        if case not in reviewed:
-            eligible[_stratum(row)].append(case)
     strata, cases = {}, []
-    for s, pool in eligible.items():
-        count = _sample_size(plan.get(f"{s}_sample"), len(pool), f"{s}_sample")
-        chosen = sorted(pool, key=rank)[:count]
-        cases.extend(population[case] for case in chosen)
-        strata[s] = {"population": len(pool), "sample": len(chosen)}
+    for cell, info in frame.cells.items():
+        chosen = sorted(frame.pools[cell], key=rank)[: targets[cell]]
+        for case in chosen:
+            row = population[case]
+            cases.append({**row, "completed_at": cutoffs[case]} if cutoffs else row)
+        strata[cell] = {**info, "sample": len(chosen)}
     return {
         "schema": 1,
-        "week": week,
+        "week": frame.week,
         **meta,
         "sampling": SAMPLING,
-        "sample_targets": {s: plan[f"{s}_sample"] for s in STRATA},
+        "sample_targets": sample_targets,
+        "group_by": frame.dimensions,
         "seed": seed,
-        "population_sha256": raw_digest,
-        "screen_receipt_digest": receipt_digest,
+        "draw_commitment": commitment,
         "population_count": len(population),
         "reviewed_count": len(reviewed),
         "population_id_hashes": sorted(map(fingerprint, population)),
@@ -219,7 +359,7 @@ def validate_state(state: dict) -> tuple[dict, dict]:
     _digest(state.get("population_sha256"), "weekly population fingerprint")
     if state.get("screen_receipt_digest") is not None or state[
         "screen_version"
-    ].startswith("local-model:"):
+    ].startswith(("local-model:", "policy-events:")):
         _digest(state.get("screen_receipt_digest"), "screen receipt fingerprint")
     population = _membership(
         state,
@@ -235,7 +375,8 @@ def validate_state(state: dict) -> tuple[dict, dict]:
         raise InputError("weekly ordinary reviews are outside the population")
 
     strata = mapping(state.get("strata"), "weekly strata")
-    if set(strata) != set(STRATA):
+    dims = _dimensions(state.get("group_by", []))
+    if not dims and set(strata) != set(STRATA):
         raise InputError("weekly audit has invalid strata")
     cases = {}
     sample_sizes: Counter = Counter()
@@ -252,10 +393,28 @@ def validate_state(state: dict) -> tuple[dict, dict]:
         if type(case.get("screen_flag")) is not bool:
             raise InputError("weekly case requires a boolean screen_flag")
         cases[case_id] = case
-        sample_sizes[_stratum(case)] += 1
+        for dim in dims:
+            _field(case.get(dim), dim)
+        sample_sizes[_stratum(case, dims)] += 1
+    if not sample_sizes.keys() <= strata.keys():
+        raise InputError("sample contains an unregistered stratum")
     total = 0
     for s, info in strata.items():
         mapping(info, f"weekly {s} stratum")
+        if dims:
+            groups = mapping(info.get("groups"), "weekly stratum groups")
+            if set(groups) != set(dims) or type(info.get("screen_flag")) is not bool:
+                raise InputError("invalid weekly stratum dimensions")
+            for dim in dims:
+                _field(groups[dim], dim)
+            detail = {**groups, "screen_flag": info["screen_flag"]}
+            if (
+                s != _stratum(detail, dims)
+                or info.get("label") != _cell_descriptor(detail, dims)["label"]
+            ):
+                raise InputError(
+                    "weekly stratum identifier differs from its dimensions"
+                )
         size = integer(info.get("population"), f"{s} population")
         sample = integer(info.get("sample"), f"{s} sample")
         if sample_sizes[s] != sample or sample > size:
@@ -263,7 +422,7 @@ def validate_state(state: dict) -> tuple[dict, dict]:
         if "sample_targets" in state:
             targets = mapping(state["sample_targets"], "weekly sample targets")
             if (
-                set(targets) != set(STRATA)
+                set(targets) != set(strata)
                 or _sample_size(targets[s], size, f"{s}_sample") != sample
             ):
                 raise InputError(
@@ -272,7 +431,9 @@ def validate_state(state: dict) -> tuple[dict, dict]:
         total += size
     if total != len(population) - len(reviewed):
         raise InputError("weekly strata do not reconcile with ordinary reviews")
-    if state["screen_version"] == "none" and strata["flagged"]["population"]:
+    if state["screen_version"] == "none" and any(
+        cell_flag(k, i) and i["population"] for k, i in strata.items()
+    ):
         raise InputError("weekly runs without a screen cannot contain flagged cases")
     grades = mapping(state.get("grades"), "weekly grades")
     if not grades.keys() <= cases.keys():
@@ -303,15 +464,60 @@ def validate_state(state: dict) -> tuple[dict, dict]:
     return cases, grades
 
 
+def _large_tail_accepts(size: int, n: int, k: int, x: int, divisor: int) -> bool:
+    """Conservatively compare a hypergeometric lower tail with 1/divisor.
+
+    Scale each mass relative to a mode. Enclose the neighboring masses by
+    directed integer rounding. Once a lower mass reaches zero, every remaining
+    mass on that side is at most the last upper mass (tails are monotone).
+    Accept ambiguous comparisons, which only moves an interval endpoint out.
+    """
+    left, right = max(0, n + k - size), min(n, k)
+    if x < left:
+        return False
+    if x >= right:
+        return True
+    mode = min(right, max(left, (n + 1) * (k + 1) // (size + 2)))
+    scale = 1 << (64 + 2 * size.bit_length())
+    total_low = scale
+    tail_high = scale if mode <= x else 0
+    for step, endpoint in ((-1, left), (1, right)):
+        count = mode
+        low = high = scale
+        while count != endpoint:
+            if step < 0:
+                numerator = count * (size - k - n + count)
+                denominator = (k - count + 1) * (n - count + 1)
+            else:
+                numerator = (k - count) * (n - count)
+                denominator = (count + 1) * (size - k - n + count + 1)
+            count += step
+            low = low * numerator // denominator
+            high = (high * numerator + denominator - 1) // denominator
+            total_low += low
+            if count <= x:
+                tail_high += high
+            if low == 0:
+                remaining = (
+                    min(count - 1, x) - left + 1 if step < 0 else min(right, x) - count
+                )
+                tail_high += high * max(0, remaining)
+                break
+    return divisor * tail_high >= total_low
+
+
 def _upper_limit(size: int, sample: int, found: int, tail_divisor: int) -> int:
     """Largest serious population whose lower-tail probability is at least 1/divisor."""
-    total_ways = math.comb(size, sample)
+    large = min(sample, size - sample) > EXACT_LIMIT
+    total_ways = None if large else math.comb(size, sample)
 
     def accepts(serious: int) -> bool:
         n, k, x = sample, serious, found
         if n > size - n:
             # Count nonserious items among the unobserved complement instead.
             n, k, x = size - n, size - k, size - n - k + x
+        if large:
+            return _large_tail_accepts(size, n, k, x, tail_divisor)
         left, right = max(0, n + k - size), min(n, k)
         if x < left:
             return False
@@ -341,35 +547,30 @@ def _interval(size: int, sample: int, found: int, strata: int) -> tuple[int, int
     if size == sample:
         return found, found
     divisor = 40 * strata  # Two-sided 95% simultaneous coverage by Bonferroni.
-    if min(sample, size - sample) <= EXACT_LIMIT:
-        return (
-            size - _upper_limit(size, sample, sample - found, divisor),
-            _upper_limit(size, sample, found, divisor),
-        )
-    # Hoeffding–Serfling with finite-population correction. Round outwards and
-    # intersect with the logical bounds set by the adjudicated sample.
-    radius = math.ceil(
-        math.sqrt(size * (size - sample + 1) * math.log(divisor) / (2 * sample))
-    )
-    floor, remainder = divmod(size * found, sample)
-    return max(found, floor - radius), min(
-        size - sample + found, floor + bool(remainder) + radius
+    return (
+        size - _upper_limit(size, sample, sample - found, divisor),
+        _upper_limit(size, sample, found, divisor),
     )
 
 
 def summarize(state: dict) -> dict:
-    """Count confirmed findings; infer totals only with fully graded probability samples."""
+    """Bound residual totals across all possible completions of the sampled grades."""
     cases, grades = validate_state(state)
     confirmed = Counter()
     found_by_stratum: Counter = Counter()
+    determinate: Counter = Counter()
+    dims = state.get("group_by", [])
     insufficient = minutes = 0
     for case, grade in grades.items():
         minutes += grade["minutes"]
+        cell = _stratum(cases[case], dims)
+        if grade["serious"] is not None:
+            determinate[cell] += 1
         if grade["serious"] is None:
             insufficient += 1
         elif grade["serious"]:
             confirmed[grade["disposition"]] += 1
-            found_by_stratum[_stratum(cases[case])] += 1
+            found_by_stratum[cell] += 1
     graded = len(grades) - insufficient
     result = {
         "population": state["population_count"],
@@ -387,40 +588,79 @@ def summarize(state: dict) -> dict:
         "interval": None,
         "confidence": 0.95,
         "estimate_reason": None,
+        "estimate_range": None,
+        "range_kind": "complete",
+        "stratum_results": {},
+        "coverage": state.get("coverage"),
+        "draw_commitment": state.get("draw_commitment"),
         "agreement": None,
         "precision": None,
         "recall": None,
     }
     if any(s["population"] and not s["sample"] for s in state["strata"].values()):
+        result["range_kind"] = "uncovered"
         result["estimate_reason"] = "A nonempty stratum had zero probability of review."
-        return result
-    if graded != len(cases):
+    elif graded != len(cases):
         result["estimate_reason"] = (
             "Some selected cases still lack a determinate human grade."
         )
-        return result
 
-    uncertain = sum(s["sample"] < s["population"] for s in state["strata"].values())
-    estimated = {}
+    uncertain = sum(0 < s["sample"] < s["population"] for s in state["strata"].values())
+    estimated = Counter()
+    weighted_low = weighted_high = Fraction(0)
     lower = upper = 0
-    for s, info in state["strata"].items():
+    populations = Counter()
+    for group, info in state["strata"].items():
         size, sample = info["population"], info["sample"]
-        found = found_by_stratum[s]
-        estimated[s] = Fraction(size * found, sample) if sample else Fraction(0)
+        found = found_by_stratum[group]
+        observation = {
+            "label": cell_label(group, info),
+            "confirmed": found,
+            "graded": determinate[group],
+        }
+        if size and not sample:
+            result["stratum_results"][group] = {
+                **observation,
+                "range_kind": "uncovered",
+                "estimate_range": None,
+                "interval": [0, size],
+            }
+            continue
+        possible = found + sample - determinate[group]
+        low = Fraction(size * found, sample) if sample else Fraction(0)
+        high = Fraction(size * possible, sample) if sample else Fraction(0)
+        weighted_low += low
+        weighted_high += high
+        flag = cell_flag(group, info)
+        estimated[flag] += low
+        populations[flag] += size
         lo, hi = _interval(size, sample, found, uncertain)
+        if possible != found:
+            _, hi = _interval(size, sample, possible, uncertain)
+        result["stratum_results"][group] = {
+            **observation,
+            "range_kind": "incomplete" if possible != found else "complete",
+            "estimate_range": [float(low), float(high)],
+            "interval": [lo, hi],
+        }
         lower, upper = lower + lo, upper + hi
-    serious = estimated["flagged"] + estimated["unflagged"]
-    result["estimate"] = float(serious)
+    if result["range_kind"] == "uncovered":
+        return result
+    result["estimate_range"] = [float(weighted_low), float(weighted_high)]
     result["interval"] = [lower, upper]
+    if graded != len(cases):
+        result["range_kind"] = "incomplete"
+        return result
+    serious = weighted_low
+    result["estimate"] = float(serious)
     if state["screen_version"] == "none":
         return result
-    flagged = state["strata"]["flagged"]["population"]
-    unflagged = state["strata"]["unflagged"]["population"]
+    flagged, unflagged = populations[True], populations[False]
     if flagged:
-        result["precision"] = float(estimated["flagged"] / flagged)
+        result["precision"] = float(estimated[True] / flagged)
     if serious:
-        result["recall"] = float(estimated["flagged"] / serious)
+        result["recall"] = float(estimated[True] / serious)
     if result["unreviewed"]:
-        correct = estimated["flagged"] + unflagged - estimated["unflagged"]
+        correct = estimated[True] + unflagged - estimated[False]
         result["agreement"] = float(correct / result["unreviewed"])
     return result

@@ -7,6 +7,7 @@ import json
 import re
 from pathlib import Path
 
+from .integrations_coverage import carry, check_as_of, projection
 from .artifacts import new_directory
 from .contracts import InputError, canonical, fingerprint
 
@@ -52,13 +53,6 @@ POLICIES = {
     "unlogged-complaint": "Flag if complaint is yes and complaint_logged is no or unknown. Otherwise return false.",
     "serious-cases": "Flag a required escalation without a recorded escalation, a promised refund without a recorded refund, a legal threat, or a reported complaint without a complaint log. A yes must establish the triggering event before a missing or unknown follow-up can flag the case. Return false if none of these patterns appears.",
 }
-FORMAT = {
-    "type": "object",
-    "properties": {"flag": {"type": "boolean"}},
-    "required": ["flag"],
-    "additionalProperties": False,
-}
-INSTRUCTION = "Respond using JSON with exactly one boolean flag."
 OPTIONS = {"temperature": 0, "seed": 1}
 
 
@@ -118,19 +112,19 @@ def _installed(model: str) -> str:
     return matches[0]["digest"]
 
 
-def _signals(path: Path) -> list[dict]:
+def _signals(path: Path, *, with_dimensions=False):
     with path.open(encoding="utf-8-sig", newline="") as stream:
         reader = csv.DictReader(stream, strict=True)
-        if sorted(reader.fieldnames or []) != sorted(FIELDS + SIGNALS):
-            raise InputError(
-                "screen requires the documented metadata and policy-event columns"
-            )
+        header = reader.fieldnames or ()
+        dims = projection(
+            header, FIELDS + SIGNALS + (("as_of",) if "as_of" in header else ())
+        )
         rows = list(reader)
     seen = set()
     for row in rows:
         if None in row or any(
             not row.get(k) or not row[k].isprintable() or row[k] != row[k].strip()
-            for k in FIELDS
+            for k in (*FIELDS, *dims)
         ):
             raise InputError("screen row has missing or invalid case metadata")
         if row["case_id"] in seen:
@@ -138,71 +132,136 @@ def _signals(path: Path) -> list[dict]:
         seen.add(row["case_id"])
         if any(row.get(key) not in ("yes", "no", "unknown") for key in SIGNALS):
             raise InputError("each policy event must be yes, no or unknown")
-    return rows
+    return (rows, dims) if with_dimensions else rows
 
 
-def screen(path: Path, out: Path, model: str, policy: str) -> dict:
-    rows = _signals(path)
-    model_digest = _installed(model)
-    system = f"{POLICIES[policy]} {INSTRUCTION}"
-    version = "local-model:" + fingerprint(
-        [model_digest, system, FORMAT, OPTIONS, SIGNALS]
+def decide(events, policy):
+    """Apply the named human-readable policy to explicit or extracted facts."""
+    missing_escalation = (
+        events["escalation_required"] == "yes" and events["escalated"] != "yes"
     )
+    missing_refund = (
+        events["refund_promised"] == "yes" and events["refund_recorded"] != "yes"
+    )
+    missing_complaint = (
+        events["complaint"] == "yes" and events["complaint_logged"] != "yes"
+    )
+    if policy == "account-compromise":
+        return events["account_compromise"] == "yes" and missing_escalation
+    if policy == "missed-escalation":
+        return missing_escalation
+    if policy == "legal-threat":
+        return events["legal_threat"] == "yes" and missing_escalation
+    if policy == "promised-refund":
+        return missing_refund
+    if policy == "unlogged-complaint":
+        return missing_complaint
+    if policy == "serious-cases":
+        return (
+            missing_escalation
+            or missing_refund
+            or missing_complaint
+            or events["legal_threat"] == "yes"
+        )
+    raise InputError("unknown screening policy")
+
+
+def population_file(staging, rows, policy, dims):
+    path = staging / "population.csv"
+    with path.open("w", encoding="utf-8", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=(*FIELDS, "screen_flag", *dims))
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(
+                {
+                    **{k: row[k] for k in (*FIELDS, *dims)},
+                    "screen_flag": str(decide(row, policy)).lower(),
+                }
+            )
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def screen(path: Path, out: Path, model: str | None, policy: str, **options) -> dict:
+    """Read a prepared fact CSV directly or extract cited facts from a conversation JSONL."""
+    if path.suffix.lower() == ".jsonl":
+        from .transcripts import extract
+
+        return extract(path, out, model, policy, **options)
+    if path.suffix.lower() != ".csv":
+        raise InputError("supply transcript .jsonl or structured event .csv")
+    if options.get("policy_text") or options.get("redact") or options.get("checkpoint"):
+        raise InputError(
+            "policy text, redaction and checkpoints apply to transcript extraction"
+        )
+    rows, dims = _signals(path, with_dimensions=True)
+    # The recipe and its version identify the deterministic truth table.
+    recipe = fingerprint(["policy-events-v1", policy, POLICIES[policy]])
     with new_directory(out) as staging:
-        population = staging / "population.csv"
-        with population.open("w", encoding="utf-8", newline="") as stream:
-            writer = csv.DictWriter(stream, fieldnames=(*FIELDS, "screen_flag"))
-            writer.writeheader()
-            for row in rows:
-                facts = {key: row[key] for key in SIGNALS}
-                result = _api(
-                    "/api/chat",
-                    {
-                        "model": model,
-                        "stream": False,
-                        "format": FORMAT,
-                        "options": OPTIONS,
-                        "messages": [
-                            {"role": "system", "content": system},
-                            {"role": "user", "content": canonical(facts)},
-                        ],
-                    },
-                )
-                message = result.get("message")
-                if (
-                    result.get("model") != model
-                    or result.get("done") is not True
-                    or result.get("done_reason") != "stop"
-                    or not isinstance(message, dict)
-                    or not isinstance(message.get("content"), str)
-                ):
-                    raise InputError("incomplete model classification")
-                value = json.loads(message["content"], object_pairs_hook=_unique_keys)
-                if (
-                    not isinstance(value, dict)
-                    or set(value) != {"flag"}
-                    or type(value["flag"]) is not bool
-                ):
-                    raise InputError("model failed to return a boolean flag")
-                writer.writerow(
-                    {
-                        **{key: row[key] for key in FIELDS},
-                        "screen_flag": str(value["flag"]).lower(),
-                    }
-                )
-        if _installed(model) != model_digest:
-            raise InputError("model revision changed while screening")
+        coverage = carry(staging, path, rows)
+        check_as_of(rows, coverage)
         receipt = {
             "schema": 1,
-            "screen_version": version,
-            "model": model,
-            "model_digest": model_digest,
+            "screen_version": "policy-events:" + recipe,
             "policy": policy,
+            "mechanism": "deterministic-event-policy",
+            "coverage_sha256": fingerprint(coverage) if coverage else None,
             "events_fingerprint": fingerprint(rows),
             "cases": len(rows),
-            "population_sha256": hashlib.sha256(population.read_bytes()).hexdigest(),
+            "population_sha256": population_file(staging, rows, policy, dims),
         }
         (staging / "receipt.json").write_text(
             canonical(receipt) + "\n", encoding="utf-8"
         )
     return receipt
+
+
+def register_arguments(commands):
+    parser = commands.add_parser(
+        "screen",
+        help="extract cited events from transcripts or apply a policy to structured events",
+    )
+    parser.add_argument(
+        "source", type=Path, help="transcript JSONL or policy-event CSV"
+    )
+    parser.add_argument(
+        "--model",
+        help="installed Ollama tag for transcript extraction; CSV policy evaluation is deterministic",
+    )
+    parser.add_argument("--policy", required=True, choices=tuple(POLICIES))
+    parser.add_argument("--out", required=True, type=Path)
+    parser.add_argument(
+        "--workers", type=int, default=2, help="1–16 local transcript workers"
+    )
+    parser.add_argument(
+        "--checkpoint",
+        type=Path,
+        help="private checkpoint directory (default alongside output)",
+    )
+    parser.add_argument(
+        "--redact",
+        type=Path,
+        help="optional file of additional literal identifiers to redact, one per line",
+    )
+    parser.add_argument(
+        "--policy-text",
+        type=Path,
+        help="customer-approved text defining which escalations are required",
+    )
+
+
+def execute(args):
+    print(
+        canonical(
+            screen(
+                args.source,
+                args.out,
+                args.model,
+                args.policy,
+                workers=args.workers,
+                checkpoint=args.checkpoint,
+                redact=args.redact,
+                policy_text=args.policy_text,
+            )
+        )
+    )
+    return 0

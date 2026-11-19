@@ -4,18 +4,20 @@ Choose a week, the queue it covers, and a policy that two reviewers can apply to
 
 ## Get the two exports
 
-The population must cover every eligible conversation in the declared cohort. Settle the time basis in advance. The native pulls use creation during the UTC interval and closed status at retrieval. Match that definition to an independent count. For a historical close-event cohort, use the archived event ledger. The ordinary-review list must contain the IDs that actually received routine human QA by the agreed review deadline. A vendor's resolved, escalated, viewed or AI-scored status alone cannot establish that a person graded a case. [Supported sources and assignments](integrations.md)
+The population must cover every eligible conversation in the declared cohort. Settle the time basis in advance. Use the week of the resolution or closure event in UTC. A conversation opened a month earlier can belong to this week. Attach the source coverage receipt. It binds the eligible IDs and revisions to the dates and gives counts for open, excluded and unresolved membership within the scanned source scope. Where a source retains only its latest completion, a dated lifecycle ledger gives stronger historical coverage. With a bare CSV, the report can describe only the supplied rows. The ordinary-review list must contain the IDs that actually received routine human QA by the agreed review deadline. A vendor's resolved, escalated, viewed or AI-scored status alone cannot establish that a person graded a case. [Supported sources and assignments](integrations.md)
 
 | File | Required columns | Meaning |
 | --- | --- | --- |
-| Eligible population | `case_id,revision,evidence_ref,screen_flag` | One row per unique conversation. Use a stable case ID, a frozen revision and an authorized reference to that revision. Set the flag for every row. |
+| Eligible population | `case_id,revision,evidence_ref,screen_flag` | One row per unique conversation. Use a stable case ID, a frozen revision and an authorized reference to that revision. Set the flag for every row. Optional `channel`, `agent_type` and `product` columns let you sample within these groups. |
 | Ordinary human reviews | `case_id` | One row per reviewed conversation in the same population. A header-only file declares that none received ordinary review. A missing ledger leaves that question unanswered. |
 
 Acceptable flags are `true`, `false`, `1` and `0`. Use metadata-only references such as internal revision keys. Reviewers need access to the version of the source evidence those keys identify. Keep the source snapshot and its retrieval time. A vendor modification timestamp alone cannot recover overwritten text.
 
+When a case completed more than once in the week, grade the first qualifying completion the source can establish. The packet's `completed_at` column fixes that instant in UTC. A later referral or a payment recorded after the cutoff can change the current case record. Grade the archived evidence at the cutoff and return `insufficient` if that evidence is unavailable. A screen generated for the current snapshot cannot be attached to a different historical cohort.
+
 ## Assign and grade the week
 
-Run `python3 -m telryn desk --out runs/desk` for the local browser interface. Choose both CSVs, enter the rubric and the number of reviews available to each group, and create the audit. In a larger intake or a recurring job, use a TOML file like this. Paths resolve relative to the plan.
+Initialize the team key before the first audit with `python3 -m telryn trust init`. Run `python3 -m telryn desk --out runs/desk` for the local browser interface. Choose both CSVs and the rubric. Enter staff minutes, expected minutes per grade and the anticipated finding rate. Preview the allocation and expected width, then commit the sample. You can also set counts directly. Uploads allow 24 MiB per file and 64 MiB per request. The CLI accepts larger exports. In a larger intake or a recurring job, use a TOML file like this. Paths resolve relative to the plan.
 
 ```toml
 schema = 1
@@ -37,32 +39,35 @@ python3 -m telryn weekly runs/2026-11-02/report.html --format json
 
 The fresh run writes a self-contained `report.html` for the lead and a blind `grades.csv` for reviewers. The packet identifies the rubric, evidence reference and revision. For each case, answer `yes`, `no` or `insufficient` in `serious`. A yes takes `new`, `already_known` or `unknown` in `disposition`. A new case needs an owner and an action or work item. A no takes `none`. An insufficient grade takes `unknown`. Enter the cumulative whole minutes spent on the row. Keep personally identifying details and transcripts in their source system.
 
-Leave unanswered rows blank in a partial return. When more evidence arrives, return the same row to resolve an `insufficient` grade or change a confirmed finding’s `unknown` disposition to `new` or `already_known`. Include all minutes spent on that row to date. A new finding requires an owner and action. The report retains every accepted answer and counts the latest cumulative minutes once. Reimporting an earlier accepted answer leaves the latest finding in place. Conflicting returns preserve the previous report for the audit owner to investigate.
+Leave unanswered rows blank in a partial return. More evidence can resolve an insufficient answer. If an accepted yes or no was wrong, ask a second person to grade the same blinded packet independently. Import with `--second-review returned.csv --reviewer REVIEWER_ID`. A disagreement opens a dispute. A third person selects the accepted answer and records their reason and minutes. The report preserves both answers, shows reviewer agreement and recomputes its bounds. [Correction and adjudication commands](trust.md)
 
 ## What the estimate measures
 
 The unit is a conversation that met the team's eligibility definition and had no routine human QA review. The outcome is a human-confirmed finding under the frozen rubric. The total includes cases another control already discovered. The follow-up table distinguishes those from newly discovered cases. Estimated counts cannot identify individual unsampled cases.
 
-Telryn subtracts the ordinary reviews, splits the residual population by the screen flag, then samples without replacement in each group. A fresh secret seed determines the draw. The published report freezes that seed, the membership fingerprints, selection counts, screen and rubric so returning grades never redraws the cases. Keep the first draw. Choosing the most interesting of several redraws invalidates the interval.
+Telryn subtracts routine reviews and samples without replacement within the chosen groups. A team key fixes the case ordering for the same weekly membership. The trust ledger records the frame and design before case selection. Retrying the same inputs yields the same cases, including when CSV rows have been reordered. Reviewers grade the frozen revision. [Commitments and report verification](trust.md)
 
-For a group of size `N` with `n` sampled and `y` positive grades, its estimated total is `N × y / n`. The headline sums the two totals. The interval inverts the finite-population hypergeometric distribution for small samples or small unsampled complements. Larger groups use a conservative finite-population concentration bound. The two group intervals are combined with a Bonferroni correction for at least 95% design coverage. A fully graded census returns the count exactly. Coverage describes repeated draws under this sampling design. It assumes an accurate population, ordinary-review list and human labels.
+For a group of size `N` with `n` sampled and `y` positive grades, its estimated total is `N × y / n`. The headline sums these totals. The interval combines finite-population bounds across groups. If selected cases are unresolved, Telryn computes the lower result assigning them all negative and the upper result assigning them all positive. Read that sensitivity range alongside the wider interval for sampling uncertainty. A nonempty group with zero selection probability leaves a gap in the estimate. [Statistical assumptions and worked examples](statistics.md)
 
-An integer in the plan caps the review slots for that group. A percentage such as `unflagged_sample = "5%"` selects that share of the residual group, rounded up.
+To preview an allocation without issuing cases, run:
 
-A group with zero selection probability, a pending grade or an insufficient grade makes the weekly estimate unavailable. One verified case can still need action. For `screen_version = "none"`, supply all false flags and sample from the unflagged group. With a screen, the report gives design-weighted agreement, precision and recall against human grades in the residual population. An empty denominator gives an unavailable metric. The point estimates for precision and recall carry sampling uncertainty too.
+```sh
+python3 -m telryn plan-week examples/fintech/week.toml \
+  --minutes 36 --minutes-per-grade 6 --expected-rate 0.05
+```
 
-Set the sample using available reviewer hours and the smallest count that would change a decision. Even if 10 of 10,000 unreviewed conversations are serious, a simple random sample of 200 has about an 82% chance of finding none. A weekly interval can be too wide to support a staffing change. Retain individual reports with their populations and rubrics for a longer, prespecified evaluation.
+To apply your budget when the sample is drawn, save `minutes`, `minutes_per_grade` and `expected_rate` in a `[planning]` table in the plan. Optional `flagged_rate` and `unflagged_rate` use fractions from 0 to 1. The browser accepts percentages. Add `group_by = ["channel", "agent_type", "product"]` at the top level to group by those columns, or choose a subset. Planning uses the actual residual populations after excluding ordinary reviews.
 
 ## Screening with a local model
 
-Use your team's frozen screen labels, start with a random audit, or score every exported row with a locally installed Ollama model. The built-in screen passes eight structured yes/no/unknown policy events to the model. This allows a team to omit transcript text, case IDs, evidence references, names and contact details from the prompt. Prepare those events within your trusted system. The screen only sees facts represented in that projection.
+Use a local transcript export and a policy the team approved. With Ollama running locally and the requested tag installed, try the two synthetic transcripts.
 
 ```sh
-python3 -m telryn screen examples/fintech/signals.csv \
-  --model llama3.2:latest --policy account-compromise --out runs/local-screen
+python3 -m telryn screen examples/fintech/transcripts.jsonl \
+  --model llama3.2:latest --policy account-compromise --workers 2 --out runs/transcript-screen
 ```
 
-Ollama must already be running on `127.0.0.1:11434` with the requested model installed locally. Use the exact tag from `ollama list`. The `serious-cases` policy also considers missed escalations, unrecorded promised refunds, legal threats and unlogged complaints. Use a matching human rubric when reporting model performance. A run produces `population.csv` and `receipt.json` together. Set the plan's `screen_version` to the value in the receipt and its `screen_receipt` path to that file. Telryn checks the receipt against the population bytes before it draws the sample. A partial or malformed model response fails the batch. The receipt also fingerprints the parsed input events. Keep that export with the receipt. Run Ollama under customer administration and disable its cloud features with `OLLAMA_NO_CLOUD=1` in the daemon environment. [Ollama local-only configuration](https://docs.ollama.com/faq#how-do-i-disable-ollamas-cloud-features) [Event columns](../examples/fintech/signals.csv) · [Ollama chat API](https://docs.ollama.com/api/chat)
+The extractor cites the redacted transcript passages supporting a signal. Telryn checks the cited text against the source and applies the policy to the resulting signals. Inspect the citations to assess interpretation. The checkpoint retains completed cases if extraction stops midway. If the source already exports structured policy events, use `screen examples/fintech/signals.csv --policy account-compromise --out runs/event-screen` without a model. Set the weekly plan's `screen_version` and `screen_receipt` from the issued receipt. [Connector transcript coverage, redaction and checkpoint retention](transcripts.md)
 
 ## Give the lead a weekly digest
 
@@ -74,10 +79,8 @@ The digest contains aggregate results. To deliver it through the customer's mail
 
 ## Suggest a change to the next queue
 
-When both screen groups have determinate grades and known serious-case dispositions, `weekly REPORT --propose DIRECTORY` compares the observed rates of newly found serious cases. A difference can generate a candidate to reserve one seat for the highest-priority case in the higher-rate group. The remaining seats follow numeric priority. A tie provides no basis for a suggestion. The candidate applies to numeric priority queues with ascending ID tie-breaks. Sparse data can yield unstable differences. Qualification comes from a separate later replay against the actual rule and staff constraints.
-
-Use `compare DEFINITION --proposal DIRECTORY/proposal.json --out RUN --require-shadow`. The replay checks the frozen SQL, comparable screen and rubric, disjoint case IDs and a later cutoff. It reproduces the original picks and tests the serious-case gain and zero-loss guard at the recorded capacity. After a qualifying comparison, use `record-shadow` with subsequent observed picks, recorded work and the lead's decision. [Worked commands](../examples/fintech/README.md) · [Comparison contract](comparison.md)
+Once the graders have resolved the findings, run `weekly REPORT --propose DIRECTORY --max-reserved 2` to search supported segments within a two-seat ceiling. Small observed differences can leave every candidate inconclusive. When a rule qualifies for evaluation, replay it on an independent later cohort with `compare DEFINITION --proposal DIRECTORY/proposal.json --out RUN --require-shadow`. Existing capacity, staffing, serious-loss and mandatory-case checks still apply. The queue owner records observed picks and minutes in a subsequent shadow trial. [Worked example](../examples/fintech/README.md)
 
 ## Keep weekly reports readable
 
-The portable weekly envelope and evidence both carry schema version 1. Each report embeds its frozen state and checksum. Reading it requires no model, vendor token or source-system connection. The release suite keeps a saved v1 report and checks its original result on every run. Comparison reports use a separate schema. Retain original reports, packets, source snapshots and policy versions together for the required retention period. Removing an audit directory removes its local report and packet. Also expire source copies, sent digests and vendor assignments according to your policy. [Historical comparison reports](comparison.md#grading-and-recovery) · [Security](../SECURITY.md)
+Weekly reports issued from v0.5 use a signed version-2 envelope. The CLI verifies the report bytes and revision against the local team's key and registry. The browser desk serves verified report bytes. An HTML file opened directly is a static view. For a v0.4 unsigned report, use `weekly REPORT --legacy` for an explicitly historical reading. Restore original source evidence, the audit directory, and the matching trust store to resume a signed audit. Keep customer exports, checkpoints and sent digests under your organization's retention policy. [Audit trust and corrections](trust.md) · [Historical comparison reports](comparison.md#grading-and-recovery)

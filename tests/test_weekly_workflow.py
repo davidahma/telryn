@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from examples.public_demo import __main__ as public
 from telryn import screen, weekly
+from tests.audit_support import isolate_trust
 from telryn.__main__ import main
 from telryn.contracts import InputError
 from telryn.weekly_report import read_state
@@ -21,6 +22,7 @@ class WeeklyWorkflow(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.base = Path(self.temp.name)
+        isolate_trust(self, self.base)
 
     def test_public_census_against_archived_human_labels(self):
         out = self.base / "census"
@@ -49,7 +51,10 @@ class WeeklyWorkflow(unittest.TestCase):
             self.assertEqual(
                 main(["weekly", str(out / "report.html"), "--format", "json"]), 0
             )
-        self.assertEqual(json.loads(stdout.getvalue()), result)
+        reported = json.loads(stdout.getvalue())
+        self.assertEqual(reported.pop("verification"), "team_hmac_verified")
+        self.assertEqual(reported.pop("review")["compared"], 0)
+        self.assertEqual(reported, result)
         stderr = io.StringIO()
         with redirect_stderr(stderr):
             self.assertEqual(
@@ -67,7 +72,7 @@ class WeeklyWorkflow(unittest.TestCase):
 
     def test_version_one_report(self):
         path = Path(__file__).with_name("fixtures") / "weekly-v1.html"
-        state = read_state(path)
+        state = read_state(path, allow_legacy=True)
         self.assertEqual(state["schema"], 1)
         self.assertEqual(weekly.summarize(state)["interval"], [1, 1])
 
@@ -87,35 +92,16 @@ class WeeklyWorkflow(unittest.TestCase):
                 )
         return events
 
-    def test_local_model_receipt_and_projection(self):
+    def test_structured_policy_receipt_and_projection(self):
         events = self.events()
-        calls = []
-
-        def respond(path, data=None):
-            if path == "/api/tags":
-                return {"models": [{"name": "test:latest", "digest": "a" * 64}]}
-            if path == "/api/show":
-                return {"model_info": {"fixture": True}}
-            calls.append(data)
-            return {
-                "message": {"content": json.dumps({"flag": len(calls) == 1})},
-                "done": True,
-                "done_reason": "stop",
-                "model": "test:latest",
-            }
-
-        with patch.object(screen, "_api", side_effect=respond):
+        with patch.object(screen, "_api", side_effect=AssertionError):
             result = screen.screen(
-                events, self.base / "screen", "test:latest", "account-compromise"
+                events, self.base / "screen", None, "account-compromise"
             )
         self.assertEqual(result["cases"], 2)
+        self.assertEqual(result["mechanism"], "deterministic-event-policy")
         self.assertEqual(
             result["events_fingerprint"], screen.fingerprint(screen._signals(events))
-        )
-        self.assertEqual(len(calls), 2)
-        self.assertNotIn("private", json.dumps(calls))
-        self.assertEqual(
-            set(json.loads(calls[0]["messages"][1]["content"])), set(screen.SIGNALS)
         )
         (self.base / "reviewed.csv").write_text("case_id\n")
         plan = self.base / "week.toml"
@@ -151,53 +137,12 @@ unflagged_sample=2
         with self.assertRaisesRegex(InputError, "receipt"):
             weekly.prepare(plan)
 
-    def test_ambiguous_or_misattributed_classifications(self):
+    def test_invalid_structured_input_stops_before_publishing(self):
         events = self.events()
-        baseline = {
-            "done": True,
-            "done_reason": "stop",
-            "model": "test:latest",
-            "message": {"content": '{"flag":true}'},
-        }
-        for change in (
-            {"done_reason": "length"},
-            {"model": "other:latest"},
-            {"message": {"content": {}}},
-            {"message": {"content": '{"flag":false,"flag":true}'}},
-        ):
-            with (
-                self.subTest(change=change),
-                patch.object(screen, "_installed", return_value="a" * 64),
-                patch.object(screen, "_api", return_value={**baseline, **change}),
-                self.assertRaises(InputError),
-            ):
-                screen.screen(
-                    events, self.base / "screen", "test:latest", "account-compromise"
-                )
-            self.assertFalse((self.base / "screen").exists())
-
-    def test_invalid_model_output_or_cloud_model_is_atomic(self):
-        events = self.events()
-        with (
-            patch.object(screen, "_installed", return_value="b" * 64),
-            patch.object(
-                screen,
-                "_api",
-                return_value={"done": True, "message": {"content": '{"flag": "no"}'}},
-            ),
-            self.assertRaises(InputError),
-        ):
-            screen.screen(
-                events, self.base / "screen", "test:local", "account-compromise"
-            )
-        self.assertFalse((self.base / "screen").exists())
-        with self.assertRaisesRegex(InputError, "local model"):
-            screen._installed("test:cloud")
         events.write_text(events.read_text().replace(",unknown,", ",personal name,", 1))
         with (
             patch.object(screen, "_api", side_effect=AssertionError),
             self.assertRaises(InputError),
         ):
-            screen.screen(
-                events, self.base / "screen", "test:local", "account-compromise"
-            )
+            screen.screen(events, self.base / "screen", None, "account-compromise")
+        self.assertFalse((self.base / "screen").exists())

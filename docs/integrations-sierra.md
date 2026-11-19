@@ -14,6 +14,8 @@ case-100,v4,QA-EVIDENCE-100-v4,true
 case-101,v2,QA-EVIDENCE-101-v2,false
 ```
 
+For Sierra deliveries containing full lifecycle history, map one row per conversation to the [dated event ledger](integrations.md#use-a-dated-lifecycle-ledger). That workflow records exclusions and reopened cases alongside the population. `pull-sierra` starts from the already selected roster and cannot count records omitted upstream. For screening, export the authorized text behind each case revision in the [transcript JSONL format](transcripts.md).
+
 ## Read the frozen week
 
 Install AWS CLI v2 and configure the usual AWS credentials and region. Scope `s3:GetObjectVersion` to the approved delivery. A customer-managed KMS key can also require `kms:Decrypt`. The command uses the same version ID and expected bucket owner for the metadata check and the download. It rejects a null version, additional CSV columns, duplicate conversation IDs, an unexpected count, or a mismatched optional SHA-256. A single file can contain up to 64 MiB of metadata. [S3 GetObject](https://docs.aws.amazon.com/cli/latest/reference/s3api/get-object.html) · [S3 HeadObject](https://docs.aws.amazon.com/cli/latest/reference/s3api/head-object.html)

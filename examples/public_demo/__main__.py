@@ -70,7 +70,9 @@ def run(out: Path, census: bool = False) -> dict:
                     minutes="0",
                 )
                 writer.writerow(row)
-        result = summarize(refresh(report, base / "return.csv"))
+        result = summarize(
+            refresh(report, base / "return.csv", reviewer="Published human annotations")
+        )
     truth = sum(
         int(row["human_friction"]) for case, row in data.items() if case not in reviewed
     )

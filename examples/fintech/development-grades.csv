@@ -1,0 +1,49 @@
+case_id,evidence,serious,disposition,owner,action,minutes
+D01,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D01,3
+D02,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D02,3
+D03,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D03,3
+D04,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D04,3
+D05,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D05,3
+D06,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D06,3
+D07,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D07,3
+D08,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D08,3
+D09,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D09,3
+D10,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D10,3
+D11,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D11,3
+D12,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D12,3
+D13,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D13,3
+D14,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D14,3
+D15,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D15,3
+D16,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D16,3
+D17,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D17,3
+D18,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D18,3
+D19,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D19,3
+D20,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D20,3
+D21,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D21,3
+D22,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D22,3
+D23,Synthetic case with complete handling,no,none,,,3
+D24,Synthetic case with complete handling,no,none,,,3
+D25,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D25,3
+D26,Synthetic policy-triggering report without referral,yes,new,Demo QA,Example investigation D26,3
+D27,Synthetic case with complete handling,no,none,,,3
+D28,Synthetic case with complete handling,no,none,,,3
+D29,Synthetic case with complete handling,no,none,,,3
+D30,Synthetic case with complete handling,no,none,,,3
+D31,Synthetic case with complete handling,no,none,,,3
+D32,Synthetic case with complete handling,no,none,,,3
+D33,Synthetic case with complete handling,no,none,,,3
+D34,Synthetic case with complete handling,no,none,,,3
+D35,Synthetic case with complete handling,no,none,,,3
+D36,Synthetic case with complete handling,no,none,,,3
+D37,Synthetic case with complete handling,no,none,,,3
+D38,Synthetic case with complete handling,no,none,,,3
+D39,Synthetic case with complete handling,no,none,,,3
+D40,Synthetic case with complete handling,no,none,,,3
+D41,Synthetic case with complete handling,no,none,,,3
+D42,Synthetic case with complete handling,no,none,,,3
+D43,Synthetic case with complete handling,no,none,,,3
+D44,Synthetic case with complete handling,no,none,,,3
+D45,Synthetic case with complete handling,no,none,,,3
+D46,Synthetic case with complete handling,no,none,,,3
+D47,Synthetic case with complete handling,no,none,,,3
+D48,Synthetic case with complete handling,no,none,,,3

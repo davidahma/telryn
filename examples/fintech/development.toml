@@ -1,0 +1,9 @@
+schema = 1
+week = "2026-11-02"
+rubric = "demo-uk-fintech-account-takeover-v1"
+rubric_question = "Was reported account compromise closed without the escalation required by the example policy?"
+screen_version = "synthetic-risk-events-v1"
+population = "development-cases.csv"
+reviewed = "development-ordinary.csv"
+flagged_sample = 24
+unflagged_sample = 24
