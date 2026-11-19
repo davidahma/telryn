@@ -20,6 +20,7 @@ from telryn.report import load_report, render_report
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE = ROOT / "examples" / "refunds"
+QA = ROOT / "examples" / "support-qa"
 CASES = (
     "demo",
     "membership",
@@ -35,6 +36,10 @@ CASES = (
     "handoff",
     "recovery",
     "repeatability",
+    "qa-preflight",
+    "qa-sql",
+    "qa-serious",
+    "qa-shadow",
 )
 TUESDAY = "tuesday-am"
 SATURDAY = "saturday-am"
@@ -111,8 +116,10 @@ class Qualification(unittest.TestCase):
             writer.writeheader()
             for row in rows:
                 case = state["packet"][row["row_id"]]["case"]
-                if case in answers:
-                    row["grade"] = answers[case]
+                criterion = state["packet"][row["row_id"]].get("criterion", "primary")
+                key = (case, criterion) if (case, criterion) in answers else case
+                if key in answers:
+                    row["grade"] = answers[key]
                     row["minutes_spent"] = str(minutes)
                     writer.writerow(row)
         return path
@@ -958,6 +965,248 @@ session.refresh(Path(sys.argv[1]), Path(sys.argv[2]), None)
                 if expected_digest is None:
                     expected_digest = digest
                 self.assertEqual(digest, expected_digest)
+
+    def qa_intake(self):
+        export = self.root / "qa.json"
+        status = json.loads(
+            self.cli(
+                "preflight", QA / "intake.toml", "--out", export, "--format", "json"
+            )
+        )
+        self.assertEqual(
+            status["shifts"]["week-1"],
+            {"status": "Ready for replay", "eligible": 12, "selected": 8},
+        )
+        return export
+
+    def test_qa_preflight(self):
+        path = self.qa_intake()
+        batch = json.loads(path.read_text())["shifts"]["week-1"]
+        self.assertEqual(batch["actual"], [f"Q-{i:03}" for i in range(1, 9)])
+        self.assertIn("Q-012", batch["membership"]["ids"])
+        example = self.root / "support-qa"
+        shutil.copytree(QA, example)
+        manifest = example / "intake.toml"
+        original = manifest.read_text()
+        output = self.root / "bad-qa.json"
+        for delete, source, expected in (
+            ('eligible = "eligible.csv"', "eligible", "no eligible"),
+            ('picks = "picks.csv"', "picks", "no picks"),
+            (
+                'cutoff_inputs = "cutoff-inputs.csv"',
+                "cutoff_inputs",
+                "no cutoff_inputs",
+            ),
+            ('tie_break = "id-asc"', "policy", "tie-break"),
+            ("overrides = []", "policy", "override"),
+        ):
+            manifest.write_text(original.replace(delete, ""))
+            report = json.loads(
+                self.cli(
+                    "preflight",
+                    manifest,
+                    "--out",
+                    output,
+                    "--format",
+                    "json",
+                    expected=1,
+                )
+            )["shifts"]["week-1"]
+            self.assertEqual(report["source"], source)
+            self.assertIn(expected, report["reason"])
+            self.assertTrue(report["capture"])
+            self.assertFalse(output.exists())
+        manifest.write_text(
+            original.replace('eligible = "eligible.csv"', 'eligible = "picks.csv"')
+        )
+        self.assertIn("separate source", self.cli("preflight", manifest, expected=1))
+        manifest.write_text(original)
+        snapshot_path = example / "cutoff-inputs.csv"
+        snapshot = snapshot_path.read_text()
+        snapshot_path.write_text("\n".join(snapshot.splitlines()[:9]) + "\n")
+        self.assertIn("Q-009", self.cli("preflight", manifest, expected=1))
+        snapshot_path.write_text(snapshot.replace("frozen_risk", "missing_risk"))
+        result = self.cli("preflight", manifest, expected=1)
+        self.assertIn("frozen_risk", result)
+        self.cli("preflight", QA / "intake.toml", "--out", path, expected=2)
+
+    def test_qa_sql(self):
+        exported = self.qa_intake()
+        sql_out, sql = self.comparison(
+            "sqlite", QA / "comparison.toml", export=exported
+        )
+        python_out, pure = self.comparison(
+            "python", QA / "legacy.toml", export=exported
+        )
+        sqlite_state = load_report(sql_out / "report.html")
+        py_state = load_report(python_out / "report.html")
+        for side in ("live", "candidate"):
+            self.assertEqual(
+                sqlite_state["shifts"]["week-1"][side],
+                py_state["shifts"]["week-1"][side],
+            )
+        self.assertEqual(sql["bounds"], pure["bounds"])
+        self.assertEqual(
+            sqlite_state["frozen"]["sqlite_version"], sqlite3.sqlite_version
+        )
+        self.assertEqual(
+            sql["shifts"]["week-1"]["gain"], ["Q-009", "Q-010", "Q-011", "Q-012"]
+        )
+        example = self.root / "copy"
+        shutil.copytree(QA, example)
+        query = example / "candidate.sql"
+        original = query.read_text()
+        query.write_text("WITH ranked AS (" + original + ") SELECT id FROM ranked")
+        self.comparison("cte", example / "comparison.toml", export=exported)
+        for index, source in enumerate(
+            (
+                "UPDATE requests SET inputs = '{}' RETURNING id",
+                "SELECT id FROM requests ORDER BY random() LIMIT :capacity",
+                "SELECT id, inputs FROM requests LIMIT :capacity",
+                "SELECT 'unavailable' AS id",
+                "SELECT id FROM requests UNION ALL SELECT id FROM requests",
+            )
+        ):
+            query.write_text(source)
+            target, result = self.comparison(
+                f"invalid-sql-{index}",
+                example / "comparison.toml",
+                export=exported,
+                expected=2,
+            )
+            self.assertEqual(result["status"], "execution_error")
+            self.assertFalse(target.exists())
+        query.write_text(original)
+        export = json.loads(exported.read_text())
+        export["shifts"]["week-1"]["requests"]["Q-012"]["inputs"].pop("risk")
+        _, incomplete = self.comparison(
+            "missing-score",
+            example / "comparison.toml",
+            export=self.write_export(export),
+            expected=1,
+            gate=True,
+        )
+        self.assertEqual(incomplete["shifts"]["week-1"]["status"], "Not replayable")
+        self.assertIn("Q-012", incomplete["shifts"]["week-1"]["reason"])
+
+    def test_qa_serious(self):
+        exported = self.qa_intake()
+        out, initial = self.comparison(
+            "serious", QA / "comparison.toml", export=exported, gate=True, expected=1
+        )
+        self.assertEqual(
+            (initial["recommendation"], initial["bounds"]), ("Inconclusive", [2, 2])
+        )
+        self.assertEqual(initial["serious_losses"]["unknown"], ["Q-005"])
+        self.assertEqual(initial["serious_losses"]["upper"], 1)
+        self.assertEqual(initial["packet_rows"], 1)
+        packet = self.filled(out, {("Q-005", "serious"): "meets"}, "serious.csv")
+        result = self.refresh(out, packet, expected=1, flags=("--require-shadow",))
+        self.assertEqual((result["recommendation"], result["bounds"]), ("Hold", [2, 2]))
+        self.assertEqual(result["serious_losses"]["confirmed"], ["Q-005"])
+        self.assertIn("Scheduled reviewer hours", (out / "report.html").read_text())
+        revised, next_call = self.comparison(
+            "keep-serious", QA / "revised.toml", export=exported, gate=True
+        )
+        self.assertEqual(
+            (next_call["recommendation"], next_call["bounds"]),
+            ("Try in shadow", [3, 3]),
+        )
+        self.assertEqual(next_call["serious_losses"]["upper"], 0)
+        self.assertEqual(next_call["packet_rows"], 0)
+
+        example = self.root / "dual"
+        shutil.copytree(QA, example)
+        primary = example / "defect-grades.json"
+        known = json.loads(primary.read_text())
+        known["grades"].pop("Q-005")
+        primary.write_text(json.dumps(known))
+        plan = example / "comparison.toml"
+        plan.write_text(
+            plan.read_text().replace(
+                "minimum_additional_exceptions = 1", "minimum_additional_exceptions = 3"
+            )
+        )
+        dual, _ = self.comparison("two-questions", plan, export=exported)
+        rows = load_report(dual / "report.html")["packet"].values()
+        self.assertEqual(
+            {(r["case"], r["criterion"]) for r in rows},
+            {("Q-005", "primary"), ("Q-005", "serious")},
+        )
+        returned = self.filled(
+            dual,
+            {("Q-005", "primary"): "outside", ("Q-005", "serious"): "meets"},
+            "different-answers.csv",
+        )
+        final = self.refresh(dual, returned, expected=1, flags=("--require-shadow",))
+        self.assertEqual(final["bounds"], [3, 3])
+        self.assertEqual(final["serious_losses"]["confirmed"], ["Q-005"])
+        self.assertEqual(final["recommendation"], "Hold")
+
+        full = json.loads((QA / "defect-grades.json").read_text())
+        full["grades"]["Q-005"]["shared_sources"] = False
+        primary.write_text(json.dumps(full))
+        protected, blocked = self.comparison(
+            "excluded-both-rubrics", plan, export=exported, expected=1, gate=True
+        )
+        self.assertIn("Q-005", blocked["excluded_grading"])
+        self.assertEqual(blocked["serious_losses"]["unknown"], ["Q-005"])
+        self.assertFalse(
+            any(
+                row["case"] == "Q-005"
+                for row in load_report(protected / "report.html")["packet"].values()
+            )
+        )
+
+    def test_qa_shadow(self):
+        exported = self.qa_intake()
+        out, result = self.comparison(
+            "pilot-shadow", QA / "revised.toml", export=exported
+        )
+        report = out / "report.html"
+        packet = (out / "grading.csv").read_bytes()
+        observation = json.loads((QA / "shadow-observations.json").read_text())
+        observation["comparison_id"] = result["comparison_id"]
+        readings = self.write_export(observation, "shadow-observations.json")
+        stored = json.loads(
+            self.cli("record-shadow", report, readings, "--format", "json")
+        )
+        trial = stored["shadow_trials"]["synthetic-week-2"]
+        batch = trial["batches"]["week-2"]
+        self.assertEqual(batch["recorded_minutes"], 1240)
+        self.assertEqual(batch["projected_minutes"], [960, 1160])
+        self.assertEqual(batch["staffing"], "Above historical staffing limit")
+        self.assertEqual(batch["mix"]["Account"], {"projected": 5, "observed": 6})
+        self.assertEqual(trial["lead_decision"]["action"], "revise")
+        self.assertEqual(stored["recommendation"], "Try in shadow")
+        self.assertEqual(self.explanation(out), stored)
+        self.assertEqual((out / "grading.csv").read_bytes(), packet)
+        visible = report.read_text().split('<script type="application/json"')[0]
+        self.assertIn("Recorded shadow trials", visible)
+        self.assertIn("1240 recorded reviewer minutes", visible)
+        saved = report.read_bytes()
+        self.cli("record-shadow", report, readings)
+        self.assertEqual(report.read_bytes(), saved)
+        observation["lead_decision"]["action"] = "adopt"
+        self.cli("record-shadow", report, self.write_export(observation), expected=2)
+        observation["trial_id"] = "not-this-comparison"
+        first, verdict = self.comparison(
+            "trial-denied", QA / "comparison.toml", export=exported
+        )
+        self.cli(
+            "record-shadow",
+            first / "report.html",
+            self.write_export(observation),
+            expected=2,
+        )
+        observation["comparison_id"] = verdict["comparison_id"]
+        self.cli(
+            "record-shadow",
+            first / "report.html",
+            self.write_export(observation),
+            expected=2,
+        )
+        self.assertEqual(report.read_bytes(), saved)
 
 
 def qualify(case: str | None = None) -> int:

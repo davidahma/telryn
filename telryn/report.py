@@ -6,6 +6,7 @@ import json
 from html import escape
 from pathlib import Path
 
+from . import shadow
 from .contracts import InputError, canonical, fingerprint, mapping, versioned
 from .decision import INCONCLUSIVE, evaluate
 from .grades import grade_status, record_effort, review_set
@@ -46,8 +47,8 @@ code { overflow-wrap:anywhere; }
 
 
 def recommendation(state: dict) -> dict:
-    grades, pending, status = grade_status(state)
-    summary = evaluate(state, grades, pending)
+    grades, serious, pending, status = grade_status(state)
+    summary = evaluate(state, grades, pending, serious)
     legacy = state["schema"] == 1
     if legacy:
         if not summary["operational_veto"]:
@@ -62,10 +63,12 @@ def recommendation(state: dict) -> dict:
             "comparison_id": state["comparison_id"],
             "schema": 1,
             "legacy_report": legacy,
+            "shadow_trials": shadow.summarize(state),
             "excluded_grading": state.get("excluded_grading", {}),
             "adjudication": {
                 row_id: {
                     "request": state["packet"][row_id]["case"],
+                    "criterion": state["packet"][row_id].get("criterion", "primary"),
                     "review_set": review_set(row_id, state["grade_history"][row_id]),
                 }
                 for row_id, value in status.items()
@@ -237,7 +240,7 @@ def shift_html(
 
 def render_report(state: dict) -> str:
     result = recommendation(state)
-    grades, _, status = grade_status(state)
+    grades, _, _, status = grade_status(state)
     frozen = state["frozen"]
     title = result["recommendation"]
     severity = {
@@ -258,6 +261,8 @@ def render_report(state: dict) -> str:
     packet_details = []
     for row_id, row in state["packet"].items():
         kind = "Cross-check" if row["control"] else "Open grade"
+        if row.get("criterion") == "serious":
+            kind += " · Serious case"
         packet_details.append(
             f"<tr><td>{escape(row['case'])}</td><td><code>{escape(row_id)}</code></td>"
             f"<td>{kind}</td><td>{escape(status[row_id])}</td></tr>"
@@ -301,6 +306,25 @@ def render_report(state: dict) -> str:
             f"{label.replace('_', ' ').capitalize()}: {metric['events']} recorded, "
             f"{metric['minutes']} min logged, {metric['untimed']} untimed."
         )
+    serious = result["serious_losses"]
+    serious_section = ""
+    if serious is not None:
+        upper = str(serious["upper"]) if serious["upper"] is not None else "unknown"
+        hours = sum(source["staff_minutes"] for source in plan["shifts"].values()) / 60
+        serious_section = (
+            '<section><h2>Serious cases losing review</h2><div class="grid">'
+            + stat("Possible serious losses", f"{serious['lower']} to {upper}")
+            + stat("Maximum allowed", str(serious["maximum"]))
+            + stat("Scheduled reviewer hours", f"{hours:g}")
+            + "</div>"
+            + f"<p><strong>Serious-case question</strong> {escape(plan['serious']['rubric_question'])}</p>"
+            + "<h3>Confirmed serious losses</h3>"
+            + cases_html(serious["confirmed"])
+            + "<h3>Unresolved serious grades</h3>"
+            + cases_html(serious["unknown"])
+            + "</section>"
+        )
+    trial_section = shadow_html(result["shadow_trials"])
     payload = canonical({"schema": 1, "checksum": fingerprint(state), "state": state})
     payload = (
         payload.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
@@ -328,6 +352,7 @@ def render_report(state: dict) -> str:
         '<p class="muted">Shadow trials record candidate picks in your system while the live rule continues routing. '
         "The counts describe historical review coverage.</p>"
         + f"<p><strong>Review question</strong> {escape(plan['rubric_question'])}</p></header>"
+        + serious_section
         + "".join(sections)
         + "<section><h2>Grading handoff</h2>"
         + f"<p>{result['packet_rows']} packet rows · {result['packet_returns']} returned · "
@@ -346,7 +371,9 @@ def render_report(state: dict) -> str:
             if packet_details
             else ""
         )
-        + "</section><footer><h2>Evidence basis</h2>"
+        + "</section>"
+        + trial_section
+        + "<footer><h2>Evidence basis</h2>"
         + f"<p>Live rule {escape(plan['live']['version'])} · Candidate {escape(plan['candidate']['version'])} · "
         f"Rubric {escape(plan['rubric'])} · Workload method {escape(plan['workload_method'])}</p>"
         + f"<p>Evidence window {plan['evidence_window_hours']} hours from cutoff · "
@@ -357,3 +384,40 @@ def render_report(state: dict) -> str:
         + STATE_CLOSE
         + "</body></html>\n"
     )
+
+
+def shadow_html(trials: dict) -> str:
+    if not trials:
+        return ""
+    parts = [
+        "<section><h2>Recorded shadow trials</h2>",
+        "<p>Observed results from the existing queue system. The historical recommendation above remains a separate decision.</p>",
+    ]
+    for trial_id, trial in trials.items():
+        owner = trial["lead_decision"]
+        parts.append(
+            f"<h3>{escape(trial_id)}</h3><p>Observed {escape(trial['observed_at'])} · "
+            f"Lead decision <strong>{escape(owner['action'])}</strong> · {escape(owner['note'])}</p>"
+        )
+        for name, batch in trial["batches"].items():
+            lower, upper = batch["projected_minutes"]
+            ref = escape(batch["reference_shift"])
+            upper_text = str(upper) if upper is not None else "unknown upper limit"
+            parts.append(
+                f"<p><strong>{escape(name)}</strong> compared with {ref} · "
+                f"{batch['observed_picks']} picked, {batch['projected_picks']} in the historical projection "
+                f"({batch['capacity']} slots) · {batch['recorded_minutes']} recorded reviewer minutes "
+                f"with {batch['unmeasured_picks']} unmeasured · Historical projection {lower}–{upper_text} minutes "
+                f"against a {batch['staff_minutes']}-minute staffing limit · {escape(batch['staffing'])}</p>"
+            )
+            mix = list_items(
+                [
+                    f"{group}: {counts['observed']} observed, {counts['projected']} historical"
+                    for group, counts in batch["mix"].items()
+                ]
+            )
+            parts.append(
+                f"<ul>{mix}</ul><details><summary>Observed picks in review order</summary>"
+                f"{cases_html(batch['ordered_observed_ids'])}</details>"
+            )
+    return "".join(parts) + "</section>"

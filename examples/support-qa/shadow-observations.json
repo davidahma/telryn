@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "comparison_id": "COPY_FROM_EXPLAIN",
+  "trial_id": "synthetic-week-2",
+  "observed_at": "2026-09-14T12:00:00Z",
+  "lead_decision": {
+    "action": "revise",
+    "note": "Account cases took longer than projected. Rebalance the next audit before moving to live."
+  },
+  "batches": {
+    "week-2": {
+      "reference_shift": "week-1",
+      "picks": [
+        {
+          "id": "N-001",
+          "cohort": "Account",
+          "minutes": 155
+        },
+        {
+          "id": "N-002",
+          "cohort": "Account",
+          "minutes": 155
+        },
+        {
+          "id": "N-003",
+          "cohort": "Account",
+          "minutes": 155
+        },
+        {
+          "id": "N-004",
+          "cohort": "Account",
+          "minutes": 155
+        },
+        {
+          "id": "N-005",
+          "cohort": "Account",
+          "minutes": 155
+        },
+        {
+          "id": "N-006",
+          "cohort": "Account",
+          "minutes": 155
+        },
+        {
+          "id": "N-007",
+          "cohort": "Billing",
+          "minutes": 155
+        },
+        {
+          "id": "N-008",
+          "cohort": "Billing",
+          "minutes": 155
+        }
+      ]
+    }
+  }
+}

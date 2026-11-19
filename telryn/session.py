@@ -5,16 +5,19 @@ from __future__ import annotations
 import fcntl
 import os
 import shutil
+import sqlite3
 import sys
 import tempfile
 from collections import Counter
+from collections.abc import Callable
 from contextlib import redirect_stdout
 from pathlib import Path
 
+from . import shadow
 from .contracts import InputError, fingerprint, load_export, load_plan
 from .grades import add_packet, adjudicate, import_packet, initial_grades, write_packet
-from .replay import Selector, blocked, replay_shift
-from .report import load_report, render_report
+from .replay import SqlSelector, blocked, load_selector, replay_shift
+from .report import load_report, recommendation, render_report
 
 
 def compare(plan_path: Path, export_path: Path | None = None) -> dict:
@@ -24,8 +27,8 @@ def compare(plan_path: Path, export_path: Path | None = None) -> dict:
         export_path if export_path is not None else base / plan["export"]
     )
     with redirect_stdout(sys.stderr):
-        live = Selector(base, plan["live"])
-        candidate = Selector(base, plan["candidate"])
+        live = load_selector(base, plan["live"])
+        candidate = load_selector(base, plan["candidate"])
         shifts = {
             name: replay_shift(
                 name,
@@ -65,6 +68,22 @@ def compare(plan_path: Path, export_path: Path | None = None) -> dict:
             "candidate": candidate.digest,
         },
     }
+    if policy := plan.get("serious"):
+        serious_plan = {**plan, "rubric": policy["rubric"]}
+        archived = base / policy["grades"] if "grades" in policy else None
+        serious_grades, digest, serious_excluded = initial_grades(
+            archived, serious_plan, shifts
+        )
+        # Both rubric questions use the same evidence bundle at the same cutoff.
+        excluded.update(serious_excluded)
+        for case in excluded:
+            grades.pop(case, None)
+            serious_grades.pop(case, None)
+        state["serious_initial_grades"] = serious_grades
+        state["excluded_serious_grading"] = excluded
+        state["frozen"]["serious_grades"] = digest
+    if isinstance(live, SqlSelector) or isinstance(candidate, SqlSelector):
+        state["frozen"]["sqlite_version"] = sqlite3.sqlite_version
     add_packet(state)
     state["reviewer_unblinded"] = False
     state["comparison_id"] = "T-" + fingerprint(state)
@@ -120,13 +139,7 @@ def refresh(
     review_id: str | None = None,
     expected_review_set: str | None = None,
 ) -> dict:
-    path = path.resolve(strict=True)
-    lock = path.with_name(f".{path.name}.lock")
-    # Retain the inode so waiting processes always lock the same file.
-    fd = os.open(lock, os.O_CREAT | os.O_RDWR, 0o600)
-    with os.fdopen(fd, "a") as lock_stream:
-        fcntl.flock(lock_stream, fcntl.LOCK_EX)
-        state = load_report(path)
+    def update(state: dict) -> bool:
         if state["schema"] != 2:
             raise InputError(
                 "re-run compare for this v0.1.0 report before importing or adjudicating grades"
@@ -144,7 +157,29 @@ def refresh(
         if reviewer_unblinded and not state.get("reviewer_unblinded", False):
             state["reviewer_unblinded"] = True
             changed = True
-        if changed:
+        return changed
+
+    return _update_report(path, update)
+
+
+def record_shadow(path: Path, observations: Path) -> dict:
+    def update(state: dict) -> bool:
+        return shadow.record(
+            state, observations, recommendation(state)["recommendation"]
+        )
+
+    return _update_report(path, update)
+
+
+def _update_report(path: Path, update: Callable[[dict], bool]) -> dict:
+    path = path.resolve(strict=True)
+    lock = path.with_name(f".{path.name}.lock")
+    # Retain the inode so waiting processes always lock the same file.
+    fd = os.open(lock, os.O_CREAT | os.O_RDWR, 0o600)
+    with os.fdopen(fd, "a") as lock_stream:
+        fcntl.flock(lock_stream, fcntl.LOCK_EX)
+        state = load_report(path)
+        if update(state):
             report_fd, temp_name = tempfile.mkstemp(
                 prefix=f".{path.name}-", dir=path.parent
             )

@@ -39,7 +39,12 @@ def workload(rows: dict, picks: list[str]) -> dict:
     }
 
 
-def evaluate(state: dict, grades: dict[str, str], pending_cross_checks: int) -> dict:
+def evaluate(
+    state: dict,
+    grades: dict[str, str],
+    pending_cross_checks: int,
+    serious_grades: dict[str, str] | None = None,
+) -> dict:
     plan = state["plan"]
     hurdle = plan["minimum_additional_exceptions"]
     missing, vetoes, open_items = [], [], []
@@ -101,6 +106,38 @@ def evaluate(state: dict, grades: dict[str, str], pending_cross_checks: int) -> 
         )
         open_items.append(f"{pending_cross_checks} grading {label} confirmation.")
     operational_veto = bool(vetoes)
+    seriousness = None
+    if "serious" in plan:
+        severe = serious_grades or {}
+        lost = [
+            case
+            for shift in shifts.values()
+            if shift["status"] == "Replayable"
+            for case in shift["loss"]
+        ]
+        confirmed = sorted(case for case in lost if severe.get(case) == "meets")
+        unresolved = sorted(case for case in lost if case not in severe)
+        cap = plan["serious"]["max_lost"]
+        ceiling = len(confirmed) + len(unresolved)
+        seriousness = {
+            "maximum": cap,
+            "confirmed": confirmed,
+            "unknown": unresolved,
+            "lower": len(confirmed),
+            "upper": None if missing else ceiling,
+        }
+        if len(confirmed) > cap:
+            reason = (
+                f"{len(confirmed)} serious cases lose review, above the limit of {cap}."
+            )
+            if pending_cross_checks:
+                open_items.append(reason + " Confirm the required cross-checks.")
+            else:
+                vetoes.append(reason)
+        elif not missing and ceiling > cap:
+            open_items.append(
+                f"The open serious grades could bring losses above the limit of {cap}."
+            )
     if not missing and not pending_cross_checks and upper < hurdle:
         vetoes.append(
             f"Even the upper bound ({upper:+d}) is below the {hurdle:+d} hurdle."
@@ -124,5 +161,6 @@ def evaluate(state: dict, grades: dict[str, str], pending_cross_checks: int) -> 
         "pending_cross_checks": pending_cross_checks,
         "vetoes": vetoes,
         "operational_veto": operational_veto,
+        "serious_losses": seriousness,
         "open_items": open_items,
     }

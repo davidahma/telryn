@@ -115,10 +115,28 @@ def load_plan(path: Path) -> dict:
         mapping(policy, f"policy for {shift}")
         integer(policy.get("capacity"), f"{shift} capacity")
         integer(policy.get("staff_minutes"), f"{shift} staff_minutes")
+    if "serious" in plan:
+        serious = mapping(plan["serious"], "serious-case policy")
+        integer(serious.get("max_lost"), "serious.max_lost")
+        for field in ("rubric", "rubric_question"):
+            string(serious.get(field), f"serious.{field}")
+        if serious["rubric"] == plan["rubric"]:
+            raise InputError("serious cases require a distinct rubric")
+        if "grades" in serious:
+            string(serious["grades"], "serious.grades")
     for side in ("live", "candidate"):
         rule = mapping(plan.get(side), side)
-        for field in ("file", "function", "version", "tie_break"):
+        for field in ("file", "version", "tie_break"):
             string(rule.get(field), f"{side}.{field}")
+        engine = rule.get("engine", "python")
+        if engine == "python":
+            string(rule.get("function"), f"{side}.function")
+        elif engine != "sqlite":
+            raise InputError(f"{side}.engine must be python or sqlite")
+        if engine == "sqlite" or "required_inputs" in rule:
+            fields = unique_ids(rule.get("required_inputs"), f"{side}.required_inputs")
+            if "id" in fields:
+                raise InputError("id is provided separately from ranking inputs")
     try:
         canonical(plan)
     except (TypeError, ValueError) as exc:
@@ -153,6 +171,8 @@ def validate_batch(shift: str, batch: dict) -> None:
             timestamp(row["known_at"], f"{case} known_at")
         if row.get("inputs") is not None:
             mapping(row["inputs"], f"{case} inputs")
+        if row.get("cohort") is not None:
+            string(row["cohort"], f"{case} cohort")
         refs = unique_ids(row.get("evidence", []), f"{case} evidence")
         if any(any(ord(ch) < 32 for ch in ref) for ref in refs):
             raise InputError(f"{case} evidence references must be single-line text")

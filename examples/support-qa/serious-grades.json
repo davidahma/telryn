@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "rubric": "support-serious-v1",
+  "grades": {
+    "Q-006": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-006@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-007": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-007@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    },
+    "Q-008": {
+      "grade": "outside",
+      "evidence": [
+        "closed-transcript/Q-008@v1"
+      ],
+      "evidence_at": "2026-09-07T12:00:00Z",
+      "shared_sources": true
+    }
+  }
+}

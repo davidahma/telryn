@@ -87,48 +87,89 @@ def add_packet(state: dict) -> None:
     """Freeze a budgeted packet before any reviewer sees the rows."""
     plan = state["plan"]
     accepted = state["initial_grades"]
-    current = evaluate(state, accepted, 0)
-    candidates = {"loss": [], "gain": []}
-    unknown = []
-    for shift, scored in current["shifts"].items():
-        if scored["status"] != "Replayable":
-            continue
-        for side in candidates:
-            for case in scored[side]:
-                evidence = state["shifts"][shift]["rows"][case]["evidence"]
-                if case in accepted:
-                    candidates[side].append((case, evidence))
-                elif evidence and case not in state["excluded_grading"]:
-                    unknown.append((case, evidence, False))
+    serious_grades = state.get("serious_initial_grades", {})
+    current = evaluate(state, accepted, 0, serious_grades)
     required = plan["cross_checks_per_side"]
-    controls = []
     hard_veto = current["operational_veto"]
-    if not hard_veto:
-        for side, records in candidates.items():
-            preferred = "outside" if side == "loss" else "meets"
-            records.sort(
-                key=lambda record: (accepted[record[0]] != preferred, record[0])
-            )
-            controls.extend((case, refs, True) for case, refs in records[:required])
+    serious = current["serious_losses"]
     interval = current["bounds"]
     count_open = interval is None or interval[0] < current["hurdle"] <= interval[1]
-    work = controls + (unknown if count_open and not hard_veto else [])
+    cap_open = (
+        serious is not None
+        and serious["lower"] <= serious["maximum"]
+        and (serious["upper"] is None or serious["upper"] > serious["maximum"])
+    )
+    both_possible = (interval is None or interval[1] >= current["hurdle"]) and (
+        serious is None or serious["lower"] <= serious["maximum"]
+    )
+    by_side = {"loss": [], "gain": []}
+    for shift, scored in current["shifts"].items():
+        if scored["status"] == "Replayable":
+            for side in by_side:
+                by_side[side].extend(
+                    (case, state["shifts"][shift]["rows"][case]["evidence"])
+                    for case in scored[side]
+                )
+    controls, serious_unknown, unknown = [], [], []
+    if not hard_veto:
+        criteria = [
+            ("primary", "loss", accepted, state["excluded_grading"], "outside"),
+            ("primary", "gain", accepted, state["excluded_grading"], "meets"),
+        ]
+        if serious is not None:
+            criteria.append(
+                (
+                    "serious",
+                    "loss",
+                    serious_grades,
+                    state.get("excluded_serious_grading", {}),
+                    "outside",
+                )
+            )
+        for rubric, side, known, excluded, preferred in criteria:
+            rows = by_side[side]
+            checked = sorted(
+                (row for row in rows if row[0] in known),
+                key=lambda row: (known[row[0]] != preferred, row[0]),
+            )
+            controls.extend(
+                (case, refs, True, rubric) for case, refs in checked[:required]
+            )
+            if rubric == "serious" and cap_open and both_possible:
+                serious_unknown.extend(
+                    (case, refs, False, rubric)
+                    for case, refs in rows
+                    if refs and case not in known and case not in excluded
+                )
+            if rubric == "primary" and count_open and both_possible:
+                unknown.extend(
+                    (case, refs, False, rubric)
+                    for case, refs in rows
+                    if refs and case not in known and case not in excluded
+                )
+    # Resolving a possible safety veto has priority over the net-count hurdle.
+    work = controls + serious_unknown + unknown
     budget = plan["grading_budget"]
     rng = secrets.SystemRandom()
     chosen = work[:budget]
     rng.shuffle(chosen)
     packet = {}
-    for case, refs, control in chosen:
+    for case, refs, control, criterion in chosen:
         packet["Q-" + secrets.token_hex(16)] = {
             "case": case,
             "evidence": refs,
             "control": control,
+            "criterion": criterion,
             "review_revision": "V-" + secrets.token_hex(12),
         }
     reasons = []
-    if controls and not count_open:
+    if any(row["criterion"] == "serious" for row in packet.values()):
         reasons.append(
-            "Only cross-checks were issued because the current range is already on one side of the hurdle. "
+            "A reviewer familiar with the serious-loss policy may infer selection side from its question."
+        )
+    if controls and (not both_possible or (not count_open and not cap_open)):
+        reasons.append(
+            "Only cross-checks were issued because a count or limit already settles the grading decision. "
             "If a check changes the range, reassess the grading plan."
         )
     if not packet:
@@ -138,7 +179,7 @@ def add_packet(state: dict) -> None:
             )
         elif budget == 0 and work:
             reasons.append("The frozen grading budget is zero.")
-        elif count_open:
+        elif count_open or cap_open:
             reasons.append(
                 "No admissible grading rows were available for the open decision."
             )
@@ -164,6 +205,9 @@ def render_cell(value: str) -> str:
 
 
 def packet_fields(state: dict, row_id: str, row: dict) -> dict[str, str]:
+    policy = (
+        state["plan"]["serious"] if row.get("criterion") == "serious" else state["plan"]
+    )
     return {
         "comparison_id": state["comparison_id"],
         "row_id": row_id,
@@ -171,7 +215,7 @@ def packet_fields(state: dict, row_id: str, row: dict) -> dict[str, str]:
         "evidence_references": json.dumps(
             row["evidence"], ensure_ascii=False, separators=(",", ":")
         ),
-        "rubric_question": render_cell(state["plan"]["rubric_question"]),
+        "rubric_question": render_cell(policy["rubric_question"]),
     }
 
 
@@ -225,7 +269,12 @@ def import_packet(path: Path, state: dict, review_id: str | None = None) -> bool
                 raise InputError(
                     f"row {row_id} grade must be meets, outside, or insufficient"
                 )
-            if row["case"] in state["excluded_grading"]:
+            excluded = (
+                state.get("excluded_serious_grading", {})
+                if row.get("criterion") == "serious"
+                else state["excluded_grading"]
+            )
+            if row["case"] in excluded:
                 raise InputError(f"row {row_id} contains excluded evidence")
             delivery = {"grade": answer, "minutes": minutes}
             receipt = (
@@ -262,12 +311,14 @@ def pending_reviews(events: list[dict]) -> tuple[dict | None, list[dict]]:
     return None, events
 
 
-def grade_status(state: dict) -> tuple[dict[str, str], int, dict[str, str]]:
-    grades = dict(state["initial_grades"])
+def grade_status(state: dict) -> tuple[dict, dict, int, dict]:
+    primary = dict(state["initial_grades"])
+    serious = dict(state.get("serious_initial_grades", {}))
     pending = state["cross_check_total"]
     status = {}
     for row_id, row in state["packet"].items():
         case = row["case"]
+        grades = serious if row.get("criterion") == "serious" else primary
         last_decision, reviews = pending_reviews(state["grade_history"].get(row_id, []))
         reference = last_decision["grade"] if last_decision else grades.get(case)
         if reference == "insufficient":
@@ -289,7 +340,7 @@ def grade_status(state: dict) -> tuple[dict[str, str], int, dict[str, str]]:
                 pending -= 1
         else:
             status[row_id] = "awaiting return"
-    return grades, pending, status
+    return primary, serious, pending, status
 
 
 def review_set(row_id: str, events: list[dict]) -> str:
@@ -365,7 +416,7 @@ def adjudicate(
         raise InputError(
             "the review set changed; open the refreshed lead report before adjudicating"
         )
-    if grade_status(state)[2][row_id] != "disputed":
+    if grade_status(state)[3][row_id] != "disputed":
         raise InputError("only a disputed row can be adjudicated")
     events.append(event)
     return True
