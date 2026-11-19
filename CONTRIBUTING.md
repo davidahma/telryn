@@ -21,3 +21,5 @@ Use synthetic data in issues, pull requests, and fixtures. Small redacted
 reproductions are welcome in issues. Report vulnerabilities privately through
 the [Security tab](https://github.com/davidahma/telryn/security). Code is
 licensed under [Apache-2.0](LICENSE).
+
+The public Ubuntu fixture is a licensed projection of published annotations. Keep its source, digest, attribution and reproducible transformation together. Regression cases with customer-like flows use synthetic identities. The weekly report format has its own archived v1 fixture. Exercise backward reading before changing it. Vendor adapters have offline HTTP contract tests. Any claim about a live tenant should identify the account scope, test date and observed result.

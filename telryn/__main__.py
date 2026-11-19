@@ -9,10 +9,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import __version__, benchmark, intake
+from . import __version__, benchmark, intake, integrations, weekly, weekly_report
 from .contracts import InputError, canonical
 from .decision import SHADOW
 from .grades import parse_minutes
+from .proposal import propose
+from .screen import POLICIES, screen
 from .report import load_report, recommendation, signed_range, stopping_text
 from .session import compare, publish, record_shadow, refresh
 
@@ -32,10 +34,53 @@ def _result_flags(parser: argparse.ArgumentParser, *, gate: bool = True) -> None
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python3 -m telryn",
-        description="Replay a change to a scheduled human-review queue.",
+        description="Audit unreviewed support cases and replay changes to the QA queue.",
     )
     parser.add_argument("--version", action="version", version=__version__)
     commands = parser.add_subparsers(dest="command", required=True)
+    week = commands.add_parser(
+        "weekly", help="start a weekly audit or read its saved report"
+    )
+    week.add_argument(
+        "source", type=Path, help="weekly TOML plan or the saved report.html"
+    )
+    action = week.add_mutually_exclusive_group()
+    action.add_argument(
+        "--out", type=Path, help="create the report and assignments in a new directory"
+    )
+    action.add_argument(
+        "--grades", type=Path, help="import a returned weekly grading CSV"
+    )
+    action.add_argument(
+        "--digest", action="store_true", help="print an aggregate email digest"
+    )
+    action.add_argument(
+        "--email-to", help="send the digest via your configured TLS SMTP server"
+    )
+    action.add_argument(
+        "--propose", type=Path, help="write a candidate SQL rule into a new directory"
+    )
+    week.add_argument("--email-from", help="sender address for the requested email")
+    week.add_argument("--format", choices=("text", "json"), default="text")
+    screening = commands.add_parser(
+        "screen", help="screen a batch of policy events with a local Ollama model"
+    )
+    screening.add_argument("events", type=Path)
+    screening.add_argument("--model", required=True, help="exact installed model tag")
+    screening.add_argument("--policy", required=True, choices=tuple(POLICIES))
+    screening.add_argument("--out", required=True, type=Path)
+    desk = commands.add_parser(
+        "desk", help="open the local browser intake for a QA lead"
+    )
+    desk.add_argument(
+        "--out", type=Path, required=True, help="directory for private weekly runs"
+    )
+    desk.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="print the loopback URL without launching a browser",
+    )
+    integrations.register_arguments(commands)
     demo = commands.add_parser("demo", help="run the three synthetic refund scenarios")
     demo.add_argument(
         "--out",
@@ -48,6 +93,11 @@ def _parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("definition", type=Path)
     compare_parser.add_argument(
         "--export", type=Path, help="use a separate cutoff export"
+    )
+    compare_parser.add_argument(
+        "--proposal",
+        type=Path,
+        help="evaluate a saved weekly proposal on a later batch",
     )
     compare_parser.add_argument("--out", type=Path, required=True)
     _result_flags(compare_parser)
@@ -224,9 +274,56 @@ def pilot_benchmark(args: argparse.Namespace) -> int:
     return 0
 
 
+def weekly_audit(args: argparse.Namespace) -> int:
+    if (args.email_to is None) != (args.email_from is None):
+        raise InputError("email delivery requires both --email-from and --email-to")
+    path = args.source
+    if args.out:
+        path = weekly_report.start(path, args.out)
+    if args.grades:
+        state = weekly_report.refresh(path, args.grades)
+    elif args.propose:
+        result = propose(path, args.propose)
+        print(
+            canonical(result)
+            if args.format == "json"
+            else f"Candidate rule: {terminal_text(args.propose / 'candidate.sql')}"
+        )
+        return 0
+    elif args.email_to:
+        from .weekly_mail import send_digest
+
+        send_digest(path, args.email_to, args.email_from)
+        print("Weekly aggregate digest sent.")
+        return 0
+    elif args.digest:
+        print(weekly_report.digest(path))
+        return 0
+    else:
+        state = weekly_report.read_state(path)
+    result = weekly.summarize(state)
+    if args.format == "json":
+        print(canonical(result))
+    else:
+        print(weekly_report.digest(path))
+        print(f"Report: {terminal_text(path)}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.command == "desk":
+            from .desk import serve
+
+            return serve(args.out, open_browser=not args.no_browser)
+        if args.command == "weekly":
+            return weekly_audit(args)
+        if args.command == "integrations":
+            return integrations.execute(args)
+        if args.command == "screen":
+            print(canonical(screen(args.events, args.out, args.model, args.policy)))
+            return 0
         if args.command == "demo":
             return _demo(args.out)
         if args.command == "preflight":
@@ -247,7 +344,7 @@ def main(argv: list[str] | None = None) -> int:
 
             return qualify(args.case)
         if args.command == "compare":
-            state = compare(args.definition, args.export)
+            state = compare(args.definition, args.export, proposal_path=args.proposal)
             report = publish(args.out, state)
         elif args.command == "explain":
             report = args.report

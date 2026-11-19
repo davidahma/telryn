@@ -1,0 +1,9 @@
+case_id,evidence,serious,disposition,owner,action,minutes
+T03,AI agent closed a takeover report after a card freeze. No fraud referral was opened.,yes,new,Fraud operations,Open demo referral F03,6
+T04,Human agent verified a stolen session and closed the chat without referring it.,yes,new,Fraud operations,Open demo referral F04,7
+T05,Required referral missing at close. Existing complaints control already recorded it.,yes,already_known,Complaints lead,See demo record K05,4
+T06,Risk event present. The fraud desk accepted the referral before closure.,no,none,,,3
+T07,Customer reported an unknown device. Reviewer found a required escalation omitted from event capture.,yes,new,Fraud operations,Open demo referral F07,8
+T08,Customer recognised the login and withdrew the report before closure.,no,none,,,3
+T09,Customer asked how to update a recovery address. No compromise reported.,no,none,,,2
+T10,Human agent handed the compromise report to the fraud desk before closing.,no,none,,,4
