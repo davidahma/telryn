@@ -1104,6 +1104,7 @@ session.refresh(Path(sys.argv[1]), Path(sys.argv[2]), None)
         result = self.refresh(out, packet, expected=1, flags=("--require-shadow",))
         self.assertEqual((result["recommendation"], result["bounds"]), ("Hold", [2, 2]))
         self.assertEqual(result["serious_losses"]["confirmed"], ["Q-005"])
+        self.assertIn("1 serious case loses review", result["vetoes"][0])
         self.assertIn("Scheduled reviewer hours", (out / "report.html").read_text())
         revised, next_call = self.comparison(
             "keep-serious", QA / "revised.toml", export=exported, gate=True
@@ -1207,6 +1208,20 @@ session.refresh(Path(sys.argv[1]), Path(sys.argv[2]), None)
             expected=2,
         )
         self.assertEqual(report.read_bytes(), saved)
+        observation["comparison_id"] = result["comparison_id"]
+        observation["trial_id"] = "invalid-date"
+        observation["observed_at"] = "2026-09-06T12:00:00Z"
+        self.cli("record-shadow", report, self.write_export(observation), expected=2)
+        observation["trial_id"] = "time-partial"
+        observation["observed_at"] = "2026-09-21T12:00:00Z"
+        observation["batches"]["week-2"]["picks"][0].pop("minutes")
+        new = self.write_export(observation, "partial-time.json")
+        observed = json.loads(
+            self.cli("record-shadow", report, new, "--format", "json")
+        )
+        logged = observed["shadow_trials"]["time-partial"]["batches"]["week-2"]
+        self.assertEqual(logged["unmeasured_picks"], 1)
+        self.assertEqual(logged["staffing"], "Recorded time incomplete")
 
 
 def qualify(case: str | None = None) -> int:

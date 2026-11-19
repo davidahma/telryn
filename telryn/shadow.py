@@ -33,7 +33,7 @@ def record(state: dict, path: Path, recommendation: str) -> bool:
         raise InputError(
             "record-shadow requires a comparison that supports a shadow trial"
         )
-    timestamp(data.get("observed_at"), "observation timestamp")
+    observed_at = timestamp(data.get("observed_at"), "observation timestamp")
     owner = mapping(data.get("lead_decision"), "lead decision")
     if owner.get("action") not in ("adopt", "revise", "hold", "continue"):
         raise InputError("lead decision must be adopt, revise, hold, or continue")
@@ -48,6 +48,8 @@ def record(state: dict, path: Path, recommendation: str) -> bool:
         source = state["shifts"].get(historical)
         if source is None or source["status"] != "Replayable":
             raise InputError(f"{name} must reference a replayable historical shift")
+        if observed_at < timestamp(source["cutoff"], "historical cutoff"):
+            raise InputError(f"{name} observation predates its historical cutoff")
         for pick in sequence(batch.get("picks"), f"{name} ordered candidate picks"):
             mapping(pick, "shadow pick")
             case = string(pick.get("id"), "observed case ID")

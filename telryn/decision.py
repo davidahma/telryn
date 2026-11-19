@@ -127,9 +127,12 @@ def evaluate(
             "upper": None if missing else ceiling,
         }
         if len(confirmed) > cap:
-            reason = (
-                f"{len(confirmed)} serious cases lose review, above the limit of {cap}."
+            loss_description = (
+                "1 serious case loses"
+                if len(confirmed) == 1
+                else f"{len(confirmed)} serious cases lose"
             )
+            reason = f"{loss_description} review, above the limit of {cap}."
             if pending_cross_checks:
                 open_items.append(reason + " Confirm the required cross-checks.")
             else:
