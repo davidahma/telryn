@@ -67,6 +67,12 @@ def _parser() -> argparse.ArgumentParser:
         "--grades", type=Path, help="import a returned weekly grading CSV"
     )
     action.add_argument(
+        "--complaint-records",
+        type=Path,
+        metavar="MANIFEST",
+        help="reconcile the sampled cases with dated local register and owner-action exports",
+    )
+    action.add_argument(
         "--outstanding",
         type=Path,
         metavar="CSV",
@@ -318,6 +324,8 @@ def weekly_audit(args: argparse.Namespace) -> int:
         return 0
     elif args.grades:
         state = weekly_report.refresh(path, args.grades, reviewer=args.reviewer)
+    elif args.complaint_records:
+        state = weekly_report.attach_complaints(path, args.complaint_records)
     elif args.propose:
         result = propose(
             path,
@@ -342,6 +350,10 @@ def weekly_audit(args: argparse.Namespace) -> int:
     if state is None:
         state = weekly_report.read_state(path, allow_legacy=args.legacy)
     result = weekly.summarize(state)
+    if "complaint_records" in state:
+        from .complaints import reconcile
+
+        result["complaints"] = reconcile(state)
     result["review"] = weekly_report.review_status(state)
     result["workload"] = weekly_review.workload(state)
     result["verification"] = (

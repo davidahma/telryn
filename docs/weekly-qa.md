@@ -102,3 +102,7 @@ Once the graders have resolved the findings, run `weekly REPORT --propose DIRECT
 Weekly reports issued from v0.5 use a signed version-2 envelope. The CLI verifies the report bytes and revision against the local team's key and registry. The browser desk serves verified report bytes. An HTML file opened directly is a static view. For a v0.4 unsigned report, use `weekly REPORT --legacy` for an explicitly historical reading. Restore original source evidence, the audit directory, and the matching trust store to resume a signed audit. Keep customer exports, checkpoints and sent digests under your organization's retention policy. [Audit trust and corrections](trust.md) · [Historical comparison reports](comparison.md#grading-and-recovery)
 
 An existing signed v0.5 HTML report keeps its original display. Use `python3 -m telryn weekly REPORT --digest` or `--format json` to read the current calculations from its saved grades. The next accepted grade changes the signed revision and refreshes the display.
+
+## Check a complaints register after grading
+
+A complaints QA lead can attach the queue’s register and owner-work ledger to the same signed report. Supply the team’s policy deadline for each case and the dates through which the sources are complete. The report separates missing registrations that need an owner from accepted work, completed work with a register discrepancy, and cases needing more evidence. Use the original packet for independent review. [Complaint evidence and file formats](complaint-records.md)

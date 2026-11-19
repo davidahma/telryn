@@ -213,3 +213,31 @@ Before either team sees the week, agree on one queue, its full eligible populati
 Record each verified new case, independent review of its severity, the owner who accepted it and any action already under way through another control. Record analyst, reviewer and lead time for both workflows. Compare cases found at the same staff budget and show each estimate with its uncertainty. Monetary outcomes need a documented cost, an attributable action and an agreed counterfactual.
 
 A second week establishes whether the lead asks to use the report again and acts on its findings. For discovery, ask a QA lead to walk through the last serious case ordinary QA missed, how it surfaced, who acted and whether the same information was already available in the existing platform. Observe an authorized week before drawing conclusions about adoption, pricing or regulatory benefit.
+
+### Two weeks on one complaints queue
+
+A complaints quality lead at a lender or payments company owns the pilot. Start with the last closed conversation that should have reached the complaints register. Have the lead reopen the dated conversation, the applicable policy clause, the internal deadline, the register as it stood then, and the first record showing who learned about the miss and acted. Record the first missing or inaccessible source. If a reviewer cannot reconstruct the example, resolve that evidence gap before measuring either method. The policy owner supplies the deadlines for this queue.
+
+Before opening the two weeks, write down the queue and dates, reporting cutoff, roster of completed ordinary human reviews, evidence permitted at that cutoff, maximum **total staff minutes per method**, assistance allowed in week two and the saving the buyer considers material. Use the same release and rubric both weeks. Keep late edits and post-cutoff actions in a separate observation window. Choose an independent analyst for each method and keep the shortlists hidden from the other analyst until both are frozen.
+
+| Step | What to record |
+| --- | --- |
+| Run the incumbent | Give the analyst the native QA product, saved searches, SQL and their usual coding agent. Save the queries, source revisions, nominations and nomination times. Keep the lead's own routine wherever the team has one. |
+| Run Telryn | Give its operator the same eligible conversations, ordinary-review exclusions, transcript and register evidence, staff allowance and cutoff. Freeze the committed draw and record assistance and rework. |
+| Grade once | Mix and deduplicate both shortlists before revealing either selection method. Give a reviewer only case and evidence references, revision, cutoff and rubric. Have an independent reviewer check the grades. Resolve discrepancies with the recorded evidence before revealing which arm selected each case. Keep union results scoped to the selected conversations. |
+| Verify action | Match the human complaint grade to the dated register and owner ledger. Record prior handling, whether registration was due, whether an owner accepted the case, and the time and reference for actual completion. Keep open requests separate from owner acceptances. Use a stable complaint-episode reference to count multiple contacts about one issue once. |
+| Settle the comparison | Count accepted, previously unknown episodes found only by the native workflow, only by Telryn and by both. Record unresolved evidence and cases awaiting acceptance. Measure elapsed time to acceptance and completion. Charge each arm its actual preparation, selection, lookup, first review, second review, adjudication, lead and assistance minutes. Charge an overlapping case's review to each arm as standalone work; grade it once in the pilot. Retain over-budget weeks and mark them ineligible for an equal-budget claim. |
+| Repeat | Have the customer's operator run week two and enter help minutes, who helped and why. Compare equivalent findings and total staff effort against the predeclared thresholds. A shared handoff produces one observed time to action. Establishing acceleration requires dated evidence of what the incumbent did independently. Keep urgent follow-up moving during the comparison. |
+
+Two teams supplying records, a recovered consequential complaint acted on earlier or equivalent findings at materially less total effort, and at least one budget holder paying to repeat are the investment gates. If the incumbent matches the result or the budget cannot detect a miss of interest, stop expansion. Consider an integration only after timing a recurring bottleneck. For Intercom, compare one versioned week against the lead's completed-review ledger and preserve the distinction between assignment, AI scoring, a completed human review and a later edit.
+
+#### Run the local rehearsal
+
+```sh
+python3 -m examples.complaints_pilot --out runs/complaints-pilot
+python3 -m examples.complaints_pilot.intercom
+```
+
+The first command runs two invented weeks using the existing weekly draw and a saved SQL query that checks for complaint or investigation language and excludes existing register entries and owner actions at the cutoff. A signed weekly report and one blinded packet appear under each dated directory. Open the report to inspect the register and owner evidence. Terminal JSON records each frozen shortlist, its commitment, unique and overlapping owner-accepted episodes, elapsed minutes and every staff-time component. The sample can vary with the team's sampling key. Keep the JSON in the private pilot record if you need to reproduce the comparison.
+
+In the fixture, C102 and C103 both meet the rubric. The owner accepts each after cutoff and completes the C102 action. An acceptance without a completion time stays open. C104 has a late register entry and prior handling. C105 required registration and was entered on time. The native search excludes both using the cutoff ledger. In week two a request for action on C202 still lacks owner acceptance. These are deliberately different outcomes for the scorer. The register, grades, times and assistance minutes are synthetic. A SQL search stands in for the native analyst; the rehearsal provides no evidence of customer speed, demand or payment. [Rehearsal inputs](../examples/complaints_pilot/README.md)

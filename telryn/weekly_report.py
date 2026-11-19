@@ -12,11 +12,12 @@ import tempfile
 from html import escape
 from pathlib import Path
 
-from . import audit_trust, weekly_review
+from . import audit_trust, complaints, weekly_review
 from .weekly_review import review_status
 from .artifacts import new_directory, sync_directory
 from .contracts import InputError, canonical, fingerprint, versioned
 from .grades import render_cell
+from .planning import decision_lines
 from .report import STYLE, stat
 from .weekly import prepare, summarize, validate_state
 
@@ -44,7 +45,7 @@ def _audit_id(state: dict) -> str:
     frozen = {
         key: value
         for key, value in state.items()
-        if key not in ("grades", "earlier_grades", "case_reviews")
+        if key not in ("grades", "earlier_grades", "case_reviews", "complaint_records")
     }
     return "W-" + fingerprint(frozen)
 
@@ -363,6 +364,7 @@ def _render(state: dict, auth: dict) -> str:
         f"<p><strong>{escape(_uncertainty(result, label))}</strong></p><p>{escape(state['rubric_question'])}</p>"
         f"<p>Ordinary QA reviewed {result['reviewed']:,} of {result['population']:,} eligible conversations. "
         f"This audit covers the other {result['unreviewed']:,}, including cases another control already knew about.</p>{scope}</header>"
+        f"{complaints.html(state)}"
         f'<section><h2>Confirmed cases</h2><div class="grid">{cover}</div>'
         f"<p>{_new_finding_line(result)}</p>{follow_up}</section>"
         f"<section><h2>Grading handoff</h2><p>{grade_text}</p>{_evidence_follow_up(state)}"
@@ -380,7 +382,11 @@ def _render(state: dict, auth: dict) -> str:
         "<code>python3 -m telryn weekly report.html --outstanding remaining.csv</code>.</p></section>"
         "<section><h2>Sampling and screen performance</h2><p>Cases were drawn without replacement within each group. "
         "Population estimates weight each grade by the inverse of its selection probability.</p>"
-        '<div class="table" tabindex="0"><table><thead><tr><th>Sampling group</th><th>Outside ordinary QA</th>'
+        + "".join(
+            f"<p>{escape(line)}</p>"
+            for line in decision_lines(state.get("planning", {}))
+        )
+        + '<div class="table" tabindex="0"><table><thead><tr><th>Sampling group</th><th>Outside ordinary QA</th>'
         "<th>Assigned</th><th>Selection probability</th><th>Confirmed findings</th>"
         "<th>Awaiting a definite grade</th><th>95% range in group</th></tr></thead><tbody>"
         + "".join(sample_rows)
@@ -474,6 +480,7 @@ def _legacy(raw):
     if (
         "draw_commitment" in state
         or "publication_id" in state
+        or "complaint_records" in state
         or fingerprint(state) != envelope.get("checksum")
     ):
         raise InputError("invalid historical weekly report or checksum")
@@ -637,6 +644,13 @@ def _update(report_path: Path, change) -> dict:
         return state
 
 
+def attach_complaints(report_path: Path, records_path: Path) -> dict:
+    return _update(
+        report_path,
+        lambda state: complaints.attach(state, records_path, _audit_id(state)),
+    )
+
+
 def refresh(report_path: Path, grades_path: Path, reviewer=None) -> dict:
     actor = weekly_review.identity(reviewer, default=True)
     return _update(
@@ -713,6 +727,7 @@ def review_action(args):
             args.email_to,
             args.propose,
             args.outstanding,
+            args.complaint_records,
         )
     ):
         raise InputError(

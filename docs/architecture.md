@@ -8,6 +8,7 @@ A QA lead owns the rubric, the eligibility window and the review budget. A revie
 | Screen | A frozen flag for every row, a versioned receipt and optional sampling dimensions | With transcripts, a local model extracts policy signals and cites redacted passages. Code checks that the passages exist, then applies the rubric's screening rule. Source event flags can enter that rule directly. A human grades the case. [Transcript processing](transcripts.md) |
 | Plan and draw | The assignments, their inclusion probabilities and a blinded packet | Ordinary human reviews come out before sampling. Preview the cost and uncertainty for the residual queue. The committed design and team key fix the draw across retries. Grouping changes the allocation and the precision. [Statistics](statistics.md) · [Key and draw registry](trust.md) |
 | Grade and publish | A signed revision of the local HTML report and an aggregate digest | Human findings include owner and follow-up. Pending or disputed answers widen the estimate. A second reviewer and adjudicator can correct a case while retaining its prior answers. [Grading and recovery](trust.md#correct-a-grade) |
+| Reconcile complaint records | A signed attachment in the same weekly report binds the policy, case revisions, explicit deadlines, and dated register and work exports | The lead can separate the register as it stood at cutoff from subsequent owner action. The grading packet and original probability sample keep their identities. [Complaint evidence](complaint-records.md) |
 | Change a future queue | An evidence-supported candidate, a replay on a later disjoint cohort, then a shadow decision | The proposal must clear uncertainty across the groups searched. Replay checks capacity, displacement and staffing on the held-out queue. The owner records the decision after observing a shadow trial. [Queue comparison](comparison.md) |
 
 ## Data and operating boundaries
@@ -15,6 +16,12 @@ A QA lead owns the rubric, the eligibility window and the review budget. A revie
 Vendor credentials belong to the intake or assignment process. Transcript extraction uses a loopback Ollama service. Keep the authorized source, extraction checkpoint and citation files in private storage and apply the team's deletion schedule. The weekly evaluator consumes flags, evidence references, grades and group labels. It can run disconnected. When the cohort has dated completion events, the screen and reviewer use evidence as of each case's completion. The report retains individual cutoffs for the assigned cases and a fingerprint of the full coverage receipt.
 
 The trust store lives outside the report directory. It contains the team key, committed designs and latest signed report revisions. Back it up together with the reports, and limit signing access to the audit operator. HTML opened directly is a static view. The desk and CLI check its signature and revision when serving a current audit. An exported packet contains case references and the rubric without the model's answer. An emailed digest contains aggregate counts. [Security and retention](../SECURITY.md) · [Weekly operating guide](weekly-qa.md)
+
+## Comparing discovery methods
+
+The two-week rehearsal asks which complaint episodes each method found. Freeze the native and Telryn selections first. For each week, grade their union once and keep the selection method out of the packet. Counts in that signed report describe the union. The original probability sample of the unreviewed queue has a different denominator. Charge each arm for the review time its picks would have required, including shared cases. Count owner acceptance and completed action from the dated evidence. [Field protocol](evaluation.md#two-weeks-on-one-complaints-queue)
+
+The archived Intercom check compares human submissions with the lead’s independent ledger before changing how ordinary QA membership is established. It reads local files and emits discrepancies. The live adapter and its write permissions stay outside this rehearsal. [Scorecard evidence](integrations.md#check-intercom-scorecard-evidence-for-a-complaints-pilot)
 
 ## Historical records and current decisions
 

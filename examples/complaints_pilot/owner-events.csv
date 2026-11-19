@@ -1,0 +1,9 @@
+case_id,action_id,status,owner,recorded_at,evidence_ref
+C102,A12,accepted,Case manager,2026-10-12T11:00:00Z,owner-cases/P-012
+C102,A13,completed,Case manager,2026-10-12T12:00:00Z,actions/A13
+C103,A14,accepted,Case manager,2026-10-12T12:00:00Z,owner-cases/P-013
+C104,A15,completed,Other control,2026-10-09T10:00:00Z,actions/A15
+C202,A22,requested,Complaints lead,2026-10-19T11:00:00Z,actions/A22
+C203,A23,completed,Case manager,2026-10-19T12:30:00Z,actions/A23
+C204,A24,accepted,Case manager,2026-10-19T12:00:00Z,owner-cases/P-024
+C204,A25,completed,Case manager,2026-10-20T09:00:00Z,actions/A25

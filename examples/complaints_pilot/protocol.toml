@@ -1,0 +1,12 @@
+schema = 1
+evidence = "synthetic"
+queue = "Payments support"
+weeks = ["2026-10-05", "2026-10-12"]
+policy = "example-complaints-v1"
+question = "Did this conversation require complaint registration under the example policy?"
+staff_minutes_per_arm = 80
+maximum_week_two_help_minutes = 5
+native_slots = 5
+flagged_sample = 4
+unflagged_sample = 1
+material_effort_saving_minutes = 10

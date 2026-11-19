@@ -1,0 +1,5 @@
+match_key,entry_id,recorded_at,evidence_ref
+support/C102,R12,2026-10-12T12:00:00Z,register/R12
+support/C104,R14,2026-10-09T09:00:00Z,register/R14
+support/C105,R15,2026-10-07T15:00:00Z,register/R15
+support/C204,R24,2026-10-20T09:00:00Z,register/R24

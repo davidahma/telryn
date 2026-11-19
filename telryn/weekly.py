@@ -731,6 +731,11 @@ def summarize(state: dict) -> dict:
         "stratum_results": groups,
         "coverage": state.get("coverage"),
         "draw_commitment": state.get("draw_commitment"),
+        **(
+            {"planning": state["planning"]}
+            if {"detection", "staff_minutes"}.intersection(state.get("planning", {}))
+            else {}
+        ),
         "new_findings": {
             **newly_found,
             "classified": classified.total(),

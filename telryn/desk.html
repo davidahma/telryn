@@ -34,9 +34,14 @@ summary{font-weight:600;cursor:pointer}details[open] summary{margin-bottom:1rem}
 <label><input type="checkbox" name="group_by" value="product">Product</label>
 </div><small>Selected columns must be present in the population. The screen flag always defines the first two groups.</small></fieldset>
 <label>How will you budget the reviews?<select id="mode"><option value="budget">Plan from staff minutes</option><option value="counts">Set the number of cases</option></select></label>
-<fieldset id="budget"><div class="pair"><label>Minutes available<input name="minutes" type="number" min="1" step="1" required></label>
+<fieldset id="budget"><details><summary>Decision this sample needs to support</summary><p>How many missed complaints in this population would warrant action? Plan the chance of finding at least one if that many exist.</p><div class="pair">
+<label>Smallest count that warrants action<input name="detection_cases" type="number" min="1" step="1"></label>
+<label>Required chance of detection (%)<input name="detection_target" type="number" min="0" max="100" step="any"></label></div></details>
+<div class="pair"><label>Total staff minutes available<input name="minutes" type="number" min="1" step="1" required></label>
 <label>Minutes per grade<input name="minutes_per_grade" type="number" min="1" step="1" required></label></div>
-<label>Expected finding rate (%)<input name="expected_rate" type="number" min="0" max="100" step="any" required><small>Use a prior week or your best estimate. Preview the range before committing.</small></label>
+<div class="pair"><label>Minutes reserved for second review<input name="second_review_minutes" type="number" min="0" step="1" placeholder="0"></label>
+<label>Minutes reserved for adjudication<input name="adjudication_minutes" type="number" min="0" step="1" placeholder="0"></label></div>
+<label>Expected finding rate (%)<input name="expected_rate" type="number" min="0" max="100" step="any"><small>Enter a rate to forecast interval width. You may leave this blank when planning for a detection target.</small></label>
 <details><summary>Different rates for screen flags</summary><div class="pair"><label>Flagged (%)<input name="flagged_rate" type="number" min="0" max="100" step="any"></label>
 <label>Unflagged (%)<input name="unflagged_rate" type="number" min="0" max="100" step="any"></label></div></details></fieldset>
 <fieldset id="counts" hidden disabled><div class="pair"><label>Flagged cases to grade<input name="flagged_sample" type="number" min="0" step="1" required></label>

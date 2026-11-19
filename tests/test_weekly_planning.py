@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from telryn.contracts import InputError
-from telryn.planning import design, preview
+from telryn.planning import _miss_probability, decision_lines, design, preview
 from telryn.proposal import _candidate_sql, _search
 from telryn.weekly import _interval, prepare, summarize
 from telryn.replay import SqlSelector
@@ -150,6 +150,96 @@ class PlanningTests(unittest.TestCase):
             for lo, hi in [_interval(N, n, i, 1)]
         )
         self.assertEqual(result["expected_interval_width"], round(float(expected), 2))
+
+    def test_decision_forecast_and_budget_for_rare_complaints(self):
+        cells = {"unflagged": {"population": 5000}}
+        config = dict(
+            minutes=240,
+            minutes_per_grade=4,
+            second_review_minutes=30,
+            adjudication_minutes=10,
+            detection_cases=25,
+            detection_target=0.95,
+            expected_rate=0.005,
+        )
+        plan = design(cells, config)
+        d = plan["detection"]
+        self.assertEqual(plan["assigned"], 50)
+        self.assertEqual(
+            plan["staff_minutes"],
+            {"primary": 200, "second_review": 30, "adjudication": 10},
+        )
+        self.assertEqual(d["status"], "more_minutes_needed")
+        self.assertAlmostEqual(d["minimum_probability"], 0.22265145716425952)
+        self.assertEqual(d["minimum_sample"], 564)
+        self.assertEqual(d["minimum_budget_minutes"], 2296)
+        no_prior = {
+            key: value for key, value in config.items() if key != "expected_rate"
+        }
+        detection_only = design(cells, no_prior)
+        self.assertEqual(detection_only["detection"], d)
+        self.assertEqual(detection_only["zero_findings_upper"], 353)
+        self.assertIsNone(detection_only["expected_interval_width"])
+        self.assertIsNone(detection_only["scenario_interval"])
+        self.assertIsNone(detection_only["allocations"][0]["expected_rate"])
+        for budget, status in ((2295, "more_minutes_needed"), (2296, "target_met")):
+            got = design(cells, {**config, "minutes": budget})
+            self.assertEqual(got["detection"]["status"], status)
+        self.assertIn("correct recognition", " ".join(decision_lines(plan)))
+        for options in (
+            {"second_review_minutes": 241},
+            {"adjudication_minutes": -1},
+            {"detection_target": 0},
+            {"detection_cases": 2.5},
+        ):
+            with self.subTest(options=options), self.assertRaises(InputError):
+                design(cells, {**config, **options})
+        del config["detection_cases"]
+        with self.assertRaisesRegex(InputError, "both detection"):
+            design(cells, config)
+
+    def test_worst_case_detection_matches_all_possible_stratum_placements(self):
+        sizes = {0: 2, 1: 4, 2: 5}
+        choices = list(itertools.product(*(range(N + 1) for N in sizes.values())))
+        for n in choices:
+            ways = math.prod(math.comb(N, count) for N, count in zip(sizes.values(), n))
+            worst = {}
+            for counts in choices:
+                K = sum(counts)
+                ways_missed = math.prod(
+                    math.comb(N - k, count)
+                    for N, k, count in zip(sizes.values(), counts, n)
+                )
+                worst[K] = max(worst.get(K, 0), ways_missed)
+            for K in range(1, sum(sizes.values()) + 1):
+                self.assertEqual(
+                    _miss_probability(sizes, dict(enumerate(n)), K),
+                    Fraction(worst[K], ways),
+                )
+
+    def test_decision_forecast_handles_uncovered_empty_impossible_and_certain(self):
+        cells = {"flagged": {"population": 4}, "unflagged": {"population": 3}}
+        options = dict(
+            minutes=1,
+            minutes_per_grade=1,
+            expected_rate=0.2,
+            detection_cases=1,
+            detection_target=1,
+        )
+        d = design(cells, options)["detection"]
+        self.assertEqual(
+            (d["minimum_probability"], d["minimum_sample"], d["status"]),
+            (0, 7, "incomplete_coverage"),
+        )
+        d = design(cells, {**options, "detection_cases": 2, "minutes": 6})["detection"]
+        self.assertEqual(
+            (d["certain"], d["minimum_sample"], d["status"]), (True, 6, "target_met")
+        )
+        for frame in (cells, {}):
+            d = design(frame, {**options, "detection_cases": 8})["detection"]
+            self.assertEqual(d["status"], "threshold_exceeds_population")
+            self.assertIsNone(d["minimum_probability"])
+            self.assertIsNone(d["minimum_budget_minutes"])
 
     def test_large_tail_inversion_matches_exact_kernel_and_preserves_precision(self):
         for N, n in ((21, 7), (24, 15), (5000, 1001)):

@@ -23,6 +23,26 @@ For a residual population of 5,000 in one group, four minutes per review and an 
 
 The expected width averages across the possible sample outcomes for the assumed prevalence. The scenario uses one outcome. Adding more sampled groups can widen individual confidence limits because the report covers all groups jointly.
 
+## Can this budget find a problem large enough to act on?
+
+A complaints lead might act if at least 25 of 5,000 conversations outside ordinary QA contain an unregistered complaint. With one random sample of 50, the chance of finding at least one is **22.27%** if exactly 25 qualify. There is a **77.73%** chance of drawing none. This calculation assumes the reviewer can recognize every qualifying case from the available policy and register evidence.
+
+In the desk, open **Decision this sample needs to support**. Enter the smallest count that would warrant action and the chance of detection you need. Reserve time for a second reviewer and for adjudication. The desk allocates the remaining minutes to first grades. The CLI accepts the same settings in a preview.
+
+```sh
+python3 -m telryn plan-week week.toml --minutes 240 --minutes-per-grade 4 \
+  --second-review-minutes 30 --adjudication-minutes 10 \
+  --detection-cases 25 --detection-target 0.95
+```
+
+Here, 240 total minutes buy 50 first grades after reserving 40 minutes for follow-up. In the single group above, reaching 95% requires **564 first grades and 2,296 total minutes** with the same reserves. These are planning allowances. Estimate reserves from the number of cases you expect to send to each review step and the time each step takes. Recalculate them if the larger sample would generate more disputes. You can budget more time, define a narrower queue and decision threshold, or plan a longer period with its own population and staff budget. Recompute the forecast after changing the frame.
+
+A detection target can stand on its own. Without an expected finding rate, Telryn allocates slots by group size under equal assumed variance. It shows the detection chance and the upper bound for zero findings. Entering an expected rate also gives you an anticipated interval width.
+
+Add `detection_cases`, `detection_target`, `second_review_minutes` and `adjudication_minutes` to the weekly TOML's `[planning]` table to commit those assumptions. CLI flag overrides apply to that preview. The signed weekly report retains the committed forecast. A budget can still support exploratory grading when its detection chance falls short. The forecast says how often this design would find at least one qualifying case under the stated scenario. Actual prevalence, missing register evidence and grading accuracy remain unknown.
+
+For a group of size *N* with *K* qualifying cases and *n* random draws without replacement, the probability of missing every qualifying case is `C(N − K, n) / C(N, n)`. In a stratified draw, Telryn multiplies those probabilities across groups. When the lead specifies a total *K*, its placement across groups is unknown. The planner uses the placement that makes detection hardest, including any unsampled groups. Each additional positive placed in a group that already has *k* positives multiplies the miss probability by `1 − n/(N − k)`. Choosing the largest remaining factors gives the exact worst case. If more than *K* cases qualify, the chance of finding at least one can only increase. The minimum budget uses the same allocation rule, group sizes and reserves as the preview and covers every nonempty group. [Hypergeometric distribution](https://stat.ethz.ch/R-manual/R-patched/library/stats/html/Hypergeometric.html)
+
 ## Use the recommended allocation
 
 Put these settings at the **end** of the weekly TOML. The `[planning]` section takes precedence over the fixed flagged and unflagged targets when the audit starts. Rates are proportions between 0 and 1. With no rate override for a flag group, the planner uses `expected_rate`. Extra minutes after a full census appear as unused.

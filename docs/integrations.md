@@ -98,3 +98,20 @@ Telryn rejects a mismatched tenant or a changed, untagged revision before attemp
 ## Validation
 
 Run `python3 -m unittest tests.test_integrations tests.test_integrations_sierra tests.test_integrations_coverage tests.test_transcripts` for the vendor contracts. Tests exercise the CLI, HTTP request encoding and response parsing, cursor handling, per-record results, tenant checks, and the path from a source pull to a weekly report and review handoff with fixture responses. Those checks run offline. Access scopes, QA subscription features, sync schedules, and downstream assignment rules require confirmation in your tenant.
+
+## Check Intercom scorecard evidence for a complaints pilot
+
+Run the following read-only comparison from the checkout. With no arguments it uses synthetic captures and an independent synthetic ledger. To check a private archive on the lead’s machine, pass both files.
+
+```sh
+python3 -m examples.complaints_pilot.intercom
+python3 -m examples.complaints_pilot.intercom --archive captures.json --ledger lead-ledger.json
+```
+
+Use one workspace, scorecard definition, version and eligible population in both files. The interval includes its start and excludes its end. Unix times are seconds. Each capture records when the conversation response was saved. Keep the data on the lead’s machine and project out transcript bodies, notes and reasoning. The sample files show which fields the check consumes. [Archive example](../examples/complaints_pilot/intercom-archive.json) · [Ledger and timing example](../examples/complaints_pilot/intercom-ledger.json)
+
+The 2.17 conversation endpoint can include scorecards. A monitor result shows that a conversation met selection criteria. A scorecard’s assignee, AI score and reviewed teammate each answer a different question. The rehearsal looks for a submitted review status and the human who submitted it. The API describes `evaluated_at` as the last evaluation time. A note timestamp or a later human edit also cannot date the original submission. The ordinary Telryn Intercom adapter keeps its existing API version. [Intercom 2.17 conversation contract](https://developers.intercom.com/docs/references/2.17/rest-api/api.intercom.io/conversations/retrieveconversation)
+
+For a conversation created during the week, creation and the first qualifying observation bound when the human could have submitted. For an older conversation, the check needs an earlier observation in the week of the same scorecard version and named reviewee showing an assignment, an unreviewed card or an AI submission. A missing card or a different reviewee supplies no lower time bound. This comparison assumes captures have the same scorecard visibility and describe the same conversation. Keep assignment-only and AI-only observations in the population. A first capture after cutoff cannot establish a timely human review, even if the card shows an earlier evaluation. Look at the dates in the lead’s ledger to resolve cases that only one source found. Even when a case appears on both lists, inspect its unverified submissions. A single observation can fit multiple submissions by the same person. The command prints a comparison and leaves the ordinary-review CSV to the lead.
+
+In the fixture the archive establishes human submissions for cases 103 and 104. The lead’s ledger also lists 105, whose first capture came after cutoff. The simulated assisted workflow took 41 minutes against 50 for the manual workflow. The agreed material saving was 15 minutes. For a real week, count export, exception handling and verification time. A live importer earns its place if this is the team’s recurring setup bottleneck, the results reconcile, and the time saving meets the lead’s predeclared threshold.
