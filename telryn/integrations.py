@@ -240,22 +240,20 @@ def reviewed_zendesk(client, args, since, until):
             url = object_at(record, "externalUrl")
             if (
                 not isinstance(url, str)
-                or url != f"https://{client.host}/agent/tickets/{external}"
+                or str(object_at(record, "workspaceId")) != args.workspace
+                or (url, external) in seen
             ):
+                raise InputError(
+                    "unexpected workspace or repeated Zendesk QA conversation"
+                )
+            seen.add((url, external))
+            if url != f"https://{client.host}/agent/tickets/{external}":
                 # Workspaces can contain connections to other help desks.
                 if prefix + external in eligible:
                     raise InputError(
                         "ambiguous Zendesk ticket source; use a single-source QA workspace"
                     )
                 continue
-            if (
-                str(object_at(record, "workspaceId")) != args.workspace
-                or external in seen
-            ):
-                raise InputError(
-                    "unexpected workspace or repeated Zendesk QA conversation"
-                )
-            seen.add(external)
             if prefix + external not in eligible:
                 continue
             for review in records(record, "reviews"):
@@ -371,18 +369,24 @@ def handoff(client, state, tag, apply):
     if not apply:
         return len(cases), 0
     admin = client.intercom_identity() if is_intercom else None
-    pending = []
-    for key, revision in cases.items():
+
+    def needs_tag(key, revision):
         record, tags = _record(client, key)
         if tag in tags:
-            continue
+            return False
         if source_revision(object_at(record, "updated_at")) != revision:
             raise InputError(
                 f"source revision changed for {key}; inspect the frozen record before handoff"
             )
-        pending.append((key, revision))
+        return True
+
+    pending = [(key, rev) for key, rev in cases.items() if needs_tag(key, rev)]
     if is_intercom:
-        for key, _ in pending:
+        tagged = 0
+        for key, revision in pending:
+            # This endpoint has no revision precondition. Recheck after preflight.
+            if not needs_tag(key, revision):
+                continue
             response, _ = client.request(
                 f"/conversations/{key}/tags",
                 method="POST",
@@ -390,8 +394,12 @@ def handoff(client, state, tag, apply):
             )
             if vendor_id(object_at(response, "id")) != tag:
                 raise InputError("Intercom did not confirm tag; rerun to reconcile")
-    else:
-        _zendesk_tag(client, pending, tag)
+            _, current_tags = _record(client, key)
+            if tag not in current_tags:
+                raise InputError(f"Intercom tag absent on {key}; rerun to reconcile")
+            tagged += 1
+        return len(cases), tagged
+    _zendesk_tag(client, pending, tag)
     return len(cases), len(pending)
 
 

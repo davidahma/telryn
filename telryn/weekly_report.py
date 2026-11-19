@@ -300,8 +300,9 @@ def _render(state: dict, auth: dict) -> str:
         "unknown": "Prior handling unknown",
     }
     actions = []
+    grades = weekly_review.effective_grades(state)
     for case in state["cases"]:
-        grade = state["grades"].get(case["case_id"])
+        grade = grades.get(case["case_id"])
         if grade is None or grade["serious"] is not True:
             continue
         cells = (

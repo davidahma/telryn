@@ -3,8 +3,10 @@
 import csv
 import json
 import unittest
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 from telryn import integrations_coverage, integrations_transcripts, screen, weekly
 from telryn.contracts import InputError
@@ -176,6 +178,67 @@ class Coverage(unittest.TestCase):
         )
         self.assertEqual(len(self.read("population.csv")), 1)
         self.pull("decagon", [], expected=2)
+
+    def test_intercom_accepts_padded_search_bounds_and_publishes_half_open_week(self):
+        since = int(datetime.fromisoformat(self.since).replace(tzinfo=UTC).timestamp())
+        until = since + 7 * 86400
+
+        def item(key, second):
+            return {
+                "id": key,
+                "state": "closed",
+                "created_at": second,
+                "updated_at": second,
+                "statistics": {"last_close_at": second},
+            }
+
+        rows = [item(1, since - 1), item(2, since), item(3, until - 1), item(4, until)]
+        for basis in ("created", "completion"):
+            with self.subTest(basis=basis):
+                self.pull(
+                    "intercom",
+                    [
+                        wire.response(wire.IDENTITY),
+                        wire.response(
+                            {
+                                "conversations": rows,
+                                "pages": {},
+                                "total_count": len(rows),
+                            }
+                        ),
+                    ],
+                    "--basis",
+                    basis,
+                    "--expected-count",
+                    "2",
+                )
+                self.assertEqual(
+                    [r["case_id"] for r in self.read("population.csv")],
+                    [
+                        "intercom:demo:2",
+                        "intercom:demo:3",
+                    ],
+                )
+                (self.root / "population.csv").unlink()
+                (self.root / "population.csv.coverage.json").unlink()
+        self.pull(
+            "intercom",
+            [
+                wire.response(wire.IDENTITY),
+                wire.response(
+                    {
+                        "conversations": rows[:2],
+                        "pages": {"next": {"starting_after": "second"}},
+                        "total_count": 3,
+                    }
+                ),
+                wire.response(
+                    {"conversations": rows[:1], "pages": {}, "total_count": 3}
+                ),
+            ],
+            expected=2,
+        )
+        self.assertFalse((self.root / "population.csv").exists())
 
     def test_event_export_through_native_transcript_model_and_grouped_audit(self):
         events = self.root / "events.csv"
@@ -479,6 +542,49 @@ unflagged_sample=2
             )
             self.assertFalse((self.root / "transcript.jsonl").exists())
 
+    def test_intercom_message_edits_and_redactions_cannot_pass_as_frozen_text(self):
+        second = 1736251200
+        source = {"body": "Question", "author": {"type": "user"}}
+        turn = {
+            "id": "3",
+            "body": "Reply",
+            "author": {"type": "admin"},
+            "created_at": second,
+            "updated_at": second,
+        }
+
+        def reply(parts):
+            data = {
+                "id": "1",
+                "updated_at": second,
+                "source": source,
+                "conversation_parts": {
+                    "total_count": len(parts),
+                    "conversation_parts": parts,
+                },
+            }
+            return SimpleNamespace(request=lambda path: (data, {}))
+
+        revision = (
+            datetime.fromtimestamp(second, UTC).isoformat().replace("+00:00", "Z")
+        )
+        self.assertEqual(
+            [
+                r["role"]
+                for r in integrations_transcripts._intercom(
+                    reply([turn]), "1", revision
+                )
+            ],
+            ["customer", "agent"],
+        )
+        for parts in (
+            [dict(turn, updated_at=second + 1)],
+            [turn, turn],
+            [dict(turn, redacted=True)],
+        ):
+            with self.subTest(parts=parts), self.assertRaises(InputError):
+                integrations_transcripts._intercom(reply(parts), "1", revision)
+
     def test_salesforce_email_and_comment_and_freshdesk_description_and_replies(self):
         sf_id = "500000000000001"
         case = {
@@ -495,31 +601,50 @@ unflagged_sample=2
         sources = [
             [case],
             [dict(common, Id="abc", CommentBody="Escalate this.")],
-            [dict(common, Id="def", Incoming=False, TextBody="I escalated it.")],
+            [
+                dict(
+                    common,
+                    Id="def",
+                    Incoming=False,
+                    Status="3",
+                    TextBody="I escalated it.",
+                )
+            ],
             [case],
         ]
-        client = SimpleNamespace(
-            request=lambda path: (
-                {"done": True, "totalSize": len(sources[0]), "records": sources.pop(0)},
-                {},
-            )
-        )
+        queries = []
+
+        def request(path):
+            queries.append(parse_qs(urlsplit(path).query)["q"][0])
+            rows = sources.pop(0)
+            return {"done": True, "totalSize": len(rows), "records": rows}, {}
+
+        client = SimpleNamespace(request=request)
         result = integrations_transcripts._salesforce(client, sf_id, wire.DAY)
+        self.assertIn("AND Status != '5'", queries[2])
         self.assertEqual(
             [r["text"] for r in result],
             ["Initial help request", "Escalate this.", "I escalated it."],
         )
-        fd = dict(id=1, updated_at=wire.DAY, description_text="Initial complaint.")
+        draft = dict(common, Id="draft1", Incoming=False, Status="5", TextBody="Unsent")
+        sources.extend([[case], [], [draft]])
+        with self.assertRaisesRegex(InputError, "delivery status"):
+            integrations_transcripts._salesforce(client, sf_id, wire.DAY)
+        fd = dict(
+            id=1,
+            requester_id=10,
+            responder_id=20,
+            updated_at=wire.DAY,
+            description_text="Initial complaint.",
+        )
+        turn = dict(ticket_id=1, updated_at=wire.DAY, body_text="Case reply")
         replies = [
             (fd, {}),
             (
                 [
-                    dict(
-                        id=3,
-                        updated_at=wire.DAY,
-                        incoming=False,
-                        body_text="I recorded it.",
-                    )
+                    dict(turn, id=2, user_id=20, incoming=True),
+                    dict(turn, id=3, user_id=10, incoming=False),
+                    dict(turn, id=4, user_id=30, incoming=False),
                 ],
                 {},
             ),
@@ -527,6 +652,16 @@ unflagged_sample=2
         ]
         client = SimpleNamespace(request=lambda path: replies.pop(0))
         self.assertEqual(
-            integrations_transcripts._freshdesk(client, "1", wire.DAY)[1]["role"],
-            "agent",
+            [
+                turn["role"]
+                for turn in integrations_transcripts._freshdesk(client, "1", wire.DAY)
+            ],
+            ["unknown", "agent", "customer", "unknown"],
         )
+        for changes in ({"ticket_id": 2}, {"last_edited_at": "2025-01-10T00:00:00Z"}):
+            replies.extend([(fd, {}), ([dict(turn, id=2, **changes)], {})])
+            with (
+                self.subTest(changes=changes),
+                self.assertRaisesRegex(InputError, "frozen case"),
+            ):
+                integrations_transcripts._freshdesk(client, "1", wire.DAY)

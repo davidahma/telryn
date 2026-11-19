@@ -4,7 +4,7 @@
 
 A QA lead can see every ticket their team graded. The harder question is what happened in the conversations nobody opened. Telryn takes the conversations resolved or closed during the week and the record of ordinary human reviews, then draws a second sample from what was left out. It works with queues handled by people, AI support agents, or both.
 
-The lead gets a private HTML report showing how many serious cases ordinary QA likely missed, how many may have escaped every other recorded control, and how much uncertainty remains. Each confirmed new finding has a case, an owner and a follow-up. Reviewers get a separate CSV that hides the screen's prediction. A local model can read transcripts and cite the passages behind a screen flag. A second reviewer can challenge a grade. The lead can see how much the unresolved evidence could change the answer.
+The lead gets a private HTML report showing how many serious cases ordinary QA likely missed, how many may have escaped every other recorded control, and how much uncertainty remains. Each confirmed new finding has a case, an owner and a follow-up. Reviewers get a separate CSV that hides the screen's prediction. A local model can read transcripts and cite the passages behind a screen flag. If two reviewers agree a case was serious but disagree about who already knew, it stays in the serious count while the lead resolves whether it needs new follow-up.
 
 [Download Telryn](https://github.com/davidahma/telryn/releases/latest) · [Weekly audit guide](docs/weekly-qa.md) · [Integrations](docs/integrations.md) · [Apache-2.0](LICENSE) · [![CI](https://github.com/davidahma/telryn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/davidahma/telryn/actions/workflows/ci.yml)
 

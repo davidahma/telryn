@@ -128,6 +128,8 @@ def _freshdesk(client, key, revision):
         return row
 
     row = ticket()
+    requester = row.get("requester_id")
+    responder = row.get("responder_id")
     messages = [
         _message(
             "unknown",
@@ -141,12 +143,24 @@ def _freshdesk(client, key, revision):
         rows, headers = client.request(query(path, page=page, per_page=100))
         for item in records(rows, None):
             ident = vendor_id(object_at(item, "id"))
-            if ident in seen or time_key(object_at(item, "updated_at")) > time_key(
-                revision
+            if (
+                vendor_id(object_at(item, "ticket_id")) != key
+                or ident in seen
+                or time_key(object_at(item, "updated_at")) > time_key(revision)
+                or (
+                    item.get("last_edited_at") is not None
+                    and time_key(item["last_edited_at"]) > time_key(revision)
+                )
             ):
                 raise InputError("Freshdesk conversation differs from the frozen case")
             seen.add(ident)
-            role = "customer" if boolean(object_at(item, "incoming")) else "agent"
+            author = item.get("user_id")
+            role = "unknown"
+            if type(author) is int and requester != responder:
+                if author == requester:
+                    role = "customer"
+                elif author == responder:
+                    role = "agent"
             messages.append(
                 _message(
                     role,
@@ -184,8 +198,20 @@ def _intercom(client, key, revision):
         raise InputError(
             "Intercom may truncate this conversation; supply the complete archived transcript"
         )
+    seen = set()
+    for item in items:
+        ident = vendor_id(object_at(item, "id"))
+        if ident in seen or not time_key(object_at(item, "created_at")) <= time_key(
+            object_at(item, "updated_at")
+        ) <= time_key(revision):
+            raise InputError("Intercom conversation part differs from the frozen case")
+        seen.add(ident)
     messages = []
     for item in [object_at(row, "source"), *items]:
+        if not isinstance(item, dict) or item.get("redacted") is True:
+            raise InputError(
+                "Intercom message text is unavailable for this case revision"
+            )
         body = item.get("body")
         if not body:
             if item.get("part_type") in ("comment", "note") or item is row["source"]:
@@ -257,22 +283,30 @@ def _salesforce(client, key, revision):
         )
     for table, fields in (
         ("CaseComment", "CommentBody"),
-        ("EmailMessage", "Incoming,TextBody,HtmlBody"),
+        ("EmailMessage", "Incoming,Status,TextBody,HtmlBody"),
     ):
+        seen = set()
+        sent_or_received = " AND Status != '5'" if table == "EmailMessage" else ""
         for row in _crm_query(
             client,
-            f"SELECT Id,ParentId,CreatedDate,LastModifiedDate,{fields} FROM {table} WHERE ParentId='{key}' ORDER BY CreatedDate,Id",
+            f"SELECT Id,ParentId,CreatedDate,LastModifiedDate,{fields} FROM {table} WHERE ParentId='{key}'{sent_or_received} ORDER BY CreatedDate,Id",
         ):
-            if object_at(row, "ParentId") != key or time_key(
-                object_at(row, "LastModifiedDate")
-            ) > time_key(revision):
+            ident = vendor_id(object_at(row, "Id"))
+            if (
+                ident in seen
+                or object_at(row, "ParentId") != key
+                or time_key(object_at(row, "LastModifiedDate")) > time_key(revision)
+            ):
                 raise InputError(
                     "Salesforce child message differs from the frozen case"
                 )
+            seen.add(ident)
             if table == "CaseComment":
                 msg = _message("unknown", object_at(row, "CommentBody"))
             else:
-                role = "customer" if boolean(object_at(row, "Incoming")) else "agent"
+                if object_at(row, "Status") not in ("0", "1", "2", "3", "4"):
+                    raise InputError("unexpected Salesforce email delivery status")
+                role = "unknown" if boolean(object_at(row, "Incoming")) else "agent"
                 msg = _message(
                     role,
                     row.get("TextBody") or object_at(row, "HtmlBody"),
@@ -281,7 +315,7 @@ def _salesforce(client, key, revision):
             turns.append(
                 (
                     instant(object_at(row, "CreatedDate")),
-                    vendor_id(object_at(row, "Id")),
+                    ident,
                     msg,
                 )
             )

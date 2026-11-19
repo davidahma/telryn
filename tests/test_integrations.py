@@ -320,6 +320,21 @@ class IntegrationTests(unittest.TestCase):
             ],
         )
         self.assertEqual(self.rows("reviewed.csv"), [])
+        (self.root / "reviewed.csv").unlink()
+        foreign = dict(
+            outside, externalUrl="https://other.zendesk.com/agent/tickets/92"
+        )
+        self.command(
+            cmd,
+            [
+                response(
+                    {"conversations": [foreign], "pagination": {"page": i, "total": 2}}
+                )
+                for i in (1, 2)
+            ],
+            expected=2,
+        )
+        self.assertFalse((self.root / "reviewed.csv").exists())
 
     def test_intercom_fin_workspace_and_handoff(self):
         ticket = {
@@ -342,19 +357,39 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(self.rows()[0]["screen_flag"], "true")
         report = self.report()
         cmd = ["handoff", "intercom", report, "--tag", "88", "--apply"]
+        tagged = dict(ticket, tags={"tags": [{"id": "88", "name": "weekly QA"}]})
         wire = self.command(
             cmd,
             [
                 response(IDENTITY),
                 response(ticket),
+                response(ticket),
                 response({"id": "88", "type": "tag"}),
+                response(tagged),
             ],
         )
-        self.assertIn(b"POST /conversations/415/tags ", wire[-1][1])
+        self.assertIn(b"POST /conversations/415/tags ", wire[-2][1])
+        self.assertIn(b"GET /conversations/415 ", wire[-1][1])
         self.command(cmd, [response({"app": {"id_code": "other"}})], expected=2)
         self.command(
             cmd,
-            [response(IDENTITY), response(dict(ticket, updated_at=1736251210))],
+            [
+                response(IDENTITY),
+                response(ticket),
+                response(dict(ticket, updated_at=1736251210)),
+            ],
+            expected=2,
+        )
+        self.command(cmd, [response(IDENTITY), response(ticket), response(tagged)])
+        self.command(
+            cmd,
+            [
+                response(IDENTITY),
+                response(ticket),
+                response(ticket),
+                response({"id": "88"}),
+                response(ticket),
+            ],
             expected=2,
         )
 

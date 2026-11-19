@@ -13,9 +13,9 @@ Use the credential and workspace that produced the [source population](integrati
 | Provider | Text sources |
 | --- | --- |
 | Zendesk | Ticket comments, including internal notes visible to the credential. The requester is marked as the customer. Other authors use Zendesk user-directory roles when the role record predates the comment. Missing or subsequently changed roles remain unknown. Requires user-read access. [User roles](https://developer.zendesk.com/api-reference/ticketing/users/users/) · [Ticket comments](https://developer.zendesk.com/api-reference/ticketing/tickets/ticket_comments/#list-comments) |
-| Freshdesk | Ticket description and paginated conversations. Incoming and outgoing turns identify direction. [Freshdesk conversations](https://developers.freshdesk.com/api/#list_all_ticket_conversations) |
-| Intercom / Fin | Conversation source and text-bearing parts in plaintext. A response at the 500-part cap requires a complete customer export. [Retrieve a conversation](https://developers.intercom.com/docs/references/2.14/rest-api/api.intercom.io/conversations/retrieveconversation) |
-| Salesforce | Case description, related CaseComment bodies and EmailMessage text or HTML, ordered by creation time. Separate voice, messaging and chat-transcript objects require an upstream join. [CaseComment](https://developer.salesforce.com/docs/platform/object-reference/references/standard-objects/object-casecomment.html) · [EmailMessage](https://developer.salesforce.com/docs/platform/field-reference/references/field-reference/salesforce-field-reference-emailmessage.html) |
+| Freshdesk | Ticket description and paginated replies and notes. A message from the requester is labeled customer. A message from the assigned agent is labeled agent. Other authors remain unknown. Freshdesk's `incoming` flag describes where the reply originated. [Freshdesk conversations](https://developers.freshdesk.com/api/#list_all_ticket_conversations) |
+| Intercom / Fin | Conversation source and text-bearing parts in plaintext. Each part needs a distinct ID and a last update at or before the frozen revision. The reader stops on redacted text and at the 500-part cap. [Retrieve a conversation](https://developers.intercom.com/docs/references/2.14/rest-api/api.intercom.io/conversations/retrieveconversation) |
+| Salesforce | Case description, comments and received or sent email, ordered by record creation time. The query excludes unsent drafts. Inbound email carries an unknown speaker because the direction alone cannot identify the sender. Separate voice, messaging and chat-transcript objects require an upstream join. [EmailMessage](https://developer.salesforce.com/docs/platform/field-reference/references/field-reference/salesforce-field-reference-emailmessage.html) · [Email delivery statuses](https://help.salesforce.com/s/articleView?id=000384028&language=en_US&type=1) |
 | Decagon, Sierra, other channels | Import customer-authorized text in the JSONL format below. Use stable source revisions and references your graders can open. |
 
 These readers cover text visible to the credential. Attachments, audio, payment records and external escalation logs require separate evidence where the rubric depends on them. Preserve the evidence behind a model's claim of a completed action.
@@ -49,7 +49,7 @@ Redaction replaces common email addresses, URLs and number sequences. The option
 
 Every passage is processed in bounded chunks. Source quotes and offsets refer to the **redacted** message. Each definite answer must cite a passage from that chunk. A refund promise, recorded refund, completed escalation or logged complaint needs evidence from an agent or system. A customer's request or an unidentified speaker leaves the staff action unresolved. Missing or conflicting evidence becomes unknown. A real passage can still be interpreted incorrectly, and evidence split across chunks can lose context. Inspect the citations and grade a random sample of unflagged cases to measure where the screen misses serious failures.
 
-The default is two workers, configurable from one to sixteen. If a run stops, repeat it with the same input, model, policy, redaction configuration, checkpoint and output path. Telryn saves each completed case in a private SQLite checkpoint and publishes only a complete batch. Keep the same local weights throughout a run. Use a fresh checkpoint and output directory when changing the inputs.
+The default is two workers, configurable from one to sixteen. If a run stops, repeat it with the same input, model, policy, redaction configuration, checkpoint and output path. Telryn checks the installed model digest before committing a group of results to its private SQLite checkpoint. A retry reuses verified groups and reruns work interrupted before verification. On the first resume after upgrading from v0.6.0 or earlier, Telryn reprocesses the old checkpoint once. Only a complete screen publishes a population. Keep the same local weights throughout a run and use a fresh checkpoint and output directory when changing the inputs.
 
 ## Review the output
 
@@ -60,6 +60,8 @@ The default is two workers, configurable from one to sixteen. If a run stops, re
 | `signals.csv` | Read the extracted yes/no/unknown fields or apply another deterministic rule when the required facts were extracted. |
 | `citations.jsonl` | Inspect cited passage, message number, role, redacted offsets and classification. Empty citations mean no supported fact for that field. |
 | `population.csv.coverage.json` | When supplied with the source, carries the verified completion cohort and exclusions into the weekly report. |
+
+The population and signals files preserve the source identifiers verbatim for machine import. If you inspect them in a spreadsheet, import identifier, revision and reference columns as text. Use the weekly desk’s grading CSV when sharing assignments with reviewers.
 
 With an upstream export of the eight policy facts, Telryn evaluates the rule directly. No model server or transcript is required.
 

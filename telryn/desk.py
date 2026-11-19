@@ -262,7 +262,8 @@ def handler(desk: Desk, token: str):
             self.send_header(
                 "Content-Security-Policy",
                 "default-src 'none'; style-src 'unsafe-inline'; "
-                f"script-src {script_policy}; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'",
+                f"script-src {script_policy}; connect-src 'self'; base-uri 'none'; "
+                "form-action 'none'; frame-ancestors 'none'",
             )
             if download:
                 self.send_header(

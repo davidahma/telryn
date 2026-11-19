@@ -91,7 +91,7 @@ def tags(row, vendor):
 
 def _intercom(client, since, until, fin_only, legacy):
     client.intercom_identity()
-    # v2.14 supports strict inequalities for dates (second resolution).
+    # Query the boundary seconds too. Apply the half-open UTC window locally.
     filters = [
         {
             "field": "created_at" if legacy else "updated_at",
@@ -415,15 +415,22 @@ def population(
         updated = instant(revision)
         if updated < created:
             raise InputError("source revision precedes case creation")
-        if created >= until or (created if legacy else updated) < since:
-            if vendor in ("freshdesk", "decagon"):
-                continue
-            raise InputError(f"{vendor} returned a record outside the requested dates")
         field = "Id" if crm else "conversation_id" if vendor == "decagon" else "id"
         key = vendor_id(object_at(row, field))
         if key in seen:
             raise InputError(f"{vendor} returned a duplicate case")
         seen.add(key)
+        lower = created if legacy else updated
+        if created >= until or lower < since:
+            if vendor in ("freshdesk", "decagon"):
+                continue
+            if (
+                vendor == "intercom"
+                and created <= until
+                and lower >= since - timedelta(seconds=1)
+            ):
+                continue
+            raise InputError(f"{vendor} returned a record outside the requested dates")
         names = tags(row, vendor) if closed_tag or flag_tag else []
         if fin_only and object_at(row, "ai_agent_participated") is not True:
             raise InputError(

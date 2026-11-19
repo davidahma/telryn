@@ -10,6 +10,13 @@ from tempfile import TemporaryDirectory
 from playwright.sync_api import expect, sync_playwright
 
 
+def write_return(path, rows):
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def run(root: Path):
     fixture = Path(__file__).resolve().parents[1] / "examples" / "fintech"
     server = subprocess.Popen(
@@ -50,6 +57,19 @@ def run(root: Path):
                 ("reviewed", "ordinary-reviews.csv"),
             ):
                 form.locator(f"[name={name}]").set_input_files(fixture / filename)
+
+            # Change the budget while a successfully submitted forecast is pending.
+            def edit_during_preview(route):
+                form.locator("[name=minutes]").fill("40")
+                route.continue_()
+
+            page.route("**/plan", edit_during_preview)
+            with page.expect_response("**/plan"):
+                page.locator("#preview").click()
+            expect(page.locator("#preview")).to_be_enabled()
+            expect(page.locator("#forecast")).to_be_hidden()
+            page.unroute("**/plan", edit_during_preview)
+            form.locator("[name=minutes]").fill("32")
             page.locator("#preview").click()
             expect(page.locator("#forecast")).to_contain_text("8 cases fit")
             assert not list((root / "runs").glob("*/report.html"))
@@ -69,10 +89,7 @@ def run(root: Path):
                 "minutes": "4",
             }
             returned = root / "returned.csv"
-            with returned.open("w", newline="", encoding="utf-8") as file:
-                writer = csv.DictWriter(file, rows[0].keys())
-                writer.writeheader()
-                writer.writerow(answer)
+            write_return(returned, [answer])
             page.locator("#grade [name=reviewer]").fill("Fixture reviewer")
             page.locator("#grade [name=grades]").set_input_files(returned)
             page.locator("#grade button").click()
@@ -107,10 +124,71 @@ def run(root: Path):
             event.value.save_as(remaining)
             with remaining.open(encoding="utf-8-sig", newline="") as source:
                 assert list(csv.DictReader(source)) == rows[1:]
+            # A draft belongs to one dispute, including after a successful save.
+            for review_round, reviewer, serious, disposition in (
+                ("grades", "Primary", "no", "none"),
+                ("second-review", "Independent", "yes", "already_known"),
+            ):
+                write_return(
+                    returned,
+                    [
+                        {
+                            **row,
+                            "serious": serious,
+                            "disposition": disposition,
+                            "minutes": "3",
+                        }
+                        for row in rows[1:3]
+                    ],
+                )
+                page.locator("#grade [name=round]").select_option(review_round)
+                page.locator("#grade [name=reviewer]").fill(reviewer)
+                page.locator("#grade [name=grades]").set_input_files(returned)
+                with page.expect_response("**/" + review_round):
+                    page.locator("#grade button").click()
+                expect(page.locator("#grade button")).to_be_enabled()
+            adjudicate = page.locator("#resolution")
+            disputed = adjudicate.locator("[name=dispute]")
+            expect(disputed.locator("option")).to_have_count(2)
+            for choice in ("primary", "second"):
+                adjudicate.locator("[name=reviewer]").fill("Adjudicator")
+                adjudicate.locator("[name=reason]").fill(
+                    "Read the frozen evidence for this case"
+                )
+                adjudicate.locator("[name=minutes]").fill("1")
+                adjudicate.locator("[name=choice]").select_option(choice)
+                if choice == "primary":
+                    disputed.select_option(index=1)
+                else:
+                    adjudicate.locator("button").click()
+                    expect(disputed.locator("option")).to_have_count(1)
+                for name in ["reviewer", "reason", "minutes", "choice"]:
+                    expect(adjudicate.locator(f"[name={name}]")).to_have_value("")
+                assert not adjudicate.evaluate("(form) => form.checkValidity()")
             with page.expect_popup() as event:
                 page.locator("#report").click()
             expect(event.value.locator("footer")).to_contain_text(
                 "Signed weekly report"
+            )
+
+            # Returning to the audit list while the last decision is being saved
+            # must leave the operator at their chosen destination.
+            def navigate_during_save(route):
+                page.evaluate("location.hash = ''")
+                expect(page.locator("#current")).to_be_hidden()
+                route.continue_()
+
+            page.route("**/adjudicate", navigate_during_save)
+            adjudicate.locator("[name=reviewer]").fill("Adjudicator")
+            adjudicate.locator("[name=reason]").fill("Checked the remaining case")
+            adjudicate.locator("[name=minutes]").fill("2")
+            adjudicate.locator("[name=choice]").select_option("primary")
+            with page.expect_response("**/adjudicate"):
+                adjudicate.locator("button").click()
+            expect(page.locator("#message")).to_contain_text("Changes saved")
+            expect(page.locator("#current")).to_be_hidden()
+            expect(page.locator("#history li")).not_to_contain_text(
+                "awaiting adjudication"
             )
             # The same directory opened with damaged report bytes stays visible and closed for grading.
             saved = next((root / "runs").glob("*/report.html"))
