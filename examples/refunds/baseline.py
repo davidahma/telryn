@@ -10,9 +10,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 if __package__:
-    from .app import instant
+    from .app import instant, parse_source_json
 else:  # Also allow running this worksheet directly as a script.
-    from app import instant
+    from app import instant, parse_source_json
 
 ROOT = Path(__file__).resolve().parent
 ANSWERS = ("meets", "outside", "insufficient")
@@ -318,15 +318,7 @@ def analyze(export: dict, archived: dict, ledger: list[dict] = ()) -> dict:
 
 
 def read(path: Path):
-    def unique_keys(pairs):
-        obj = {}
-        for key, value in pairs:
-            if key in obj:
-                raise ValueError(f"duplicate JSON key {key!r}")
-            obj[key] = value
-        return obj
-
-    return json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_keys)
+    return parse_source_json(path.read_text(encoding="utf-8"))
 
 
 def main() -> None:

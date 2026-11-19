@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
-import tempfile
+import math
 import re
+import shutil
 import sqlite3
+import tempfile
 from contextlib import closing
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 
 SHIFTS = {
@@ -165,6 +167,33 @@ def utc_timestamp(value: str) -> str:
     return utc.isoformat(timespec="microseconds") + remainder
 
 
+def parse_source_json(text: str):
+    """Decode the standalone source without changing a recorded numeric value."""
+
+    def number(token: str):
+        exact = Decimal(token)
+        value = float(token)
+        if not math.isfinite(value):
+            raise ValueError("source JSON requires finite numbers")
+        if exact == exact.to_integral_value():
+            return int(exact)
+        if Decimal(str(value)) != exact:
+            raise ValueError("source JSON number would lose precision")
+        return value
+
+    def unique_keys(pairs):
+        obj = {}
+        for key, value in pairs:
+            if key in obj:
+                raise ValueError(f"duplicate JSON key {key!r}")
+            obj[key] = value
+        return obj
+
+    return json.loads(
+        text, parse_float=number, parse_constant=number, object_pairs_hook=unique_keys
+    )
+
+
 def snapshot(connection: sqlite3.Connection) -> tuple[dict, dict]:
     connection.create_function("utc_timestamp", 1, utc_timestamp, deterministic=True)
     exports = {}
@@ -193,9 +222,9 @@ def snapshot(connection: sqlite3.Connection) -> tuple[dict, dict]:
             requests[case] = {
                 "revision": revision,
                 "known_at": known_at,
-                "inputs": json.loads(inputs),
-                "evidence": json.loads(refs),
-                "minutes": json.loads(time),
+                "inputs": parse_source_json(inputs),
+                "evidence": parse_source_json(refs),
+                "minutes": parse_source_json(time),
             }
         actual = [
             row[0]
@@ -212,7 +241,7 @@ def snapshot(connection: sqlite3.Connection) -> tuple[dict, dict]:
             )
         ]
         overrides = [
-            json.loads(row[0])
+            parse_source_json(row[0])
             for row in connection.execute(
                 "SELECT payload FROM overrides WHERE shift = ? ORDER BY sequence",
                 (shift,),
@@ -237,7 +266,7 @@ def snapshot(connection: sqlite3.Connection) -> tuple[dict, dict]:
             raise ValueError(f"{case} has invalid shared-source status")
         grades[case] = {
             "grade": grade,
-            "evidence": json.loads(evidence),
+            "evidence": parse_source_json(evidence),
             "evidence_at": when,
             "shared_sources": bool(shared),
         }

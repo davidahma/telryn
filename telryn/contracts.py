@@ -41,9 +41,12 @@ def exact_number(value: str, label: str = "JSON number") -> int | float:
             raise InputError(f"{label} needs a finite number") from exc
         if not math.isfinite(number):
             raise InputError(f"{label} needs a finite number")
-        if exact == exact.to_integral_value() and Decimal.from_float(number) != exact:
+        round_trip = Decimal(str(number))
+        if exact == exact.to_integral_value() and (
+            Decimal.from_float(number) != exact or round_trip != exact
+        ):
             return int(exact)
-        if Decimal(str(number)) != exact:
+        if round_trip != exact:
             raise InputError(f"{label} would lose precision as a JSON number")
         return number
 

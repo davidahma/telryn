@@ -13,7 +13,7 @@ from contextlib import closing
 from pathlib import Path
 
 from examples.refunds import app, baseline
-from telryn.contracts import InputError, timestamp
+from telryn.contracts import InputError, load_export, timestamp
 from telryn.grades import COLUMNS, initial_grades
 from telryn.intake import inspect
 from telryn.report import recommendation
@@ -226,6 +226,32 @@ class DecisionReview(unittest.TestCase):
             compare(qa / "comparison.toml", path)["shifts"]["week-1"]["status"],
             "Replayable",
         )
+
+    def test_exact_whole_scores_survive_database_export_and_json_import(self):
+        db = self.root / "refunds.sqlite"
+        app.seed(db)
+        out = self.root / "snapshot"
+        with closing(sqlite3.connect(db)) as connection:
+            score = '{"refund_cents":1000,"conflict_priority":9.007199254740993e15}'
+            connection.execute(
+                "UPDATE revision SET inputs=? WHERE request='R-120'", (score,)
+            )
+            connection.commit()
+            app.export_snapshot(connection, out)
+        path = out / "cutoff.json"
+        exported = load_export(path)
+        self.assertEqual(
+            exported["shifts"]["tuesday-am"]["requests"]["R-120"]["inputs"][
+                "conflict_priority"
+            ],
+            9007199254740993,
+        )
+        result = compare(REFUNDS / "comparison.toml", path)
+        self.assertEqual(result["shifts"]["tuesday-am"]["candidate"][0], "R-120")
+        exact = self.root / "whole.json"
+        exact.write_text('{"schema":1,"shifts":{},"score":1000000000000000128.0}')
+        self.assertIs(type(load_export(exact)["score"]), int)
+        self.assertEqual(load_export(exact)["score"], 1000000000000000128)
 
     def test_refund_worksheet_distinguishes_policy_gaps_and_optional_evidence(self):
         export = json.loads((REFUNDS / "cutoff.json").read_text())
