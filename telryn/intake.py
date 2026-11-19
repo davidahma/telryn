@@ -85,6 +85,9 @@ def convert(base: Path, spec: dict, columns: dict, inputs: dict) -> dict:
             raise MissingSource(kind, f"{kind}: {exc}") from exc
 
     id_header = column("id")
+    eligible_id = columns.get("eligible_id", id_header)
+    picks_id = columns.get("picks_id", id_header)
+    cutoff_id = columns.get("cutoff_id", id_header)
     eligible_path = path_for("eligible")
     picks_path = path_for("picks")
     inputs_path = path_for("cutoff_inputs")
@@ -92,26 +95,26 @@ def convert(base: Path, spec: dict, columns: dict, inputs: dict) -> dict:
         raise MissingSource(
             "eligible", "eligible membership must come from a separate source file"
         )
-    eligible = read("eligible", eligible_path, [id_header])
-    ids = unique_ids([row[id_header] for row in eligible], "eligible IDs")
+    eligible = read("eligible", eligible_path, [eligible_id])
+    ids = unique_ids([row[eligible_id] for row in eligible], "eligible IDs")
     if not ids:
         raise MissingSource("eligible", "eligible membership is empty")
     positions = column("slot")
-    picks = read("picks", picks_path, [id_header, positions])
+    picks = read("picks", picks_path, [picks_id, positions])
     ranked = sorted(
-        (whole(row[positions], "recorded slot"), row[id_header]) for row in picks
+        (whole(row[positions], "recorded slot"), row[picks_id]) for row in picks
     )
     if [index for index, case in ranked] != list(range(1, len(ranked) + 1)):
         raise MissingSource("picks", "recorded slots must be consecutive starting at 1")
     input_rows = read(
         "cutoff_inputs",
         inputs_path,
-        [id_header, column("revision"), column("known_at"), *inputs.values()],
+        [cutoff_id, column("revision"), column("known_at"), *inputs.values()],
     )
-    unique_ids([row[id_header] for row in input_rows], "cutoff input IDs")
+    unique_ids([row[cutoff_id] for row in input_rows], "cutoff input IDs")
     rows = {}
     for row in input_rows:
-        case = row[id_header]
+        case = row[cutoff_id]
         values = {}
         for field, header in inputs.items():
             values[field] = score(row[header], f"{case} input {field}")
@@ -166,9 +169,24 @@ def convert(base: Path, spec: dict, columns: dict, inputs: dict) -> dict:
     }
 
 
-def inspect(path: Path) -> tuple[dict, dict]:
+def inspect(path: Path, batch_path: Path | None = None) -> tuple[dict, dict]:
     config = versioned(tomllib.loads(path.read_text(encoding="utf-8")), "intake")
-    shifts = mapping(config.get("shifts"), "intake shifts")
+    manifest = config
+    source_dir = path.parent
+    if batch_path is not None:
+        if "shifts" in config:
+            raise InputError(
+                "a reusable intake mapping must omit shifts when --batches is supplied"
+            )
+        manifest = versioned(
+            tomllib.loads(batch_path.read_text(encoding="utf-8")), "batch manifest"
+        )
+        if set(manifest) != {"schema", "shifts"}:
+            raise InputError(
+                "the batch manifest contains only schema and shifts; keep mappings in the intake file"
+            )
+        source_dir = batch_path.parent
+    shifts = mapping(manifest.get("shifts"), "intake shifts")
     if not shifts:
         raise InputError("intake must name at least one shift")
     columns = mapping(config.get("columns", {}), "intake columns")
@@ -183,7 +201,7 @@ def inspect(path: Path) -> tuple[dict, dict]:
     for name, spec in shifts.items():
         mapping(spec, f"{name} intake")
         try:
-            batch = convert(path.parent, spec, columns, inputs)
+            batch = convert(source_dir, spec, columns, inputs)
             issue = cutoff_issue(name, batch)
             if issue:
                 raise MissingSource("policy", issue)

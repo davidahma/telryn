@@ -9,7 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from . import __version__, intake
+from . import __version__, benchmark, intake
 from .contracts import InputError, canonical
 from .decision import SHADOW
 from .grades import parse_minutes
@@ -82,6 +82,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     check.add_argument("intake", type=Path)
     check.add_argument(
+        "--batches", type=Path, help="separate cutoff manifest for a reusable mapping"
+    )
+    check.add_argument(
         "--out", type=Path, help="write a reconciled cutoff JSON export when ready"
     )
     _result_flags(check, gate=False)
@@ -91,6 +94,12 @@ def _parser() -> argparse.ArgumentParser:
     trial.add_argument("report", type=Path)
     trial.add_argument("observations", type=Path)
     _result_flags(trial, gate=False)
+    pilot = commands.add_parser(
+        "benchmark", help="assess a matched pilot record against a saved comparison"
+    )
+    pilot.add_argument("report", type=Path)
+    pilot.add_argument("record", type=Path)
+    _result_flags(pilot, gate=False)
     qualify = commands.add_parser("qualify", help="run the shipped qualification cases")
     qualify.add_argument("--case", help="run just this named case")
     return parser
@@ -154,7 +163,7 @@ def _demo(out: Path | None) -> int:
 
 
 def preflight(args: argparse.Namespace) -> int:
-    result, export = intake.inspect(args.intake)
+    result, export = intake.inspect(args.intake, args.batches)
     if result["ready"] and args.out is not None:
         intake.write_export(args.out, export)
     if args.format == "json":
@@ -173,6 +182,37 @@ def preflight(args: argparse.Namespace) -> int:
     return int(not result["ready"])
 
 
+def pilot_benchmark(args: argparse.Namespace) -> int:
+    result = benchmark.assess(load_report(args.report), args.record)
+    if args.format == "json":
+        print(canonical(result))
+        return 0
+    print(
+        f"{result['evidence'].capitalize()} pilot · {result['decision_date']} · {result['comparator']}"
+    )
+    if result["timing_comparable"]:
+        print(
+            f"Recurring minutes saved: {result['recurring_minutes_saved']:+d} "
+            f"(material threshold {result['material_minutes_saved']})"
+        )
+    else:
+        print(
+            "Timing remains unqualified. Check matched conditions, complete replay and cross-checks, and the lead’s evidence judgment."
+        )
+    if result["changes_to_recover_setup"] is not None:
+        print(f"Policy changes to recover setup: {result['changes_to_recover_setup']}")
+    if result["policy_changes_last_year"] is not None:
+        print(
+            f"Policy changes recorded in the last 12 months: {result['policy_changes_last_year']}"
+        )
+    if result["serious_misses_confirmed_by_lead"]:
+        print(
+            "Confirmed serious misses overlooked by the comparator: "
+            + ", ".join(result["serious_misses_confirmed_by_lead"])
+        )
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -180,6 +220,8 @@ def main(argv: list[str] | None = None) -> int:
             return _demo(args.out)
         if args.command == "preflight":
             return preflight(args)
+        if args.command == "benchmark":
+            return pilot_benchmark(args)
         if args.command == "record-shadow":
             result = recommendation(record_shadow(args.report, args.observations))
             if args.format == "json":

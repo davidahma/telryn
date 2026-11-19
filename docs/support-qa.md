@@ -75,6 +75,28 @@ The same HTML now shows eight observed picks, 1,240 recorded reviewer-minutes,
 and more Account cases than projected. It records the lead's decision to
 **revise**. The historical recommendation remains a separate field.
 
+## Hand the next cutoff to another analyst
+
+Save the source headers in [mapping.toml](../examples/support-qa/mapping.toml).
+For a new decision, create a separate [batch manifest](../examples/support-qa/batches.toml)
+beside the new exports. Put that cutoff’s source reference, slot capacity,
+rule version, tie-break, mandatory IDs, and overrides in the batch manifest.
+The same mapping can handle exports whose ID headers differ by source.
+
+```sh
+python3 -m telryn preflight examples/support-qa/mapping.toml \
+  --batches examples/support-qa/batches.toml --out runs/qa-repeat-cutoff.json
+python3 -m telryn compare examples/support-qa/comparison.toml \
+  --export runs/qa-repeat-cutoff.json --out runs/qa-repeat
+```
+
+These commands replay the bundled batch as a handoff exercise. For a real
+second cutoff, use its manifest and grades. Confirm that the comparison
+definition names the intended shifts and the correct live and candidate
+rules. Have another analyst reconcile the recorded picks before using the
+new verdict. When preflight identifies a missing source, save its capture
+instruction for the next cutoff.
+
 The [comparison reference](comparison.md) covers the SQLite input interface
 and intake, grading, and shadow record formats. Use the
 [pilot protocol](evaluation.md#support-qa-pilot) to compare with your current tools.

@@ -148,7 +148,7 @@ confirmation of completeness.
 | Manifest field | Meaning |
 | --- | --- |
 | `schema` | Intake format version `1`. |
-| `columns` | Optional aliases for `id`, `slot`, `revision`, `known_at`, `evidence`, `cohort`, `lower_minutes`, `upper_minutes`, and `time_basis`. Any unmapped name uses its logical header. |
+| `columns` | Optional aliases for `id`, `slot`, `revision`, `known_at`, `evidence`, `cohort`, `lower_minutes`, `upper_minutes`, and `time_basis`. Use `eligible_id`, `picks_id`, or `cutoff_id` for source-specific ID columns. Other unmapped names use their logical headers. |
 | `inputs` | Logical ranking field to numeric CSV column. Use finite values and stable score precision. |
 | `shifts.<shift>` | Relative or absolute paths for `eligible`, `picks`, and `cutoff_inputs` CSVs, plus `cutoff`, `capacity`, `live_version`, `tie_break`, `membership_source`, `mandatory`, and `overrides`. Use empty lists for a verified absence of mandatory cases or overrides. |
 
@@ -162,6 +162,15 @@ when a case needs multiple evidence references or nonnumeric ranking inputs.
 `preflight --format json` reports the first gap and how to capture its source
 per shift. It exits 0 when ready, 1 when any shift needs evidence, and 2 for
 an invalid manifest or output error. When ready, writing the JSON is optional.
+
+### Reuse the mapping across cutoffs
+
+The original single-file intake format remains supported. For a reusable
+mapping, put `schema`, `columns`, and `inputs` in the intake file and omit
+`shifts`. Supply `--batches BATCHES.toml` with a separate file containing
+`schema = 1` and `shifts`. CSV paths in that mode are relative to the batch
+manifest. The output JSON still feeds the existing `compare --export` path.
+See the [handoff walkthrough](support-qa.md#hand-the-next-cutoff-to-another-analyst).
 
 ## SQLite selectors
 
@@ -230,3 +239,28 @@ Telryn writes observations into the existing report atomically and leaves the
 grading CSV as issued. It compares observed case mix, volume, and recorded
 workload with the named historical batch. Those differences inform the lead's
 decision. The import does not schedule reviews or change live routing.
+
+
+## Assess a matched pilot record
+
+Run `python3 -m telryn benchmark REPORT PILOT.json --format json`. The
+[version 1 example](../examples/support-qa/pilot-record.json) uses the saved
+report’s `comparison_id` and `decision_revision`, a calendar `decision_date`, a `comparator` label,
+`evidence` of `synthetic` or `observed`, and a positive
+`material_minutes_saved`. Optionally enter `policy_changes_last_year`. Use
+nonnegative whole minutes for each effort phase in `baseline` and `telryn`.
+
+The recorded `matched` conditions and the lead’s `equally_supported` judgment
+are operator attestations. Telryn verifies the comparison identity and grade revision, then checks
+that the required shifts replay and cross-checks are complete. Timing and
+payback remain unqualified without all matching conditions and an equally
+supported assessment. When there are positive recurring savings, time-based
+payback is the rounded-up number of changes to recover any incremental setup
+minutes. The annual-cadence field compares that number with the recorded
+preceding-year count.
+
+A lead may separately report serious misses overlooked by the comparator.
+Each ID must match a confirmed serious case losing review in the saved Telryn
+report. This finding can qualify on a matched comparison even when the two
+decisions had different support. The command prints an assessment and leaves
+the existing report and grading packet intact. See the [measurement protocol](evaluation.md#record-the-outcome-of-a-matched-benchmark).

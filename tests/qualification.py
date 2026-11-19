@@ -40,6 +40,8 @@ CASES = (
     "qa-sql",
     "qa-serious",
     "qa-shadow",
+    "qa-intake-reuse",
+    "qa-benchmark",
 )
 TUESDAY = "tuesday-am"
 SATURDAY = "saturday-am"
@@ -1222,6 +1224,136 @@ session.refresh(Path(sys.argv[1]), Path(sys.argv[2]), None)
         logged = observed["shadow_trials"]["time-partial"]["batches"]["week-2"]
         self.assertEqual(logged["unmeasured_picks"], 1)
         self.assertEqual(logged["staffing"], "Recorded time incomplete")
+
+    def test_qa_intake_reuse(self):
+        combined = self.qa_intake()
+        profile = self.root / "recipe" / "mapping.toml"
+        profile.parent.mkdir()
+        originals = (
+            ("eligible.csv", "eligible_id", "population_id"),
+            ("picks.csv", "picks_id", "assignment_id"),
+            ("cutoff-inputs.csv", "cutoff_id", "snapshot_id"),
+        )
+        definition = (QA / "mapping.toml").read_text()
+        aliases = "".join(f'{key} = "{header}"\n' for _, key, header in originals)
+        definition = definition.replace("[columns]\n", "[columns]\n" + aliases)
+        profile.write_text(definition)
+        fingerprint_before = profile.read_bytes()
+        for name, prefix in (("first-cutoff", "Q-"), ("second-cutoff", "R-")):
+            base = self.root / name
+            base.mkdir()
+            for filename, _, header in originals:
+                raw = (QA / filename).read_text().replace("conversation_id", header, 1)
+                (base / filename).write_text(raw.replace("Q-", prefix))
+            manifest = base / "batches.toml"
+            manifest.write_text((QA / "batches.toml").read_text().replace("Q-", prefix))
+            export = base / "reconciled.json"
+            status = json.loads(
+                self.cli(
+                    "preflight",
+                    profile,
+                    "--batches",
+                    manifest,
+                    "--out",
+                    export,
+                    "--format",
+                    "json",
+                )
+            )
+            self.assertTrue(status["ready"])
+            if prefix == "Q-":
+                self.assertEqual(combined.read_bytes(), export.read_bytes())
+            out, result = self.comparison(
+                name + "-report", QA / "comparison.toml", export=export
+            )
+            self.assertEqual(result["shifts"]["week-1"]["status"], "Replayable")
+            self.assertEqual(
+                load_report(out / "report.html")["shifts"]["week-1"]["live"],
+                [f"{prefix}{number:03}" for number in range(1, 9)],
+            )
+        self.assertEqual(profile.read_bytes(), fingerprint_before)
+        self.cli("preflight", QA / "intake.toml", "--batches", manifest, expected=2)
+        picks = base / "picks.csv"
+        (base / "eligible.csv").write_bytes(picks.read_bytes())
+        invalid = json.loads(
+            self.cli(
+                "preflight",
+                profile,
+                "--batches",
+                manifest,
+                "--format",
+                "json",
+                expected=1,
+            )
+        )
+        self.assertFalse(invalid["ready"])
+
+    def test_qa_benchmark(self):
+        export = self.qa_intake()
+        output, _ = self.comparison("benchmark", QA / "comparison.toml", export=export)
+        report = output / "report.html"
+        new = self.filled(
+            output, {("Q-005", "serious"): "meets"}, "benchmark-return.csv"
+        )
+        summary = self.refresh(output, new)
+        self.assertEqual(summary["recommendation"], "Hold")
+        synthetic = json.loads((QA / "pilot-record.json").read_text())
+        synthetic["comparison_id"] = summary["comparison_id"]
+        synthetic["decision_revision"] = summary["decision_revision"]
+        before = report.read_bytes()
+
+        def assess(data, expected=0):
+            measure = self.write_export(data, "measure.json")
+            return json.loads(
+                self.cli(
+                    "benchmark", report, measure, "--format", "json", expected=expected
+                )
+            )
+
+        result = assess(synthetic)
+        self.assertEqual(result["evidence"], "synthetic")
+        self.assertEqual(result["recurring_minutes_saved"], 120)
+        self.assertEqual(result["incremental_setup_minutes"], 360)
+        self.assertEqual(result["changes_to_recover_setup"], 3)
+        self.assertTrue(result["material_time_win"])
+        self.assertFalse(result["setup_recovered_at_recorded_annual_cadence"])
+
+        synthetic["material_minutes_saved"] = 121
+        self.assertFalse(assess(synthetic)["material_time_win"])
+        synthetic["lead_review"] = {
+            "equally_supported": False,
+            "baseline_missed_serious_cases": ["Q-005"],
+        }
+        unmatched = assess(synthetic)
+        self.assertFalse(unmatched["timing_comparable"])
+        self.assertIsNone(unmatched["recurring_minutes_saved"])
+        self.assertIsNone(unmatched["changes_to_recover_setup"])
+        self.assertEqual(unmatched["serious_misses_confirmed_by_lead"], ["Q-005"])
+        synthetic["matched"]["same_eligible_population"] = False
+        unfair = assess(synthetic)
+        self.assertEqual(unfair["unmatched_conditions"], ["same_eligible_population"])
+        self.assertEqual(unfair["serious_misses_confirmed_by_lead"], [])
+        synthetic["lead_review"]["baseline_missed_serious_cases"] = ["Q-006"]
+        self.assertIn("not confirmed", assess(synthetic, 2)["message"])
+        synthetic["lead_review"] = {"equally_supported": True}
+        synthetic["matched"]["same_eligible_population"] = True
+        synthetic["telryn"]["analyst_minutes"] = 200
+        slower = assess(synthetic)
+        self.assertLess(slower["recurring_minutes_saved"], 0)
+        self.assertIsNone(slower["changes_to_recover_setup"])
+        synthetic["telryn"]["reviewer_minutes"] = -1
+        self.assertEqual(assess(synthetic, 2)["status"], "execution_error")
+        synthetic["comparison_id"] = "another-comparison"
+        self.assertIn("different comparison", assess(synthetic, 2)["message"])
+        self.assertEqual(report.read_bytes(), before)
+        synthetic["comparison_id"] = summary["comparison_id"]
+        synthetic["telryn"]["reviewer_minutes"] = 25
+        disputed = self.filled(
+            output, {("Q-005", "serious"): "outside"}, "later-return.csv"
+        )
+        changed = self.refresh(output, disputed)
+        self.assertNotEqual(changed["decision_revision"], summary["decision_revision"])
+        self.assertIn("saved decision revision", assess(synthetic, 2)["message"])
 
 
 def qualify(case: str | None = None) -> int:

@@ -104,6 +104,42 @@ Use a separately observed consequential miss to assess value when time is
 similar. If the cadence or gain does not support repeat use, keep the release
 as OSS and pause broader product investment.
 
+### Record the outcome of a matched benchmark
+
+Before either arm starts, have the lead name the comparison, declare a
+material time saving in minutes, and confirm the matching conditions.
+Record active person-minutes in each arm for setup, analysis, grading,
+adjudication, and lead review. Assign each activity to one phase. Record
+policy changes in the last 12 months from dated decisions. Count changes to
+selection policy separately from audits performed.
+
+Copy the [pilot record](../examples/support-qa/pilot-record.json) to your
+local runs directory. After grading, put the report’s `comparison_id` and
+`decision_revision` in the record. If a new grade or adjudication changes
+the revision, check that the benchmark findings still apply before updating it.
+The included minutes and cadence are invented to demonstrate the calculation.
+Set `evidence` to `observed` for an actual team run. Populate the lead’s
+evidence judgment from their review. When the comparator overlooked a serious
+case, record its ID only after the lead confirms that it lost review under the
+candidate and was missing from the comparator’s findings.
+
+```sh
+python3 -m telryn explain runs/qa/report.html --format json
+python3 -m telryn benchmark runs/qa/report.html runs/pilot-record.json
+```
+
+Use the report after grading in [the support QA walkthrough](support-qa.md)
+to try the sample. With its fictional timings the equally supported result
+saves 120 recurring minutes and needs three policy changes to recover six
+hours of incremental setup. The sample team recorded two changes in the
+preceding year. That cadence falls short of first-year time-based payback
+if it continues.
+
+If the lead asks for help on a second dated change, test a fixed-fee review
+covering source mapping, the matched comparison, and a decision handoff.
+Record acceptance and payment separately from feedback. Use evidence from
+the second change to decide whether a maintained integration is worth building.
+
 ### What public evidence supports
 
 Monzo describes reducing its completed-conversation QA sampling rate over
