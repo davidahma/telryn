@@ -29,15 +29,40 @@ from .replay import SqlSelector, blocked, load_selector, replay_shift
 from .report import load_report, recommendation, render_report
 
 
-def compare(plan_path: Path, export_path: Path | None = None) -> dict:
+def compare(
+    plan_path: Path,
+    export_path: Path | None = None,
+    *,
+    proposal_path: Path | None = None,
+) -> dict:
     plan = load_plan(plan_path)
     base = plan_path.parent
     source = load_export(
         export_path if export_path is not None else base / plan["export"]
     )
+    candidate_base = base
+    proposal = None
+    if proposal_path is not None:
+        from .proposal import held_out
+
+        plan["candidate"], proposal = held_out(proposal_path, plan, source)
+        candidate_base = proposal_path.parent
+        # A weekly proposal must capture additional cases under the weekly rubric.
+        # The broader comparison's primary rubric could reward a minor defect.
+        policy = plan["serious"]
+        for key in ("rubric", "rubric_question"):
+            plan[key] = policy[key]
+        plan.pop("grades", None)
+        if "grades" in policy:
+            plan["grades"] = policy["grades"]
     with redirect_stdout(sys.stderr):
         live = load_selector(base, plan["live"])
-        candidate = load_selector(base, plan["candidate"])
+        candidate = load_selector(candidate_base, plan["candidate"])
+        if (
+            proposal_path is not None
+            and candidate.digest != plan["candidate"]["sql_sha256"]
+        ):
+            raise InputError("the proposal SQL changed while loading its selector")
         shifts = {
             name: replay_shift(
                 name,
@@ -87,7 +112,12 @@ def compare(plan_path: Path, export_path: Path | None = None) -> dict:
             "candidate": candidate.digest,
         },
     }
-    if policy := plan.get("serious"):
+    if proposal is not None:
+        state["weekly_proposal"] = proposal
+        state["serious_initial_grades"] = dict(grades)
+        state["excluded_serious_grading"] = excluded
+        state["frozen"]["serious_grades"] = grade_digest
+    elif policy := plan.get("serious"):
         serious_plan = {**plan, "rubric": policy["rubric"]}
         archived = base / policy["grades"] if "grades" in policy else None
         serious_grades, digest, serious_excluded = initial_grades(

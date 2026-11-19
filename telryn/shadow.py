@@ -9,6 +9,7 @@ from .contracts import (
     REPORT_SCHEMA,
     InputError,
     canonical,
+    fingerprint,
     integer,
     mapping,
     read_json,
@@ -62,6 +63,24 @@ def record(state: dict, path: Path, recommendation: dict) -> bool:
     batches = mapping(data.get("batches"), "shadow batches")
     if not batches:
         raise InputError("provide at least one observed batch")
+    proposal = state.get("weekly_proposal")
+    previous = set()
+    if proposal:
+        previous.update(proposal["prior_id_hashes"])
+        previous.update(
+            fingerprint(pick["id"])
+            for trial in trials.values()
+            for batch in trial["batches"].values()
+            for pick in batch["picks"]
+        )
+        latest = max(
+            timestamp(shift["cutoff"], "historical cutoff")
+            for shift in state["shifts"].values()
+        )
+        if observed_at <= latest:
+            raise InputError(
+                "weekly proposal shadow work must be observed after every held-out cutoff"
+            )
     observed_ids: set[str] = set()
     for name, batch in batches.items():
         string(name, "shadow batch name")
@@ -73,7 +92,8 @@ def record(state: dict, path: Path, recommendation: dict) -> bool:
             raise InputError(f"{name} must reference a replayable historical shift")
         if observed_at < timestamp(source["cutoff"], "historical cutoff"):
             raise InputError(f"{name} observation predates its historical cutoff")
-        for pick in sequence(batch.get("picks"), f"{name} ordered candidate picks"):
+        picks = sequence(batch.get("picks"), f"{name} ordered candidate picks")
+        for pick in picks:
             mapping(pick, "shadow pick")
             known_fields(pick, {"id", "cohort", "minutes"}, "pick")
             case = string(pick.get("id"), "observed case ID")
@@ -83,6 +103,16 @@ def record(state: dict, path: Path, recommendation: dict) -> bool:
             string(pick.get("cohort"), f"{case} cohort")
             if pick.get("minutes") is not None:
                 integer(pick["minutes"], f"{case} recorded minutes")
+            if proposal and (
+                fingerprint(case) in previous or pick.get("minutes") is None
+            ):
+                raise InputError(
+                    "weekly proposal shadows need new cases with measured review minutes"
+                )
+        if proposal and not any(pick["minutes"] for pick in picks):
+            raise InputError(
+                "weekly proposal shadows need observed review work for each batch"
+            )
     state.setdefault("shadow_trials", {})[trial_id] = data
     state.setdefault("shadow_decision_revisions", {})[trial_id] = recommendation[
         "decision_revision"

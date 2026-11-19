@@ -1,0 +1,36 @@
+schema = 1
+export = "held-out.json"
+required_shifts = ["monday"]
+minimum_additional_exceptions = 1
+rubric = "demo-material-handling-defect-v1"
+rubric_question = "Does the closed case show a material handling defect?"
+grades = "held-out-primary-grades.json"
+evidence_window_hours = 24
+workload_method = "Staged review durations in minutes"
+grading_budget = 4
+cross_checks_per_side = 0
+
+[live]
+engine = "sqlite"
+file = "live.sql"
+version = "priority-v1"
+tie_break = "id-asc"
+required_inputs = ["priority"]
+
+# Without --proposal the plan simply replays the same selector twice.
+[candidate]
+engine = "sqlite"
+file = "live.sql"
+version = "priority-v1"
+tie_break = "id-asc"
+required_inputs = ["priority"]
+
+[serious]
+max_lost = 0
+rubric = "demo-uk-fintech-account-takeover-v1"
+rubric_question = "Was reported account compromise closed without the escalation required by the example policy?"
+grades = "held-out-serious-grades.json"
+
+[shifts.monday]
+capacity = 2
+staff_minutes = 12

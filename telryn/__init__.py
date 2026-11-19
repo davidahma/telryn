@@ -1,3 +1,3 @@
-"""Compare frozen rules for scheduled human-review queues."""
+"""Audit unreviewed support cases and replay changes to a QA queue."""
 
-__version__ = "0.3.1"
+__version__ = "0.4.0"

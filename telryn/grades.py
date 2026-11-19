@@ -118,7 +118,8 @@ def add_packet(state: dict) -> None:
             ("primary", "loss", accepted, state["excluded_grading"], "outside"),
             ("primary", "gain", accepted, state["excluded_grading"], "meets"),
         ]
-        if serious is not None:
+        shared_rubric = "weekly_proposal" in state
+        if serious is not None and not shared_rubric:
             criteria.append(
                 (
                     "serious",
@@ -137,12 +138,17 @@ def add_packet(state: dict) -> None:
             controls.extend(
                 (case, refs, True, rubric) for case, refs in checked[:required]
             )
-            if rubric == "serious" and cap_open and both_possible:
+            if (
+                (rubric == "serious" or (shared_rubric and side == "loss"))
+                and cap_open
+                and both_possible
+            ):
                 serious_unknown.extend(
                     (case, refs, False, rubric)
                     for case, refs in rows
                     if refs and case not in known and case not in excluded
                 )
+                continue
             if rubric == "primary" and count_open and both_possible:
                 unknown.extend(
                     (case, refs, False, rubric)
@@ -319,7 +325,11 @@ def pending_reviews(events: list[dict]) -> tuple[dict | None, list[dict]]:
 
 def grade_status(state: dict) -> tuple[dict, dict, int, dict]:
     primary = dict(state["initial_grades"])
-    serious = dict(state.get("serious_initial_grades", {}))
+    serious = (
+        primary
+        if "weekly_proposal" in state
+        else dict(state.get("serious_initial_grades", {}))
+    )
     pending = state["cross_check_total"]
     status = {}
     for row_id, row in state["packet"].items():

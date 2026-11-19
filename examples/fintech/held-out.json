@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "shifts": {
+    "monday": {
+      "cutoff": "2026-11-09T12:00:00Z",
+      "membership": {
+        "source": "Staged eligible case ledger at cutoff",
+        "ids": [
+          "H01",
+          "H02",
+          "H03",
+          "H04"
+        ]
+      },
+      "requests": {
+        "H01": {
+          "revision": "r1",
+          "known_at": "2026-11-09T10:00:00Z",
+          "inputs": {
+            "priority": 95,
+            "screen_flag": false,
+            "screen_version": "synthetic-risk-events-v1"
+          },
+          "evidence": [
+            "example/H01"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "estimated"
+          },
+          "cohort": "Account"
+        },
+        "H02": {
+          "revision": "r1",
+          "known_at": "2026-11-09T10:00:00Z",
+          "inputs": {
+            "priority": 90,
+            "screen_flag": false,
+            "screen_version": "synthetic-risk-events-v1"
+          },
+          "evidence": [
+            "example/H02"
+          ],
+          "minutes": {
+            "lower": 4,
+            "upper": 4,
+            "basis": "estimated"
+          },
+          "cohort": "Account"
+        },
+        "H03": {
+          "revision": "r1",
+          "known_at": "2026-11-09T10:00:00Z",
+          "inputs": {
+            "priority": 60,
+            "screen_flag": true,
+            "screen_version": "synthetic-risk-events-v1"
+          },
+          "evidence": [
+            "example/H03"
+          ],
+          "minutes": {
+            "lower": 6,
+            "upper": 6,
+            "basis": "estimated"
+          },
+          "cohort": "Account"
+        },
+        "H04": {
+          "revision": "r1",
+          "known_at": "2026-11-09T10:00:00Z",
+          "inputs": {
+            "priority": 45,
+            "screen_flag": false,
+            "screen_version": "synthetic-risk-events-v1"
+          },
+          "evidence": [
+            "example/H04"
+          ],
+          "minutes": {
+            "lower": 3,
+            "upper": 3,
+            "basis": "estimated"
+          },
+          "cohort": "Account"
+        }
+      },
+      "capacity": 2,
+      "live_version": "priority-v1",
+      "tie_break": "id-asc",
+      "actual": [
+        "H01",
+        "H02"
+      ],
+      "mandatory": [
+        "H01"
+      ],
+      "overrides": []
+    }
+  }
+}

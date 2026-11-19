@@ -1,0 +1,11 @@
+case_id,revision,evidence_ref,screen_flag
+T01,r1,example/T01,false
+T02,r1,example/T02,true
+T03,r2,example/T03,true
+T04,r1,example/T04,true
+T05,r3,example/T05,true
+T06,r1,example/T06,true
+T07,r2,example/T07,false
+T08,r1,example/T08,false
+T09,r1,example/T09,false
+T10,r1,example/T10,false

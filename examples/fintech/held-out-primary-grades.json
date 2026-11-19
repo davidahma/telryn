@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "rubric": "demo-material-handling-defect-v1",
+  "grades": {
+    "H02": {
+      "grade": "outside",
+      "evidence": [
+        "example/H02"
+      ],
+      "evidence_at": "2026-11-09T13:00:00Z",
+      "shared_sources": true
+    },
+    "H03": {
+      "grade": "meets",
+      "evidence": [
+        "example/H03"
+      ],
+      "evidence_at": "2026-11-09T13:00:00Z",
+      "shared_sources": true
+    }
+  }
+}

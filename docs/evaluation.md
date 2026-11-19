@@ -205,3 +205,11 @@ The synthetic walkthrough covers intake, replay, grading, and a recorded
 shadow trial. The pilot requires teams with dated decisions and measured effort.
 Operator time, frequency of usable policy changes, and pricing remain
 questions for the pilot.
+
+## Evaluate the weekly audit with a QA lead
+
+Before either team sees the week, agree on one queue, its full eligible population, a serious-case rubric, the ordinary human-review cutoff, and the maximum total reviewer minutes. Have the comparison team use its native QA tools, saved searches, SQL and usual coding agent. Give both teams the same source access. Preserve each team's independently selected cases and account for overlap when comparing findings.
+
+Record each verified new case, independent review of its severity, the owner who accepted it and any action already under way through another control. Record analyst, reviewer and lead time for both workflows. Compare cases found at the same staff budget and show each estimate with its uncertainty. Monetary outcomes need a documented cost, an attributable action and an agreed counterfactual.
+
+A second week establishes whether the lead asks to use the report again and acts on its findings. For discovery, ask a QA lead to walk through the last serious case ordinary QA missed, how it surfaced, who acted and whether the same information was already available in the existing platform. Observe an authorized week before drawing conclusions about adoption, pricing or regulatory benefit.

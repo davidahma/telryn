@@ -1,0 +1,11 @@
+case_id,revision,evidence_ref,account_compromise,escalation_required,escalated,refund_promised,refund_recorded,legal_threat,complaint,complaint_logged
+T01,r1,example/T01,no,no,no,no,no,no,no,no
+T02,r1,example/T02,yes,yes,no,no,no,no,no,no
+T03,r2,example/T03,yes,yes,no,no,no,no,no,no
+T04,r1,example/T04,yes,yes,no,no,no,no,no,no
+T05,r3,example/T05,yes,yes,no,no,no,no,yes,yes
+T06,r1,example/T06,yes,yes,unknown,no,no,no,no,no
+T07,r2,example/T07,unknown,unknown,unknown,no,no,no,no,no
+T08,r1,example/T08,no,no,no,no,no,no,no,no
+T09,r1,example/T09,no,no,no,no,no,no,no,no
+T10,r1,example/T10,yes,yes,yes,no,no,no,no,no
