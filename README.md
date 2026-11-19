@@ -4,7 +4,7 @@
 
 A QA lead can see every ticket their team graded. The harder question is what happened in the conversations nobody opened. Telryn takes the conversations resolved or closed during the week and the record of ordinary human reviews, then draws a second sample from what was left out. It works with queues handled by people, AI support agents, or both.
 
-The lead gets a private HTML report with a weekly estimate and its uncertainty, the cases a reviewer actually confirmed, who owns each new finding, and how much review time it took. Reviewers get a separate CSV that hides the screen's prediction. A local model can read transcripts and cite the passages behind a screen flag. A second reviewer can challenge a grade. The lead can see how much the unresolved evidence could change the answer.
+The lead gets a private HTML report showing how many serious cases ordinary QA likely missed, how many may have escaped every other recorded control, and how much uncertainty remains. Each confirmed new finding has a case, an owner and a follow-up. Reviewers get a separate CSV that hides the screen's prediction. A local model can read transcripts and cite the passages behind a screen flag. A second reviewer can challenge a grade. The lead can see how much the unresolved evidence could change the answer.
 
 [Download Telryn](https://github.com/davidahma/telryn/releases/latest) · [Weekly audit guide](docs/weekly-qa.md) · [Integrations](docs/integrations.md) · [Apache-2.0](LICENSE) · [![CI](https://github.com/davidahma/telryn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/davidahma/telryn/actions/workflows/ci.yml)
 
@@ -32,7 +32,7 @@ Start the private browser desk on the QA lead's machine.
 python3 -m telryn desk --out runs/desk
 ```
 
-Choose the population and ordinary-review CSVs, then enter the rubric, available minutes and expected finding rate. **Preview sample** shows the allocation and likely interval width before you spend reviewer time. **Commit and create audit** records the design and issues the blinded grading CSV. Return grades, collect an independent second review, and resolve disagreements in the same desk. The signed report preserves the original answers and the final decision. The desk reopens saved audits from the same directory.
+Choose the population and ordinary-review CSVs, then enter the rubric, available minutes and expected finding rate. **Preview sample** shows the allocation and likely interval width before you spend reviewer time. **Commit and create audit** records the design and issues the blinded grading CSV. Return grades, collect an independent second review, and resolve disagreements in the same desk. The signed report preserves the original answers and the final decision. When a reviewer returns part of a packet, the desk shows what still needs a first grade, a better evidence record, or adjudication. Download just the unanswered assignments for the next reviewer. A saved audit that fails verification stays visible with recovery instructions.
 
 For a scheduled job, save the settings in a weekly plan and run one command. The example plan is ready to run.
 
@@ -53,6 +53,8 @@ Each sampled conversation stands for others drawn from the same group. If ordina
 
 For a single group of 5,000 conversations, grading 50 and finding none still leaves a 95% upper bound of **353 cases**. At 200 grades it drops to **89**. The planner makes that trade-off visible. If one grade is insufficient, the report shows the range under both possible answers. If a group had no chance of review, the report identifies the gap. Sample by channel, agent type or product when those distinctions matter to the decision. [Statistical methods](docs/statistics.md)
 
+A perfect screen score can come from two grades. Suppose ordinary QA left 50 flagged and 50 unflagged conversations. A reviewer grades one from each group. The flagged case is serious and the unflagged case is clear. The point estimates for precision, recall and agreement are all 100%. Their 95% ranges each span **2%–100%**. Telryn shows the ranges and denominators so the lead can judge whether the screen has earned that confidence.
+
 ## Check it against public data
 
 The Ubuntu Chat Logs Corpus contains 200 real technical-support dialogues with human labels for conversational friction and published GPT-4o flags. The demo simulates the ordinary QA selection of 40 conversations. The labels come from the researchers. You can repeat the audit offline.
@@ -68,7 +70,7 @@ In the 160 remaining conversations, the human annotators found friction in **86*
 
 The proposal searches the screen and recorded segments for groups with a higher rate of newly discovered serious findings. It can reserve review slots only when the lower bound for a group's rate exceeds the upper bound for the rest of the queue, after accounting for the groups searched. On weak evidence it declines to propose a change. A candidate still has to reproduce the historical live queue, preserve capacity and pass the staffing and serious-loss checks on a later batch. [Proposal and replay](docs/statistics.md)
 
-**Hold**, **Inconclusive**, and **Try in shadow** apply to the proposed rule. A shadow trial records what the candidate would pick alongside the live queue. The queue owner decides whether to adopt it. Teams with a rule already in mind can go straight to a comparison. [Worked support comparison](docs/support-qa.md) · [Comparison and historical report compatibility](docs/comparison.md) · [Refund queue example](docs/refund-walkthrough.md)
+**Hold**, **Inconclusive**, and **Try in shadow** apply to the proposed rule. A shadow trial records what the candidate would pick alongside the live queue. The queue owner decides whether to adopt it. If a source grade changes, the saved comparison retains its historical result. A new shadow decision requires the current signed evidence. A scheduled job can require that specific workflow with `explain REPORT --require-shadow --require-weekly-source`. Teams with a rule already in mind can go straight to a comparison. [Worked support comparison](docs/support-qa.md) · [Comparison and historical report compatibility](docs/comparison.md) · [Refund queue example](docs/refund-walkthrough.md)
 
 The audit and replay run locally. The team’s private trust store fixes the sampling key, records draws and verifies signed weekly reports. Preserve the key and registry together. Older weekly HTML remains available for explicit historical reading. [Audit trust and migration](docs/trust.md) · [Architecture and data flow](docs/architecture.md)
 

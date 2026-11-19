@@ -81,7 +81,7 @@ def assess(state: dict, path: Path) -> dict:
     baseline = recorded_effort(record.get("baseline"), "baseline")
     telryn = recorded_effort(record.get("telryn"), "telryn")
 
-    result = recommendation(state)
+    result = recommendation(state, require_current=True)
     if record.get("decision_revision") != result["decision_revision"]:
         raise InputError(
             "pilot record does not match the saved decision revision; verify the evidence before updating it"

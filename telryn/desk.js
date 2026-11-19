@@ -106,21 +106,65 @@ function displayDispute() {
   byId("answers").textContent = item ? "Primary: " + answerText(item.primary) + ". Second: " + answerText(item.second) + "." : "";
 }
 
+function progressText(work) {
+  const returned = work.assigned - work.primary_outstanding;
+  const counts = [returned + " of " + work.assigned + " primary grades returned"];
+  if (work.primary_outstanding) counts.push(work.primary_outstanding + " unanswered");
+  if (work.insufficient_undisputed) counts.push(work.insufficient_undisputed + " insufficient");
+  if (work.open_disputes) counts.push(work.open_disputes + " awaiting adjudication");
+  if (work.handling_unknown) counts.push(work.handling_unknown + " with prior handling unknown");
+  return counts.join(" · ");
+}
+
+function displayFollowUp(items) {
+  const section = byId("follow-up");
+  const body = section.querySelector("tbody");
+  body.replaceChildren();
+  for (const item of items) {
+    const row = document.createElement("tr");
+    const reason = item.reason === "insufficient_evidence" ? "Insufficient evidence" : "Prior handling unknown";
+    const route = item.route === "primary_amendment" ? "First reviewer amends primary grade" : "New independent review";
+    for (const value of [item.case_id, item.revision, item.evidence_ref, item.completed_at || "Not supplied",
+        reason, item.primary_reviewer || "Not recorded", route]) {
+      row.append(textNode("td", value));
+    }
+    body.append(row);
+  }
+  section.hidden = !items.length;
+}
+
 async function selectRun(id) {
+  if (active !== id) {
+    grade.reset();
+    resolution.reset();
+  }
   active = id;
-  byId("current").hidden = false;
-  byId("report").href = id + "/report.html";
-  byId("packet").href = id + "/grades.csv";
-  location.hash = id;
+  byId("current").hidden = true;
+  if (location.hash !== "#" + id) window.history.pushState(null, "", "#" + id);
   resolution.hidden = true;
   byId("agreement").textContent = "";
   const status = await request(id + "/review");
   if (active !== id) return;
+  byId("current-title").textContent = status.week + " · " + status.rubric;
+  byId("progress").textContent = progressText(status.progress);
+  byId("report").href = id + "/report.html";
+  byId("packet").href = id + "/grades.csv";
+  byId("outstanding").href = id + "/outstanding.csv";
+  byId("outstanding").hidden = !status.progress.primary_outstanding;
+  const steps = [];
+  if (status.progress.primary_outstanding) steps.push("Send unanswered assignments to the next primary reviewer.");
+  if (status.progress.insufficient_undisputed) steps.push("Check the evidence for insufficient grades and return corrections against the original rows.");
+  if (status.progress.open_disputes) steps.push("Ask an independent adjudicator to resolve the disagreements below.");
+  if (status.progress.handling_unknown) steps.push("Check whether another control had already found the cases with unknown prior handling.");
+  byId("next-step").textContent = steps.join(" ");
+  byId("next-step").hidden = !steps.length;
+  displayFollowUp(status.follow_up);
   byId("agreement").textContent = status.compared ? "Independent reviewers agreed on severity for " + status.agreed + " of " + status.compared + " definite pairs." : "";
   disputes = status.open_disputes;
   resolution.elements.dispute.replaceChildren(...disputes.map((item, index) => new Option(item.case_id, index)));
   resolution.hidden = !disputes.length;
   displayDispute();
+  byId("current").hidden = false;
 }
 
 async function historyList() {
@@ -128,13 +172,22 @@ async function historyList() {
   const runs = await request("audits");
   list.replaceChildren();
   for (const run of runs) {
-    const link = textNode("a", run.week + " · " + run.rubric + " · " + run.id.slice(0, 6));
-    link.href = "#" + run.id;
-    link.addEventListener("click", () => selectRun(run.id).then(() => byId("current").scrollIntoView()).catch(showError));
     const item = document.createElement("li");
-    item.append(link);
+    if (run.verified) {
+      const link = textNode("a", run.week + " · " + run.rubric + " · " + run.id.slice(0, 6));
+      link.href = "#" + run.id;
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        selectRun(run.id).then(() => byId("current").scrollIntoView()).catch(showError);
+      });
+      item.append(link, textNode("div", progressText(run.progress)));
+    } else {
+      item.textContent = "Unavailable audit · " + run.id;
+    }
     list.append(item);
   }
+  byId("recovery").hidden = runs.every((run) => run.verified);
+  if (!byId("recovery").hidden) byId("history").open = true;
   byId("history").hidden = !runs.length;
 }
 
@@ -189,4 +242,13 @@ byId("mode").addEventListener("change", setMode);
 setMode();
 loadRubrics().catch(showError);
 historyList().catch(showError);
-if (/^#[a-f0-9]{24}$/.test(location.hash)) selectRun(location.hash.slice(1)).catch(showError);
+function resumeFromLocation() {
+  if (/^#[a-f0-9]{24}$/.test(location.hash)) {
+    selectRun(location.hash.slice(1)).catch(showError);
+  } else {
+    active = "";
+    byId("current").hidden = true;
+  }
+}
+window.addEventListener("hashchange", resumeFromLocation);
+resumeFromLocation();

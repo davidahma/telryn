@@ -19,6 +19,7 @@ from . import (
     screen,
     weekly,
     weekly_report,
+    weekly_review,
 )
 from .contracts import InputError, canonical
 from .decision import SHADOW
@@ -37,6 +38,11 @@ def _result_flags(parser: argparse.ArgumentParser, *, gate: bool = True) -> None
             "--require-shadow",
             action="store_true",
             help="exit 1 unless the recommendation is Try in shadow",
+        )
+        parser.add_argument(
+            "--require-weekly-source",
+            action="store_true",
+            help="with --require-shadow, require a current comparison derived from a signed weekly proposal",
         )
 
 
@@ -59,6 +65,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     action.add_argument(
         "--grades", type=Path, help="import a returned weekly grading CSV"
+    )
+    action.add_argument(
+        "--outstanding",
+        type=Path,
+        metavar="CSV",
+        help="write a new blinded packet containing only assignments without a primary return",
     )
     action.add_argument(
         "--digest", action="store_true", help="print an aggregate email digest"
@@ -178,6 +190,8 @@ def _print(result: dict, path: Path, *, output_format: str) -> None:
         print(canonical(result))
         return
     prefix = "Historical report · " if result["legacy_report"] else ""
+    if (result.get("weekly_source") or {}).get("status") == "historical_snapshot":
+        prefix = "Frozen weekly proposal · " + prefix
     print(
         f"{prefix}{result['recommendation']}  ·  net additional exceptions {signed_range(result['bounds'])}"
     )
@@ -252,7 +266,7 @@ def preflight(args: argparse.Namespace) -> int:
 
 
 def pilot_benchmark(args: argparse.Namespace) -> int:
-    result = benchmark.assess(load_report(args.report), args.record)
+    result = benchmark.assess(load_report(args.report, recover=True), args.record)
     if args.format == "json":
         print(canonical(result))
         return 0
@@ -294,6 +308,14 @@ def weekly_audit(args: argparse.Namespace) -> int:
     state = weekly_report.review_action(args)
     if args.out:
         path = weekly_report.start(path, args.out)
+    elif args.outstanding is not None:
+        export = weekly_report.export_outstanding(path, args.outstanding)
+        print(
+            canonical(export)
+            if args.format == "json"
+            else f"{export['primary_outstanding']} assignments await a first grade. Packet: {terminal_text(args.outstanding)}"
+        )
+        return 0
     elif args.grades:
         state = weekly_report.refresh(path, args.grades, reviewer=args.reviewer)
     elif args.propose:
@@ -321,6 +343,7 @@ def weekly_audit(args: argparse.Namespace) -> int:
         state = weekly_report.read_state(path, allow_legacy=args.legacy)
     result = weekly.summarize(state)
     result["review"] = weekly_report.review_status(state)
+    result["workload"] = weekly_review.workload(state)
     result["verification"] = (
         "team_hmac_verified" if "draw_commitment" in state else "historical_unsigned"
     )
@@ -335,6 +358,8 @@ def weekly_audit(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if getattr(args, "require_weekly_source", False) and not args.require_shadow:
+            raise InputError("--require-weekly-source requires --require-shadow")
         if args.command == "desk":
             from .desk import serve
 
@@ -369,13 +394,21 @@ def main(argv: list[str] | None = None) -> int:
 
             return qualify(args.case)
         if args.command == "compare":
+            if args.require_weekly_source and args.proposal is None:
+                raise InputError("this gate requires a signed weekly proposal")
             state = compare(args.definition, args.export, proposal_path=args.proposal)
             report = publish(args.out, state)
         elif args.command == "explain":
             report = args.report
-            state = load_report(report)
+            state = load_report(report, recover=args.require_shadow)
         else:
             report = args.report
+            if args.require_weekly_source and "weekly_proposal" not in load_report(
+                report, recover=True
+            ):
+                raise InputError(
+                    "this gate requires a comparison derived from a signed weekly proposal"
+                )
             if args.minutes is not None and args.adjudicate is None:
                 raise InputError(
                     "--minutes applies to an adjudication; use minutes_spent in a grade return"
@@ -393,7 +426,11 @@ def main(argv: list[str] | None = None) -> int:
                 review_id=args.review_id,
                 expected_review_set=args.review_set,
             )
-        result = recommendation(state)
+        if args.require_weekly_source and "weekly_proposal" not in state:
+            raise InputError(
+                "this gate requires a comparison derived from a signed weekly proposal"
+            )
+        result = recommendation(state, require_current=args.require_shadow)
         _print(result, report, output_format=args.format)
         return int(args.require_shadow and result["recommendation"] != SHADOW)
     except (OSError, ValueError, csv.Error, OverflowError) as exc:

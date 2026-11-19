@@ -41,6 +41,22 @@ The fresh run writes a self-contained `report.html` for the lead and a blind `gr
 
 Leave unanswered rows blank in a partial return. More evidence can resolve an insufficient answer. If an accepted yes or no was wrong, ask a second person to grade the same blinded packet independently. Import with `--second-review returned.csv --reviewer REVIEWER_ID`. A disagreement opens a dispute. A third person selects the accepted answer and records their reason and minutes. The report preserves both answers, shows reviewer agreement and recomputes its bounds. [Correction and adjudication commands](trust.md)
 
+### Pick up a partly graded week
+
+Open **Open a saved audit** in the desk. Each verified entry shows the week, rubric, and how many primary grades have come back. Choose **Download unanswered assignments** to send the next reviewer only cases that still lack a first return. The rows keep their original audit IDs, case revisions, cutoffs and blank answer fields. They can be returned through the same grade import. For an independent second review, use **Download full blind packet**.
+
+The history counts insufficient returns, open disputes and serious findings with unknown prior handling separately. An insufficient return calls for more evidence. A dispute calls for adjudication. An unknown prior disposition calls for checking the other controls. These cases already have primary grades.
+
+Open the private audit to see **Cases needing follow-up**. For each case, the table gives the evidence reference, revision, any completion cutoff, the first reviewer and the review round to use. Before a second review, the original reviewer can amend the primary row and include cumulative minutes. After an independent check, ask a new independent reviewer to complete the same row in the full blind packet and import it as a second review. If the answers conflict, the case appears under **Resolve a disagreement**. Give reviewers their blind packet and authorized source access. The lead keeps the follow-up table private.
+
+The CLI can export the same outstanding rows from a saved report. Use a fresh path for each handoff. A header-only file means every assignment has a primary return.
+
+```sh
+python3 -m telryn weekly runs/2026-11-02/report.html --outstanding unanswered.csv
+```
+
+If a saved audit cannot be verified, history lists its directory ID and withholds the report and grading links. Restore the latest signed report and its matching team trust store, then reload the desk. The original rubric and grading progress reappear after verification succeeds. [Trust and recovery](trust.md)
+
 ## What the estimate measures
 
 The unit is a conversation that met the team's eligibility definition and had no routine human QA review. The outcome is a human-confirmed finding under the frozen rubric. The total includes cases another control already discovered. The follow-up table distinguishes those from newly discovered cases. Estimated counts cannot identify individual unsampled cases.
@@ -84,3 +100,5 @@ Once the graders have resolved the findings, run `weekly REPORT --propose DIRECT
 ## Keep weekly reports readable
 
 Weekly reports issued from v0.5 use a signed version-2 envelope. The CLI verifies the report bytes and revision against the local team's key and registry. The browser desk serves verified report bytes. An HTML file opened directly is a static view. For a v0.4 unsigned report, use `weekly REPORT --legacy` for an explicitly historical reading. Restore original source evidence, the audit directory, and the matching trust store to resume a signed audit. Keep customer exports, checkpoints and sent digests under your organization's retention policy. [Audit trust and corrections](trust.md) · [Historical comparison reports](comparison.md#grading-and-recovery)
+
+An existing signed v0.5 HTML report keeps its original display. Use `python3 -m telryn weekly REPORT --digest` or `--format json` to read the current calculations from its saved grades. The next accepted grade changes the signed revision and refreshes the display.

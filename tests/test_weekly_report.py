@@ -1,17 +1,29 @@
 """Exercise the weekly lead/reviewer handoff, local updates and opt-in mail."""
 
 import csv
+import io
 import json
 import os
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
 from telryn.contracts import InputError
+from telryn.__main__ import main
 from telryn.weekly_mail import send_digest
-from telryn.weekly_report import COLUMNS, STATE_OPEN, digest, read_state, refresh, start
+from telryn.weekly_report import (
+    COLUMNS,
+    STATE_OPEN,
+    digest,
+    read_state,
+    refresh,
+    second_review,
+    start,
+)
+from telryn.weekly_review import workload
 
 
 class WeeklyReportTests(unittest.TestCase):
@@ -122,6 +134,92 @@ unflagged_sample = 2
         self.assertIn("1 newly found, 1 already known", output)
         self.assertIn("10 review minutes", output)
         self.assertNotIn("private-", output)
+
+    def test_resume_partial_primary_returns_preserves_blinding_and_disputes(self):
+        first, second, third = self.rows
+        original = self.report.with_name("grades.csv").read_bytes()
+        refresh(
+            self.report,
+            self.packet(
+                [
+                    {
+                        **first,
+                        "serious": "insufficient",
+                        "disposition": "unknown",
+                        "minutes": "2",
+                    },
+                    {**second, "serious": "no", "disposition": "none", "minutes": "3"},
+                ]
+            ),
+            reviewer="A",
+        )
+        state = second_review(
+            self.report,
+            self.packet(
+                [
+                    {
+                        **second,
+                        "serious": "yes",
+                        "disposition": "new",
+                        "owner": "lead",
+                        "action": "Review handoff",
+                        "minutes": "2",
+                    }
+                ]
+            ),
+            reviewer="B",
+        )
+        self.assertEqual(
+            workload(state),
+            {
+                "primary_outstanding": 1,
+                "open_disputes": 1,
+                "insufficient_undisputed": 1,
+                "handling_unknown": 0,
+                "assigned": 3,
+            },
+        )
+        html = self.report.read_text().split(STATE_OPEN)[0]
+        panel = html.split("Cases needing follow-up (1)")[1].split("</details>")[0]
+        self.assertIn("@private-ref", panel)
+        self.assertIn("Original reviewer amends primary grade", panel)
+        self.assertNotIn("internal-b", panel)
+        self.assertNotIn("@private-ref", digest(self.report))
+
+        def issue(target, expected):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(
+                    main(
+                        [
+                            "weekly",
+                            str(self.report),
+                            "--outstanding",
+                            str(target),
+                            "--format",
+                            "json",
+                        ]
+                    ),
+                    expected,
+                )
+            return json.loads(output.getvalue())
+
+        pending = self.run / "pending.csv"
+        self.assertEqual(issue(pending, 0)["primary_outstanding"], 1)
+        self.assertEqual(pending.stat().st_mode & 0o777, 0o600)
+        with pending.open(encoding="utf-8-sig") as stream:
+            self.assertEqual(list(csv.DictReader(stream)), [third])
+        self.assertEqual(issue(pending, 2)["status"], "execution_error")
+        grade = {**third, "serious": "no", "disposition": "none", "minutes": "5"}
+        state = refresh(self.report, self.packet([grade]), reviewer="C")
+        self.assertEqual(workload(state)["primary_outstanding"], 0)
+        empty = self.run / "complete.csv"
+        self.assertEqual(issue(empty, 0)["primary_outstanding"], 0)
+        with empty.open(encoding="utf-8-sig") as stream:
+            reader = csv.DictReader(stream)
+            self.assertEqual(tuple(reader.fieldnames), COLUMNS)
+            self.assertEqual(list(reader), [])
+        self.assertEqual(self.report.with_name("grades.csv").read_bytes(), original)
 
     def test_resolving_prior_handling_preserves_all_returns(self):
         row = self.rows[1]

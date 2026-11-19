@@ -54,6 +54,7 @@ class WeeklyWorkflow(unittest.TestCase):
         reported = json.loads(stdout.getvalue())
         self.assertEqual(reported.pop("verification"), "team_hmac_verified")
         self.assertEqual(reported.pop("review")["compared"], 0)
+        self.assertEqual(reported.pop("workload")["primary_outstanding"], 0)
         self.assertEqual(reported, result)
         stderr = io.StringIO()
         with redirect_stderr(stderr):
@@ -75,6 +76,30 @@ class WeeklyWorkflow(unittest.TestCase):
         state = read_state(path, allow_legacy=True)
         self.assertEqual(state["schema"], 1)
         self.assertEqual(weekly.summarize(state)["interval"], [1, 1])
+
+    def test_proposal_only_gate_rejects_a_manual_shadow_qualified_report(self):
+        example = (
+            Path(__file__).resolve().parents[1] / "examples" / "refunds" / "shadow.toml"
+        )
+        report = self.base / "manual"
+
+        def invoke(args, expected):
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(main([*map(str, args), "--format", "json"]), expected)
+            return json.loads(output.getvalue())
+
+        gate = ["--require-shadow", "--require-weekly-source"]
+        invoke(["compare", example, "--out", report, *gate], 2)
+        self.assertFalse(report.exists())
+        qualified = invoke(["compare", example, "--out", report, "--require-shadow"], 0)
+        self.assertEqual(qualified["recommendation"], "Try in shadow")
+        path = report / "report.html"
+        self.assertIn("weekly proposal", invoke(["explain", path, *gate], 2)["message"])
+        self.assertIn(
+            "--require-shadow",
+            invoke(["explain", path, "--require-weekly-source"], 2)["message"],
+        )
 
     def events(self):
         events = self.base / "events.csv"

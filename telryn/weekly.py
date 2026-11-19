@@ -13,6 +13,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import date
 from fractions import Fraction
+from functools import cache
 from pathlib import Path
 
 from .contracts import (
@@ -553,114 +554,182 @@ def _interval(size: int, sample: int, found: int, strata: int) -> tuple[int, int
     )
 
 
+def _count_evidence(strata, positives, determinate, limits, uncertain):
+    """Estimate one binary outcome, treating every unresolved grade both ways."""
+    groups = {}
+    lower = upper = 0
+    weighted_low = weighted_high = Fraction(0)
+    kind = "complete"
+    for name, info in strata.items():
+        size, sample = info["population"], info["sample"]
+        found, graded = positives[name], determinate[name]
+        possible = found + sample - graded
+        cell_kind = "complete" if found == possible else "incomplete"
+        if size and not sample:
+            kind = cell_kind = "uncovered"
+            estimate_range, lo, hi = None, 0, size
+        else:
+            if cell_kind == "incomplete" and kind == "complete":
+                kind = "incomplete"
+            low = Fraction(size * found, sample) if sample else Fraction(0)
+            high = Fraction(size * possible, sample) if sample else Fraction(0)
+            weighted_low += low
+            weighted_high += high
+            estimate_range = [float(low), float(high)]
+            lo, hi = limits(size, sample, found, uncertain)
+            if possible != found:
+                _, hi = limits(size, sample, possible, uncertain)
+        lower += lo
+        upper += hi
+        groups[name] = {
+            "label": cell_label(name, info),
+            "confirmed": found,
+            "graded": graded,
+            "range_kind": cell_kind,
+            "estimate_range": estimate_range,
+            "interval": [lo, hi],
+        }
+    return {
+        "estimate": float(weighted_low) if kind == "complete" else None,
+        "estimate_range": None
+        if kind == "uncovered"
+        else [float(weighted_low), float(weighted_high)],
+        "interval": [lower, upper],
+        "range_kind": kind,
+    }, groups
+
+
+def _ratio_evidence(estimate, denominator, interval):
+    low, high = denominator
+    return {
+        "estimate": estimate,
+        "interval": interval if high else None,
+        "denominator": [low, high],
+        "denominator_status": "zero"
+        if high == 0
+        else ("possibly_zero" if low == 0 else "nonzero"),
+    }
+
+
+def _screen_metrics(strata, groups, complete):
+    """Transform the joint serious-count bounds into ranges for each screen measure."""
+    population, lower, upper, estimated = Counter(), Counter(), Counter(), Counter()
+    flagged_complete = True
+    for name, cell in strata.items():
+        flag = cell_flag(name, cell)
+        size, sampled = cell["population"], cell["sample"]
+        group = groups[name]
+        low, high = group["interval"]
+        population[flag] += size
+        lower[flag] += low
+        upper[flag] += high
+        if flag and group["range_kind"] != "complete":
+            flagged_complete = False
+        if sampled and group["range_kind"] == "complete":
+            estimated[flag] += Fraction(size * group["confirmed"], sampled)
+    flagged, unflagged = population[True], population[False]
+    total = flagged + unflagged
+    tp_low, tp_high = lower[True], upper[True]
+    fn_low, fn_high = lower[False], upper[False]
+    actual_low, actual_high = tp_low + fn_low, tp_high + fn_high
+    precision = agreement = recall = None
+    precision_range = agreement_range = recall_range = None
+    if flagged:
+        precision_range = [tp_low / flagged, tp_high / flagged]
+        if flagged_complete:
+            precision = float(estimated[True] / flagged)
+    if total:
+        agreement_range = [
+            (tp_low + unflagged - fn_high) / total,
+            (tp_high + unflagged - fn_low) / total,
+        ]
+        if complete:
+            agreement = float((estimated[True] + unflagged - estimated[False]) / total)
+    if actual_high:
+        # Recall is conditional on at least one true positive or false negative.
+        # At a zero corner, all feasible nonzero denominators are on the other axis.
+        recall_range = [
+            tp_low / (tp_low + fn_high) if tp_low + fn_high else 1.0,
+            tp_high / (tp_high + fn_low) if tp_high + fn_low else 0.0,
+        ]
+        if complete and estimated.total():
+            recall = float(estimated[True] / estimated.total())
+    return {
+        "precision": _ratio_evidence(precision, (flagged, flagged), precision_range),
+        "agreement": _ratio_evidence(agreement, (total, total), agreement_range),
+        "recall": _ratio_evidence(recall, (actual_low, actual_high), recall_range),
+    }
+
+
 def summarize(state: dict) -> dict:
-    """Bound residual totals across all possible completions of the sampled grades."""
+    """Estimate severity, previously undiscovered findings and classifier performance."""
     cases, grades = validate_state(state)
+    found, determinate = Counter(), Counter()
+    new, classified = Counter(), Counter()
     confirmed = Counter()
-    found_by_stratum: Counter = Counter()
-    determinate: Counter = Counter()
     dims = state.get("group_by", [])
-    insufficient = minutes = 0
+    minutes = 0
     for case, grade in grades.items():
         minutes += grade["minutes"]
         cell = _stratum(cases[case], dims)
-        if grade["serious"] is not None:
-            determinate[cell] += 1
         if grade["serious"] is None:
-            insufficient += 1
-        elif grade["serious"]:
-            confirmed[grade["disposition"]] += 1
-            found_by_stratum[cell] += 1
-    graded = len(grades) - insufficient
-    result = {
+            continue
+        determinate[cell] += 1
+        if grade["serious"]:
+            disposition = grade["disposition"]
+            confirmed[disposition] += 1
+            found[cell] += 1
+            if disposition == "unknown":
+                continue
+            if disposition == "new":
+                new[cell] += 1
+        classified[cell] += 1
+
+    strata = state["strata"]
+    uncertain = sum(0 < s["sample"] < s["population"] for s in strata.values())
+    # Reuse identical tail inversions across both outcomes in this report.
+    limits = cache(_interval)
+    severity, groups = _count_evidence(strata, found, determinate, limits, uncertain)
+    newly_found, _ = _count_evidence(strata, new, classified, limits, uncertain)
+    reason = None
+    if severity["range_kind"] == "uncovered":
+        # Preserve the historical contract for the primary whole-population estimate.
+        severity["interval"] = None
+        reason = "A nonempty stratum had zero probability of review."
+    elif severity["range_kind"] == "incomplete":
+        reason = "Some selected cases still lack a determinate human grade."
+    metrics = None
+    if state["screen_version"] != "none":
+        metrics = _screen_metrics(strata, groups, severity["range_kind"] == "complete")
+    graded = determinate.total()
+    return {
         "population": state["population_count"],
         "reviewed": state["reviewed_count"],
         "unreviewed": state["population_count"] - state["reviewed_count"],
         "assigned": len(cases),
         "graded": graded,
-        "insufficient": insufficient,
+        "insufficient": len(grades) - graded,
         "confirmed_serious": confirmed.total(),
         "new": confirmed["new"],
         "already_known": confirmed["already_known"],
         "unknown": confirmed["unknown"],
         "review_minutes": minutes,
-        "estimate": None,
-        "interval": None,
+        **severity,
         "confidence": 0.95,
-        "estimate_reason": None,
-        "estimate_range": None,
-        "range_kind": "complete",
-        "stratum_results": {},
+        "estimate_reason": reason,
+        "stratum_results": groups,
         "coverage": state.get("coverage"),
         "draw_commitment": state.get("draw_commitment"),
-        "agreement": None,
-        "precision": None,
-        "recall": None,
+        "new_findings": {
+            **newly_found,
+            "classified": classified.total(),
+            "confirmed": confirmed["new"],
+        },
+        "screen_metrics": metrics,
+        **{
+            k: metrics[k]["estimate"]
+            if metrics and severity["range_kind"] == "complete"
+            else None
+            for k in ("agreement", "precision", "recall")
+        },
     }
-    if any(s["population"] and not s["sample"] for s in state["strata"].values()):
-        result["range_kind"] = "uncovered"
-        result["estimate_reason"] = "A nonempty stratum had zero probability of review."
-    elif graded != len(cases):
-        result["estimate_reason"] = (
-            "Some selected cases still lack a determinate human grade."
-        )
-
-    uncertain = sum(0 < s["sample"] < s["population"] for s in state["strata"].values())
-    estimated = Counter()
-    weighted_low = weighted_high = Fraction(0)
-    lower = upper = 0
-    populations = Counter()
-    for group, info in state["strata"].items():
-        size, sample = info["population"], info["sample"]
-        found = found_by_stratum[group]
-        observation = {
-            "label": cell_label(group, info),
-            "confirmed": found,
-            "graded": determinate[group],
-        }
-        if size and not sample:
-            result["stratum_results"][group] = {
-                **observation,
-                "range_kind": "uncovered",
-                "estimate_range": None,
-                "interval": [0, size],
-            }
-            continue
-        possible = found + sample - determinate[group]
-        low = Fraction(size * found, sample) if sample else Fraction(0)
-        high = Fraction(size * possible, sample) if sample else Fraction(0)
-        weighted_low += low
-        weighted_high += high
-        flag = cell_flag(group, info)
-        estimated[flag] += low
-        populations[flag] += size
-        lo, hi = _interval(size, sample, found, uncertain)
-        if possible != found:
-            _, hi = _interval(size, sample, possible, uncertain)
-        result["stratum_results"][group] = {
-            **observation,
-            "range_kind": "incomplete" if possible != found else "complete",
-            "estimate_range": [float(low), float(high)],
-            "interval": [lo, hi],
-        }
-        lower, upper = lower + lo, upper + hi
-    if result["range_kind"] == "uncovered":
-        return result
-    result["estimate_range"] = [float(weighted_low), float(weighted_high)]
-    result["interval"] = [lower, upper]
-    if graded != len(cases):
-        result["range_kind"] = "incomplete"
-        return result
-    serious = weighted_low
-    result["estimate"] = float(serious)
-    if state["screen_version"] == "none":
-        return result
-    flagged, unflagged = populations[True], populations[False]
-    if flagged:
-        result["precision"] = float(estimated[True] / flagged)
-    if serious:
-        result["recall"] = float(estimated[True] / serious)
-    if result["unreviewed"]:
-        correct = estimated[True] + unflagged - estimated[False]
-        result["agreement"] = float(correct / result["unreviewed"])
-    return result

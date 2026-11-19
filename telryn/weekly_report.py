@@ -97,8 +97,59 @@ def _uncertainty(result: dict, label: str = "serious failures") -> str:
     return f"The 95% sampling interval is {lower:,} to {upper:,} {label}."
 
 
-def _metrics(value: float | None) -> str:
-    return "Unavailable" if value is None else f"{value:.1%}"
+def _new_finding_line(result: dict) -> str:
+    outcome = result["new_findings"]
+    low, high = outcome["interval"]
+    if outcome["range_kind"] == "uncovered":
+        return (
+            "A group received no reviews. Including every possible outcome for that group, "
+            f"the 95% range for findings new to the team is {low:,} to {high:,}."
+        )
+    if outcome["estimate"] is None:
+        best, worst = outcome["estimate_range"]
+        return (
+            f"Estimated findings new to the team · {best:,.1f} to {worst:,.1f} depending on unresolved "
+            f"grades and prior handling. Including sampling uncertainty, the 95% range is {low:,} to {high:,}."
+        )
+    point = f"{outcome['estimate']:,.1f}".removesuffix(".0")
+    return f"Estimated findings new to the team · {point}. The 95% range is {low:,} to {high:,}."
+
+
+def _screen_bounds(metric: dict) -> str:
+    interval = metric["interval"]
+    if interval is None:
+        return "undefined (zero denominator)"
+    bounds = f"{interval[0]:.1%}–{interval[1]:.1%}"
+    if metric["denominator_status"] == "possibly_zero":
+        bounds += " if any positives exist"
+    return bounds
+
+
+def _screen_table(metrics: dict | None) -> str:
+    if metrics is None:
+        return "<p>This audit used no screen.</p>"
+    rows = []
+    for key, label in (
+        ("precision", "Flagged cases meeting the rubric (precision)"),
+        ("recall", "Positive cases the screen flagged (recall)"),
+        ("agreement", "Screen agrees with human grade"),
+    ):
+        metric = metrics[key]
+        point = metric["estimate"]
+        low, high = metric["denominator"]
+        denominator = f"{low:,}" if low == high else f"{low:,}–{high:,}"
+        point_text = "Unavailable" if point is None else f"{point:.1%}"
+        rows.append(
+            f"<tr><th>{label}</th><td>{point_text}</td><td>{_screen_bounds(metric)}</td><td>{denominator}</td></tr>"
+        )
+    return (
+        '<div class="table" tabindex="0"><table><thead><tr><th>Measure</th><th>Weighted estimate</th>'
+        "<th>95% range</th><th>Denominator (cases)</th></tr></thead><tbody>"
+        + "".join(rows)
+        + "</tbody></table></div><p>These ranges describe this week's conversations outside ordinary QA. "
+        "Recall uses the estimated number of positive cases as its denominator. "
+        "Unknown grades and unsampled groups can widen the ranges.</p>"
+    )
 
 
 def _digest_lines(state: dict, result: dict) -> list[str]:
@@ -106,16 +157,24 @@ def _digest_lines(state: dict, result: dict) -> list[str]:
     demo = state.get("finding_label") == "conversations with friction"
     label = "conversations with friction" if demo else "serious failures"
     confirmed = "confirmed friction labels" if demo else "confirmed serious"
+    workload = weekly_review.workload(state)
     lines = [
         f"Telryn weekly support QA · {state['week']}",
         _estimate(result, label),
         _uncertainty(result, label),
+        _new_finding_line(result),
         f"{result['confirmed_serious']} {confirmed} in the sample. {result['new']} newly found, "
         f"{result['already_known']} already known, {result['unknown']} with prior handling unknown.",
         f"{result['graded']} of {result['assigned']} assignments have a determinate grade. "
-        f"{result['insufficient']} returned with insufficient evidence. {result['review_minutes']} review minutes recorded.",
+        f"{workload['primary_outstanding']} await a first return. {workload['insufficient_undisputed']} returned "
+        f"with insufficient evidence. {workload['open_disputes']} need adjudication. {result['review_minutes']} review minutes recorded.",
         f"Ordinary QA reviewed {result['reviewed']} of {result['population']} eligible conversations.",
     ]
+    if metrics := result["screen_metrics"]:
+        lines.append(
+            f"The 95% screen ranges for this audit are precision {_screen_bounds(metrics['precision'])}, "
+            f"recall {_screen_bounds(metrics['recall'])}, agreement {_screen_bounds(metrics['agreement'])}."
+        )
     lines.extend(_coverage_lines(state))
     reviews = review_status(state)
     if reviews["paired"]:
@@ -135,6 +194,34 @@ def digest(report_path: Path, *, allow_legacy=False) -> str:
     if "draw_commitment" not in state:
         lines.insert(0, "Historical unsigned weekly report · provenance unverified")
     return "\n".join(lines) + "\n"
+
+
+def _evidence_follow_up(state: dict) -> str:
+    items = weekly_review.follow_up(state)
+    if not items:
+        return ""
+    rows = []
+    for item in items:
+        cells = (
+            item["case_id"],
+            item["evidence_ref"],
+            item["revision"],
+            item.get("completed_at", "—"),
+            "Insufficient evidence"
+            if item["reason"] == "insufficient_evidence"
+            else "Prior handling unknown",
+            item["primary_reviewer"] or "Unrecorded",
+            "Original reviewer amends primary grade"
+            if item["route"] == "primary_amendment"
+            else "New independent review",
+        )
+        rows.append("<tr>" + "".join(f"<td>{escape(c)}</td>" for c in cells) + "</tr>")
+    return (
+        f"<details><summary>Cases needing follow-up ({len(items)})</summary>"
+        '<div class="table" tabindex="0"><table><thead><tr><th>Case</th><th>Evidence reference</th>'
+        "<th>Revision</th><th>Completion (UTC)</th><th>Reason</th><th>First reviewer</th><th>Next review</th>"
+        "</tr></thead><tbody>" + "".join(rows) + "</tbody></table></div></details>"
+    )
 
 
 def _review_section(state: dict) -> str:
@@ -252,25 +339,16 @@ def _render(state: dict, auth: dict) -> str:
             f"<tr><th>{stratum_label}</th><td>{total:,}</td><td>{sampled:,}</td><td>{chance}</td>"
             f"<td>{observed['confirmed']:,}</td><td>{sampled - observed['graded']:,}</td><td>{interval}</td></tr>"
         )
-    scores = "".join(
-        (
-            stat("Screen agrees with human grade", _metrics(result["agreement"])),
-            stat(
-                "Flagged cases meeting the rubric (precision)",
-                _metrics(result["precision"]),
-            ),
-            stat(
-                "Positive cases the screen flagged (recall)", _metrics(result["recall"])
-            ),
-        )
-    )
     payload = canonical({"schema": 2, "auth": auth, "state": state})
     payload = (
         payload.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     )
+    workload = weekly_review.workload(state)
     grade_text = (
         f"{result['graded']} of {result['assigned']} assignments have a determinate grade. "
-        f"{result['insufficient']} returned with insufficient evidence. "
+        f"{workload['primary_outstanding']} await a first return. "
+        f"{workload['insufficient_undisputed']} returned with insufficient evidence. "
+        f"{workload['open_disputes']} need adjudication. "
         f"Graders recorded {result['review_minutes']} minutes ({result['review_minutes'] / 60:.2f} hours)."
     )
     return (
@@ -284,8 +362,9 @@ def _render(state: dict, auth: dict) -> str:
         f"<p><strong>{escape(_uncertainty(result, label))}</strong></p><p>{escape(state['rubric_question'])}</p>"
         f"<p>Ordinary QA reviewed {result['reviewed']:,} of {result['population']:,} eligible conversations. "
         f"This audit covers the other {result['unreviewed']:,}, including cases another control already knew about.</p>{scope}</header>"
-        f'<section><h2>Confirmed cases</h2><div class="grid">{cover}</div>{follow_up}</section>'
-        f"<section><h2>Grading handoff</h2><p>{grade_text}</p>"
+        f'<section><h2>Confirmed cases</h2><div class="grid">{cover}</div>'
+        f"<p>{_new_finding_line(result)}</p>{follow_up}</section>"
+        f"<section><h2>Grading handoff</h2><p>{grade_text}</p>{_evidence_follow_up(state)}"
         "<p>Give the reviewer <code>grades.csv</code>. Keep this lead report private so the reviewer can grade each case "
         "without seeing its screen flag. Review the listed evidence revision against the question in the packet. "
         "When the packet includes <code>completed_at</code>, use the evidence available at that UTC cutoff. "
@@ -295,7 +374,9 @@ def _render(state: dict, auth: dict) -> str:
         "<code>disposition</code>. Record an owner and action for each new finding. For other answers, use "
         "<code>none</code> for no and <code>unknown</code> for insufficient. Record total review minutes for the row. "
         "Leave unanswered rows blank. A partial return keeps all other rows open. To resolve an insufficient grade or unknown prior handling, use the same row and include all minutes spent on it.</p>"
-        "<p>Import the return with <code>python3 -m telryn weekly report.html --grades returned.csv</code>.</p></section>"
+        "<p>Import the return with <code>python3 -m telryn weekly report.html --grades returned.csv</code>. "
+        "For the next primary reviewer, export the unanswered rows with "
+        "<code>python3 -m telryn weekly report.html --outstanding remaining.csv</code>.</p></section>"
         "<section><h2>Sampling and screen performance</h2><p>Cases were drawn without replacement within each group. "
         "Population estimates weight each grade by the inverse of its selection probability.</p>"
         '<div class="table" tabindex="0"><table><thead><tr><th>Sampling group</th><th>Outside ordinary QA</th>'
@@ -303,9 +384,7 @@ def _render(state: dict, auth: dict) -> str:
         "<th>Awaiting a definite grade</th><th>95% range in group</th></tr></thead><tbody>"
         + "".join(sample_rows)
         + "</tbody></table></div>"
-        f'<h3>Screen version · {escape(state["screen_version"])}</h3><div class="grid">{scores}</div>'
-        "<p>These weighted measures compare the frozen screen to human grades for the ordinary-unreviewed population. "
-        "A measure requires the evidence and denominators shown in the report.</p></section>"
+        f"<h3>Screen version · {escape(state['screen_version'])}</h3>{_screen_table(result['screen_metrics'])}</section>"
         f"{_review_section(state)}"
         f"<section><h2>Sampling commitment</h2><p>Draw <code>{state['draw_commitment']['draw_id']}</code> "
         f"was recorded in the team's draw registry before assignment. Use <code>telryn trust draws</code> to compare designs for this week.</p></section>"
@@ -332,6 +411,7 @@ def _envelope(raw: bytes) -> dict:
 
 def _signed(state, key, revision, previous):
     auth = {
+        "registry_first": True,
         "key_id": audit_trust.key_id(key),
         "revision": revision,
         "previous": previous,
@@ -365,10 +445,16 @@ def _verify_signed(raw, db, key):
         "SELECT revision,signature FROM reports WHERE id=?", (ident,)
     ).fetchone()
     if head != (revision, actual):
-        # Recover after publication reached the filesystem just before a registry commit.
+        # Initial publication has no predecessor. Pre-v0.6 signed updates used
+        # file-first publication and can still reconcile their immediate successor.
         if revision == 1 and auth["previous"] is None and head is None:
             db.execute("INSERT INTO reports VALUES(?,?,?)", (ident, revision, actual))
-        elif head and revision == head[0] + 1 and auth["previous"] == head[1]:
+        elif (
+            not auth.get("registry_first")
+            and head
+            and revision == head[0] + 1
+            and auth["previous"] == head[1]
+        ):
             db.execute(
                 "UPDATE reports SET revision=?,signature=? WHERE id=?",
                 (revision, actual, ident),
@@ -395,42 +481,66 @@ def _legacy(raw):
 
 
 def read_state(report_path: Path, *, allow_legacy=False) -> dict:
-    raw = report_path.read_bytes()
-    if TRAILER not in raw:
-        if not allow_legacy:
-            raise InputError(
-                "unsigned weekly report; use --legacy for an explicitly unverified historical read"
-            )
-        return _legacy(raw)
-    with audit_trust.registry() as (db, key):
-        return _verify_signed(raw, db, key)[0]
+    if allow_legacy:
+        raw = report_path.read_bytes()
+        if TRAILER not in raw:
+            return _legacy(raw)
+    return verified_snapshot(report_path)[0]
 
 
 def verified_snapshot(report_path: Path) -> tuple[dict, int, str]:
     """Return the authenticated state, revision and signature for a dependent artifact."""
-    raw = report_path.read_bytes()
     with audit_trust.registry() as (db, key):
+        audit_trust.recover_report(db, report_path)
+        raw = report_path.read_bytes()
+        if TRAILER not in raw:
+            raise InputError(
+                "unsigned weekly report; use --legacy for an explicitly unverified historical read"
+            )
         return _verify_signed(raw, db, key)
 
 
 def verified_html(path: Path) -> bytes:
-    raw = path.read_bytes()
     with audit_trust.registry() as (db, key):
+        audit_trust.recover_report(db, path)
+        raw = path.read_bytes()
         _verify_signed(raw, db, key)
     return raw
 
 
-def _packet_bytes(state: dict) -> bytes:
+def _packet_bytes(state: dict, *, outstanding: bool = False) -> bytes:
     stream = io.StringIO(newline="")
     writer = csv.DictWriter(stream, fieldnames=_columns(state))
     writer.writeheader()
-    for _, (_, fields) in sorted(_packet(state).items()):
-        writer.writerow(fields)
+    for _, (case, fields) in sorted(_packet(state).items()):
+        if not outstanding or case not in state["grades"]:
+            writer.writerow(fields)
     return stream.getvalue().encode("utf-8-sig")
 
 
-def verified_packet(path: Path) -> bytes:
-    return _packet_bytes(read_state(path))
+def verified_packet(path: Path, *, outstanding: bool = False) -> bytes:
+    return _packet_bytes(read_state(path), outstanding=outstanding)
+
+
+def export_outstanding(report: Path, target: Path) -> dict:
+    """Issue the unanswered rows from a verified snapshot, preserving issued row IDs."""
+    state, revision, _ = verified_snapshot(report)
+    data = _packet_bytes(state, outstanding=True)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=target.parent, prefix=".weekly-packet-"
+    ) as stream:
+        stream.write(data)
+        stream.flush()
+        os.fsync(stream.fileno())
+        os.link(stream.name, target)
+        sync_directory(target.parent)
+    return {
+        "path": str(target),
+        "publication_id": state["publication_id"],
+        "revision": revision,
+        "primary_outstanding": len(state["cases"]) - len(state["grades"]),
+    }
 
 
 def start(plan_path: Path, out_dir: Path) -> Path:
@@ -513,27 +623,16 @@ def _update(report_path: Path, change) -> dict:
     report_path = report_path.resolve(strict=True)
     # Registry transactions also serialize updates made through different copies.
     with audit_trust.registry() as (db, key):
+        audit_trust.recover_report(db, report_path)
         state, revision, previous = _verify_signed(report_path.read_bytes(), db, key)
         if change(state):
             validate_state(state)
             data, signature = _signed(state, key, revision + 1, previous)
-            fd, name = tempfile.mkstemp(
-                prefix=".weekly-report-", dir=report_path.parent
+            db.execute(
+                "UPDATE reports SET revision=?,signature=? WHERE id=?",
+                (revision + 1, signature, state["publication_id"]),
             )
-            temp = Path(name)
-            try:
-                with os.fdopen(fd, "wb") as stream:
-                    stream.write(data)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                db.execute(
-                    "UPDATE reports SET revision=?,signature=? WHERE id=?",
-                    (revision + 1, signature, state["publication_id"]),
-                )
-                temp.replace(report_path)
-                sync_directory(report_path.parent)
-            finally:
-                temp.unlink(missing_ok=True)
+            audit_trust.replace_report(db, report_path, data)
         return state
 
 
@@ -612,6 +711,7 @@ def review_action(args):
             args.adjudicate,
             args.email_to,
             args.propose,
+            args.outstanding,
         )
     ):
         raise InputError(

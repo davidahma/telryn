@@ -13,7 +13,7 @@ from collections.abc import Callable
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from . import shadow
+from . import audit_trust, lineage, shadow
 from .artifacts import sync_directory
 from .contracts import (
     REPORT_SCHEMA,
@@ -136,6 +136,8 @@ def compare(
     add_packet(state)
     state["reviewer_unblinded"] = False
     state["comparison_id"] = "T-" + fingerprint(state)
+    if proposal is not None:
+        lineage.sign_initial(state)
     return state
 
 
@@ -163,8 +165,9 @@ def publish(out: Path, state: dict) -> Path:
         with packet.open("rb") as stream:
             os.fsync(stream.fileno())
         sync_directory(staging)
-        staging.rename(out)
-        sync_directory(out.parent)
+        with lineage.current(state):
+            staging.rename(out)
+            sync_directory(out.parent)
     finally:
         if staging.exists():
             shutil.rmtree(staging)
@@ -217,16 +220,23 @@ def _update_report(path: Path, update: Callable[[dict], bool]) -> dict:
     fd = os.open(lock, os.O_CREAT | os.O_RDWR, 0o600)
     with os.fdopen(fd, "a") as lock_stream:
         fcntl.flock(lock_stream, fcntl.LOCK_EX)
-        state = load_report(path)
-        if update(state):
-            report_fd, temp_name = tempfile.mkstemp(
-                prefix=f".{path.name}-", dir=path.parent
-            )
-            temp = Path(temp_name)
-            try:
-                _write_report(report_fd, state)
-                temp.replace(path)
-                sync_directory(path.parent)
-            finally:
-                temp.unlink(missing_ok=True)
+        state = load_report(path, recover=True)
+        with lineage.current(state, require_source=False) as store:
+            if update(state):
+                lineage.advance(state, store)
+                if store is not None:
+                    audit_trust.replace_report(
+                        store[0], path, render_report(state).encode("utf-8")
+                    )
+                    return state
+                report_fd, temp_name = tempfile.mkstemp(
+                    prefix=f".{path.name}-", dir=path.parent
+                )
+                temp = Path(temp_name)
+                try:
+                    _write_report(report_fd, state)
+                    temp.replace(path)
+                    sync_directory(path.parent)
+                finally:
+                    temp.unlink(missing_ok=True)
         return state

@@ -62,7 +62,9 @@ def run(out: Path) -> dict:
         observations = json.loads(
             (FIXTURE / "shadow-template.json").read_text(encoding="utf-8")
         )
-        observations["comparison_id"] = state["comparison_id"]
+        authorized = recommendation(state, require_current=True)
+        observations["comparison_id"] = authorized["comparison_id"]
+        observations["decision_revision"] = authorized["decision_revision"]
         shadow = work / "shadow-observations.json"
         shadow.write_text(canonical(observations) + "\n", encoding="utf-8")
         result = recommendation(record_shadow(report, shadow))

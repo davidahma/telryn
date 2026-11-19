@@ -6,7 +6,7 @@ import json
 from html import escape
 from pathlib import Path
 
-from . import shadow
+from . import audit_trust, lineage, shadow
 from .contracts import (
     REPORT_SCHEMA,
     InputError,
@@ -53,7 +53,7 @@ code { overflow-wrap:anywhere; }
 """
 
 
-def recommendation(state: dict) -> dict:
+def recommendation(state: dict, *, require_current: bool = False) -> dict:
     grades, serious, pending, status = grade_status(state)
     summary = evaluate(state, grades, pending, serious)
     legacy = state["schema"] < REPORT_SCHEMA
@@ -98,10 +98,30 @@ def recommendation(state: dict) -> dict:
             "reviewer_unblinded": state.get("reviewer_unblinded", False),
         }
     )
+    if "weekly_proposal" in state:
+        proposal = state["weekly_proposal"]
+        if require_current:
+            with lineage.current(state):
+                pass
+        summary["weekly_source"] = {
+            "status": "current" if require_current else "historical_snapshot",
+            "publication": proposal.get("source_publication"),
+            "revision": proposal.get("source_revision"),
+            "comparison_revision": state.get(lineage.STAMP, {}).get("revision"),
+        }
     return summary
 
 
-def load_report(path: Path) -> dict:
+def load_report(path: Path, *, recover=False) -> dict:
+    state = _read_report(path)
+    if recover and "weekly_proposal" in state:
+        with audit_trust.registry() as (db, _key):
+            audit_trust.recover_report(db, path)
+            return _read_report(path)
+    return state
+
+
+def _read_report(path: Path) -> dict:
     source = path.read_text(encoding="utf-8")
     _, opening, tail = source.partition(STATE_OPEN)
     raw, closing, _ = tail.partition(STATE_CLOSE)
@@ -272,6 +292,12 @@ def render_report(state: dict) -> str:
     if not notes:
         notes = [
             "The historical count and all required safeguards support a shadow trial."
+        ]
+    if "weekly_source" in result:
+        notes = [
+            *notes,
+            "This verdict records the weekly evidence available at replay. Run explain with "
+            "--require-shadow in the originating trust store before starting another trial.",
         ]
     packet_notes = list(state["packet_notes"])
     if result["reviewer_unblinded"]:

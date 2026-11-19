@@ -8,6 +8,7 @@ import os
 import secrets
 import sqlite3
 import stat
+import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -120,6 +121,10 @@ def registry(*, create=False):
         row = db.execute("SELECT key_id FROM identity WHERE id=1").fetchone()
         if not row or row[0] != key_id(key):
             raise InputError("team key differs from the committed audit registry")
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS pending_reports (path TEXT PRIMARY KEY, "
+            "staged TEXT NOT NULL, prior_digest TEXT NOT NULL, digest TEXT NOT NULL)"
+        )
         yield db, key
         db.commit()
         if create and not stamp.exists():
@@ -135,6 +140,71 @@ def registry(*, create=False):
         raise InputError(f"unable to access the audit trust registry: {exc}") from exc
     finally:
         db.close()
+
+
+def _file_digest(path: Path) -> str:
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
+
+
+def recover_report(db, path: Path) -> None:
+    """Materialize a committed revision only over the file it was prepared for."""
+    path = path.resolve()
+    row = db.execute(
+        "SELECT staged,prior_digest,digest FROM pending_reports WHERE path=?",
+        (str(path),),
+    ).fetchone()
+    if row is None:
+        return
+    name, prior, digest = row
+    if Path(name).name != name or not name.startswith(".telryn-pending-"):
+        raise InputError("invalid staged report name in the team registry")
+    staged = path.with_name(name)
+    try:
+        current = _file_digest(path)
+        if current != digest:
+            if current != prior:
+                raise InputError(
+                    "pending report conflicts with the file at its original path; restore the recorded version"
+                )
+            _private(staged)
+            if _file_digest(staged) != digest:
+                raise InputError(
+                    "pending report file failed its digest check; restore the original private artifacts"
+                )
+            staged.replace(path)
+        sync_directory(path.parent)
+    except FileNotFoundError as exc:
+        raise InputError(
+            "pending report or staged evidence missing at its original path; restore the original private artifacts"
+        ) from exc
+    db.execute("DELETE FROM pending_reports WHERE path=?", (str(path),))
+
+
+def replace_report(db, path: Path, data: bytes) -> None:
+    """Commit the new authority and recovery intent before exposing the new file."""
+    path = path.resolve(strict=True)
+    prior = _file_digest(path)
+    fd, name = tempfile.mkstemp(dir=path.parent, prefix=".telryn-pending-")
+    staged = Path(name)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        sync_directory(path.parent)
+        db.execute(
+            "INSERT INTO pending_reports VALUES (?,?,?,?)",
+            (str(path), staged.name, prior, hashlib.sha256(data).hexdigest()),
+        )
+    except BaseException:
+        staged.unlink(missing_ok=True)
+        raise
+    # The caller already updated its revision head within this transaction.
+    # Keep the staged file if COMMIT returns an ambiguous I/O failure.
+    db.commit()
+    db.execute("BEGIN IMMEDIATE")
+    recover_report(db, path)
 
 
 def committed_draw(week: str, frame: str, design: str) -> tuple[str, dict]:

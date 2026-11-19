@@ -1,6 +1,7 @@
 {
   "schema": 1,
   "comparison_id": "REPLACE_WITH_COMPARISON_ID",
+  "decision_revision": "COPY_FROM_THE_QUALIFYING_GATE_AT_TRIAL_START",
   "trial_id": "demo-week-three",
   "observed_at": "2026-11-16T12:00:00Z",
   "lead_decision": {

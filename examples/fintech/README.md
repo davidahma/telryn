@@ -22,17 +22,17 @@ Open `runs/fintech/weekly/report.html` for the findings and sampling details. Op
 
 The demo then uses a [separate development cohort](development.toml), constructed to exercise the rule search. Of 24 flagged cases in that cohort, 22 contained newly discovered issues. Two of 24 unflagged cases did. The simultaneous bounds support testing a reserved slot. The development export, grades and measured minutes are synthetic. The report is saved under `runs/fintech/development/report.html`. [Development labels](development-grades.csv) · [Statistical method](../../docs/statistics.md)
 
-[The held-out export](held-out.json) contains a new set of cases, their queue order and the inputs available at cutoff. The generated rule uses the same screen version and keeps the original slot limit. Telryn replays both selectors, grades changed cases against the weekly serious-case rubric and checks mandatory review, staffing and serious losses. [The staged shadow file](shadow-template.json) contains a third set of cases. The runner fills in its comparison ID before recording the observations.
+[The held-out export](held-out.json) contains a new set of cases, their queue order and the inputs available at cutoff. The generated rule uses the same screen version and keeps the original slot limit. Telryn replays both selectors, grades changed cases against the weekly serious-case rubric and checks mandatory review, staffing and serious losses. [The staged shadow file](shadow-template.json) contains a third set of cases. The runner captures the comparison ID and qualifying decision revision before the synthetic trial and includes both in its observations.
 
-To inspect the lead digest, export the suggestion again and replay it against the supplied held-out batch, run these commands after the demo.
+The demo has already run the held-out replay and recorded a shadow observation on it. Read the digest and check whether the saved comparison still qualifies against the latest evidence in your trust store.
 
 ```sh
 python3 -m telryn weekly runs/fintech/weekly/report.html --digest
-python3 -m telryn weekly runs/fintech/development/report.html --propose runs/fintech-candidate
-python3 -m telryn compare examples/fintech/held-out.toml \
-  --proposal runs/fintech-candidate/proposal.json --out runs/fintech-held-out --require-shadow
-python3 -m telryn explain runs/fintech/comparison/report.html --format json
+python3 -m telryn explain runs/fintech/comparison/report.html \
+  --require-shadow --require-weekly-source --format json
 ```
+
+For an additional held-out cohort, use a new comparison definition and frozen export with `compare DEFINITION --proposal runs/fintech/proposal/proposal.json --out NEW_RUN --require-shadow --require-weekly-source`. Keep the saved comparison and original packet when further grades or shadow observations arrive. Replaying identical inputs cannot reset their accepted history.
 
 Production assignments are available in `grades.csv` from the weekly command. A reviewer completes that exact packet against the supplied evidence references. The synthetic runner's `synthetic-return.csv` shows a finished return.
 
