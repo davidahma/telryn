@@ -60,7 +60,7 @@ Telryn performs that calculation in each sampled group and combines the bounds w
 
 ### How many cases were new to the team?
 
-A serious case already logged by the complaints team still counts toward the severity estimate. It contributes zero to the estimate of previously undiscovered findings. The latter uses a separate binary outcome in each sampling group. A confirmed serious case marked `new` contributes one. A negative grade or a serious case marked `already_known` contributes zero. A pending, insufficient or disputed severity grade and a serious case with unknown prior handling each contribute zero at the low end and one at the high end.
+A serious case already logged by the complaints team still counts toward the severity estimate. It contributes zero to the estimate of previously undiscovered findings. The latter uses a separate binary outcome in each sampling group. A confirmed serious case marked `new` contributes one. A negative grade or a serious case marked `already_known` contributes zero. When one reviewer grades a case negative and the other grades it serious but already known, either decision gives zero new findings. The severity dispute stays open. A case whose grades leave new findings unsettled contributes zero at the low end and one at the high end.
 
 For example, suppose a five-case census returns one new serious case, one known serious case, one serious case with unknown prior handling and one negative case. The fifth grade is outstanding. Three to four cases meet the severity rubric, and one to three would count as new. Once all five grades and their prior handling are settled, the census gives exact totals.
 

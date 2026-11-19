@@ -27,6 +27,7 @@ from .contracts import (
     string,
     versioned,
 )
+from .weekly_review import effective_grades
 
 STRATA = ("flagged", "unflagged")
 DIMENSIONS = ("channel", "agent_type", "product")
@@ -663,7 +664,8 @@ def _screen_metrics(strata, groups, complete):
 
 def summarize(state: dict) -> dict:
     """Estimate severity, previously undiscovered findings and classifier performance."""
-    cases, grades = validate_state(state)
+    cases, _ = validate_state(state)
+    grades = effective_grades(state)
     found, determinate = Counter(), Counter()
     new, classified = Counter(), Counter()
     confirmed = Counter()
@@ -673,6 +675,15 @@ def summarize(state: dict) -> dict:
         minutes += grade["minutes"]
         cell = _stratum(cases[case], dims)
         if grade["serious"] is None:
+            checks = state.get("case_reviews", {}).get(case, {}).get("checks", [])
+            if checks and checks[-1]["disputed"] and not checks[-1].get("decision"):
+                # A negative severity vote and an already-known serious vote
+                # both exclude a newly discovered finding under either decision.
+                if all(
+                    checks[-1][side]["disposition"] in ("none", "already_known")
+                    for side in ("primary", "second")
+                ):
+                    classified[cell] += 1
             continue
         determinate[cell] += 1
         if grade["serious"]:

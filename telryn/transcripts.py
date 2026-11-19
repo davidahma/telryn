@@ -17,6 +17,7 @@ from .integrations_coverage import carry, check_as_of, dimensions, projection
 # Bounded by bytes, leaving room for policy, JSON, schema and output in the requested model context.
 CHUNK_BYTES = 3900
 OPTIONS = {**screen.OPTIONS, "num_ctx": 16384, "num_predict": 1300}
+CHECKPOINT_BATCH = 32
 FACTS = {
     "account_compromise": "The customer reports actual or suspected unauthorized account access.",
     "escalation_required": "The supplied policy requires escalation for the reported issue.",
@@ -244,24 +245,31 @@ def extract_case(case, model, policy, prompt, keys, literals):
     return {"signals": signals, "citations": citations}
 
 
-def _checkpoint(db, cases, identity, worker, workers):
+def _checkpoint(db, cases, identity, worker, workers, verify_model):
     db.execute("CREATE TABLE IF NOT EXISTS batch(identity TEXT NOT NULL)")
     db.execute(
         "CREATE TABLE IF NOT EXISTS results(k TEXT PRIMARY KEY, result TEXT NOT NULL)"
     )
     prior = db.execute("SELECT identity FROM batch").fetchone()
-    if prior and prior[0] != identity:
+    verified_identity = "verified-v1:" + identity
+    if prior and prior[0] == identity:
+        # Older checkpoints saved work before confirming which weights produced it.
+        with db:
+            db.execute("DELETE FROM results")
+            db.execute("UPDATE batch SET identity=?", (verified_identity,))
+    elif prior and prior[0] != verified_identity:
         raise InputError(
             "checkpoint belongs to a different input, model, policy or redaction configuration"
         )
     if not prior:
         with db:
-            db.execute("INSERT INTO batch VALUES(?)", (identity,))
+            db.execute("INSERT INTO batch VALUES(?)", (verified_identity,))
     done = {key for (key,) in db.execute("SELECT k FROM results")}
     todo = iter(case for case in cases if case["case_id"] not in done)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         pending = {}
         error = None
+        unverified = 0
         while True:
             while error is None and len(pending) < workers:
                 case = next(todo, None)
@@ -278,10 +286,15 @@ def _checkpoint(db, cases, identity, worker, workers):
                 except (ValueError, OSError) as exc:
                     error = exc
                     continue
-                with db:
-                    db.execute(
-                        "INSERT INTO results VALUES(?,?)", (key, canonical(result))
-                    )
+                db.execute("INSERT INTO results VALUES(?,?)", (key, canonical(result)))
+                unverified += 1
+            if unverified >= CHECKPOINT_BATCH:
+                verify_model()
+                db.commit()
+                unverified = 0
+        if unverified:
+            verify_model()
+            db.commit()
         if error:
             raise error
 
@@ -316,6 +329,13 @@ def extract(
         else []
     )
     model_digest = screen._installed(model)
+
+    def verify_model():
+        if screen._installed(model) != model_digest:
+            raise InputError(
+                "model changed during extraction; unverified checkpoint results discarded"
+            )
+
     prompt, keys = recipe(policy, policy_definition)
     version = "local-model:" + fingerprint(
         [
@@ -368,13 +388,8 @@ def extract(
                         case, model, policy, prompt, keys, literals
                     ),
                     workers,
+                    verify_model,
                 )
-                if screen._installed(model) != model_digest:
-                    with db:
-                        db.execute("DELETE FROM results")
-                    raise InputError(
-                        "model changed during extraction; checkpoint results discarded"
-                    )
                 rows = []
                 with (staging / "citations.jsonl").open("w", encoding="utf-8") as log:
                     for case in cases:

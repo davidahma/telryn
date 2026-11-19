@@ -2,6 +2,8 @@
 
 import csv
 import json
+import shutil
+import sqlite3
 import tempfile
 import threading
 import unittest
@@ -122,6 +124,65 @@ class Extraction(unittest.TestCase):
             self.assertRaisesRegex(InputError, "different"),
         ):
             self.extract()
+
+    def test_interrupted_batch_resumes_only_verified_model_results(self):
+        def interrupted(path, data):
+            if "receipt." in data["messages"][1]["content"]:
+                raise InputError("fixture interruption")
+            return self.answer(path, data)
+
+        # Verify the first case, then change the tag before the next checkpoint.
+        with (
+            patch.object(transcripts, "CHECKPOINT_BATCH", 1),
+            patch.object(
+                screen, "_installed", side_effect=["a" * 64, "a" * 64, "b" * 64]
+            ),
+            patch.object(screen, "_api", side_effect=interrupted),
+            self.assertRaisesRegex(InputError, "model changed"),
+        ):
+            self.extract()
+        self.assertFalse(self.out.exists())
+        self.calls.clear()
+        with patch.object(screen, "_api", side_effect=self.answer):
+            self.extract()
+        self.assertEqual(
+            self.calls, ["The fraud desk opened an escalation.", "I need a receipt."]
+        )
+
+    def test_model_unavailable_on_worker_failure_does_not_certify_partial_work(self):
+        def interrupted(path, data):
+            if "fraud desk" in data["messages"][1]["content"]:
+                raise InputError("fixture interruption")
+            return self.answer(path, data)
+
+        with (
+            patch.object(
+                screen, "_installed", side_effect=["a" * 64, OSError("offline")]
+            ),
+            patch.object(screen, "_api", side_effect=interrupted),
+            self.assertRaisesRegex(OSError, "offline"),
+        ):
+            self.extract()
+        self.calls.clear()
+        with patch.object(screen, "_api", side_effect=self.answer):
+            self.extract()
+        self.assertEqual(len(self.calls), len(self.cases))
+
+    def test_existing_checkpoint_revalidates_old_rows_once(self):
+        with patch.object(screen, "_api", side_effect=self.answer):
+            self.extract()
+            shutil.rmtree(self.out)
+            db = sqlite3.connect(self.cache / "progress.sqlite")
+            try:
+                with db:
+                    db.execute("UPDATE batch SET identity=substr(identity, 13)")
+            finally:
+                db.close()
+            self.extract()
+            self.assertEqual(len(self.calls), 2 * len(self.cases))
+            shutil.rmtree(self.out)
+            self.extract()
+            self.assertEqual(len(self.calls), 2 * len(self.cases))
 
     def test_parallel_workers_and_citation_validation(self):
         barrier = threading.Barrier(2)

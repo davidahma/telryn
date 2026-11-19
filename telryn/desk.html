@@ -58,6 +58,6 @@ summary{font-weight:600;cursor:pointer}details[open] summary{margin-bottom:1rem}
 <div id="agreement" role="status"></div>
 <form id="resolution" class="compact" hidden><h2>Resolve a disagreement</h2><label>Disputed case<select name="dispute" required></select></label>
 <p id="answers"></p><div class="pair"><label>Adjudicator identifier<input name="reviewer" required autocomplete="off"></label><label>Minutes spent<input name="minutes" type="number" min="0" step="1" required></label></div>
-<label>Accepted answer<select name="choice"><option value="primary">Primary review</option><option value="second">Second review</option></select></label>
+<label>Accepted answer<select name="choice" required><option value="" disabled selected>Choose an answer</option><option value="primary">Primary review</option><option value="second">Second review</option></select></label>
 <label>Reason<textarea name="reason" rows="2" required></textarea></label><button>Record decision</button></form>
 </section></main><script nonce="SESSION_NONCE" src="desk.js"></script></body></html>

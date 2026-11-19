@@ -2,6 +2,7 @@
 
 import getpass
 from datetime import datetime, timezone
+from unicodedata import normalize
 
 from .contracts import InputError, fingerprint, integer
 
@@ -23,7 +24,7 @@ def identity(value: str | None, label: str = "reviewer", *, default=False) -> st
 
 
 def _same(a: str, b: str) -> bool:
-    return a.casefold() == b.casefold()
+    return normalize("NFC", a).casefold() == normalize("NFC", b).casefold()
 
 
 def _now() -> str:
@@ -131,11 +132,14 @@ def record_second(state: dict, case: str, grade: dict, reviewer: str) -> bool:
         [state["publication_id"], case, len(details["checks"]), check]
     )
     details["checks"].append(check)
-    effective = (
-        {"serious": None, "disposition": "unknown", "owner": "", "action": ""}
-        if check["disputed"]
-        else primary
-    )
+    effective = primary
+    if check["disputed"]:
+        effective = {
+            "serious": True if primary["serious"] is grade["serious"] is True else None,
+            "disposition": "unknown",
+            "owner": "",
+            "action": "",
+        }
     state["grades"][case] = {
         **effective,
         "minutes": primary["minutes"] + grade["minutes"],
@@ -174,7 +178,9 @@ def decide(
         "minutes": minutes,
     }
     if prior := target.get("decision"):
-        if all(prior[k] == value for k, value in decision.items()):
+        if _same(prior["reviewer"], reviewer) and all(
+            prior[key] == decision[key] for key in ("choice", "reason", "minutes")
+        ):
             return False
         raise InputError("dispute already adjudicated; original decision retained")
     if any(
@@ -188,6 +194,23 @@ def decide(
     combined = state["grades"][case]["minutes"] + minutes
     state["grades"][case] = {**target[choice], "minutes": combined}
     return True
+
+
+def effective_grades(state: dict) -> dict:
+    """Interpret older open handling disputes without rewriting signed evidence."""
+    grades = state["grades"].copy()
+    for case, record in state.get("case_reviews", {}).items():
+        checks = record["checks"]
+        if not checks or grades[case]["serious"] is not None:
+            continue
+        last = checks[-1]
+        if (
+            last["disputed"]
+            and not last.get("decision")
+            and last["primary"]["serious"] is last["second"]["serious"] is True
+        ):
+            grades[case] = {**grades[case], "serious": True}
+    return grades
 
 
 def review_status(state: dict) -> dict:
@@ -239,8 +262,10 @@ def workload(state: dict) -> dict:
         ),
         "open_disputes": len(disputes),
         "handling_unknown": sum(
-            g["serious"] is True and g["disposition"] == "unknown"
-            for g in grades.values()
+            g["serious"] is True
+            and g["disposition"] == "unknown"
+            and case not in disputes
+            for case, g in grades.items()
         ),
     }
 

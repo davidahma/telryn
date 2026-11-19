@@ -6,6 +6,10 @@ const resolution = byId("resolution");
 const message = byId("message");
 let active = "";
 let disputes = [];
+let draftDispute = "";
+let reviewRequest = 0;
+let historyRequest = 0;
+let intakeVersion = 0;
 
 async function request(path, options) {
   const response = await fetch(path, options);
@@ -102,7 +106,12 @@ function answerText(grade) {
   return finding + " (" + grade.disposition + ")";
 }
 function displayDispute() {
-  const item = disputes[Number(resolution.elements.dispute.value)];
+  const selected = resolution.elements.dispute.value;
+  if (selected !== draftDispute) {
+    for (const name of ["reviewer", "choice", "reason", "minutes"]) resolution.elements[name].value = "";
+    draftDispute = selected;
+  }
+  const item = disputes.find((entry) => entry.dispute_id === selected);
   byId("answers").textContent = item ? "Primary: " + answerText(item.primary) + ". Second: " + answerText(item.second) + "." : "";
 }
 
@@ -134,9 +143,11 @@ function displayFollowUp(items) {
 }
 
 async function selectRun(id) {
+  const requestNumber = ++reviewRequest;
   if (active !== id) {
     grade.reset();
     resolution.reset();
+    draftDispute = "";
   }
   active = id;
   byId("current").hidden = true;
@@ -144,7 +155,7 @@ async function selectRun(id) {
   resolution.hidden = true;
   byId("agreement").textContent = "";
   const status = await request(id + "/review");
-  if (active !== id) return;
+  if (active !== id || requestNumber !== reviewRequest) return;
   byId("current-title").textContent = status.week + " · " + status.rubric;
   byId("progress").textContent = progressText(status.progress);
   byId("report").href = id + "/report.html";
@@ -161,15 +172,18 @@ async function selectRun(id) {
   displayFollowUp(status.follow_up);
   byId("agreement").textContent = status.compared ? "Independent reviewers agreed on severity for " + status.agreed + " of " + status.compared + " definite pairs." : "";
   disputes = status.open_disputes;
-  resolution.elements.dispute.replaceChildren(...disputes.map((item, index) => new Option(item.case_id, index)));
+  resolution.elements.dispute.replaceChildren(...disputes.map((item) => new Option(item.case_id, item.dispute_id)));
+  if (disputes.some((item) => item.dispute_id === draftDispute)) resolution.elements.dispute.value = draftDispute;
   resolution.hidden = !disputes.length;
   displayDispute();
   byId("current").hidden = false;
 }
 
 async function historyList() {
+  const requestNumber = ++historyRequest;
   const list = byId("history").querySelector("ul");
   const runs = await request("audits");
+  if (requestNumber !== historyRequest) return;
   list.replaceChildren();
   for (const run of runs) {
     const item = document.createElement("li");
@@ -195,24 +209,32 @@ async function submit(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const button = event.submitter;
+  const originalRun = active;
   button.disabled = true;
   try {
     if (form === intake && button.id === "preview") {
-      forecast(await postFiles("plan", intake));
+      const version = intakeVersion;
+      const plan = await postFiles("plan", intake);
+      if (version !== intakeVersion) return;
+      forecast(plan);
       message.textContent = "Preview ready. You can adjust the budget before creating the audit.";
       return;
     }
     let result;
     if (form === resolution) {
-      const item = disputes[Number(form.elements.dispute.value)];
+      const item = disputes.find((entry) => entry.dispute_id === form.elements.dispute.value);
       const body = {case_id: item.case_id, dispute_id: item.dispute_id, reviewer: form.elements.reviewer.value,
         choice: form.elements.choice.value, reason: form.elements.reason.value, minutes: Number(form.elements.minutes.value)};
       result = await request(active + "/adjudicate", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
     } else {
       result = await postFiles(form === intake ? "audits" : active + "/" + grade.elements.round.value, form);
     }
-    await selectRun(result.id);
+    if (active === originalRun) await selectRun(result.id);
     await historyList();
+    if (active !== result.id) {
+      message.textContent = "Changes saved. Open the updated audit from saved audits.";
+      return;
+    }
     message.textContent = form === intake ? "Audit ready. Give the grading CSV to your reviewer." :
         form === grade ? "Grades recorded. Open the updated report." : "Adjudication recorded.";
     byId("current").scrollIntoView();
@@ -236,7 +258,7 @@ async function loadRubrics() {
 }
 
 for (const form of [intake, grade, resolution]) form.addEventListener("submit", submit);
-intake.addEventListener("input", () => { byId("forecast").hidden = true; });
+intake.addEventListener("input", () => { intakeVersion++; byId("forecast").hidden = true; });
 resolution.elements.dispute.addEventListener("change", displayDispute);
 byId("mode").addEventListener("change", setMode);
 setMode();

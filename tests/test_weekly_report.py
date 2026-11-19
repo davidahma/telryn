@@ -17,6 +17,7 @@ from telryn.weekly_mail import send_digest
 from telryn.weekly_report import (
     COLUMNS,
     STATE_OPEN,
+    adjudicate,
     digest,
     read_state,
     refresh,
@@ -220,6 +221,28 @@ unflagged_sample = 2
             self.assertEqual(tuple(reader.fieldnames), COLUMNS)
             self.assertEqual(list(reader), [])
         self.assertEqual(self.report.with_name("grades.csv").read_bytes(), original)
+
+    def test_independent_reviewer_uses_canonically_equivalent_names(self):
+        row = {**self.rows[0], "serious": "no", "disposition": "none", "minutes": "2"}
+        returned = self.packet([row])
+        refresh(self.report, returned, reviewer="José")
+        original = self.report.read_bytes()
+        refresh(self.report, returned, reviewer="Jose\u0301")
+        with self.assertRaisesRegex(InputError, "independent"):
+            second_review(self.report, returned, "JOSE\u0301")
+        self.assertEqual(self.report.read_bytes(), original)
+        other = self.packet([{**row, "serious": "yes", "disposition": "already_known"}])
+        state = second_review(self.report, other, "Second reviewer")
+        case = next(iter(state["grades"]))
+        dispute = state["case_reviews"][case]["checks"][0]["id"]
+        adjudicate(
+            self.report, case, dispute, "Renée", "primary", "Checked evidence", 2
+        )
+        decided = self.report.read_bytes()
+        adjudicate(
+            self.report, case, dispute, "Rene\u0301e", "primary", "Checked evidence", 2
+        )
+        self.assertEqual(self.report.read_bytes(), decided)
 
     def test_resolving_prior_handling_preserves_all_returns(self):
         row = self.rows[1]

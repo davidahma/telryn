@@ -47,7 +47,9 @@ python3 -m telryn weekly runs/current/report.html --second-review independent.cs
 python3 -m telryn weekly runs/current/report.html --format json
 ```
 
-The report lists the original and second answers. A disagreement about severity or prior handling opens a dispute and makes the effective grade insufficient until adjudication. Partial-evidence ranges incorporate that uncertainty. Agreement on severity is the number of first independent pairs with the same definite yes/no answer divided by all first pairs with two definite answers. The report displays the denominator. This describes the double-graded cases only. Repeated challenges to a case do not inflate the agreement rate.
+The report lists the original and second answers. A disagreement about severity leaves severity unresolved until adjudication. If both reviewers grade a case serious and disagree only about prior handling, the case still counts as confirmed serious. Its contribution to newly discovered findings ranges from zero to one. The case stays in the adjudication queue. When you open an older signed report with the current CLI, the summary applies the same distinction to its recorded votes. The original HTML retains the numbers shown at publication.
+
+Agreement on severity is the number of first independent pairs with the same definite yes/no answer divided by all first pairs with two definite answers. The report displays the denominator. This describes the double-graded cases only. Repeated challenges to a case do not inflate the agreement rate.
 
 An independent adjudicator selects the supported answer and records the reason and additional minutes. Copy the case and dispute ID from the report. For example:
 

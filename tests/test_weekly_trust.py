@@ -11,7 +11,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from telryn import audit_trust
+from telryn import audit_trust, weekly_review
 from telryn.contracts import InputError, canonical, fingerprint
 from telryn.integrations_coverage import membership
 from telryn.weekly import summarize
@@ -301,6 +301,69 @@ class TeamAudit(unittest.TestCase):
         self.assertEqual(review_status(last)["agreement"], 0.5)
         self.assertIn("1 of 2 definite pairs", digest(self.report))
         self.assertNotIn("Uma", digest(self.report))
+
+    def test_prior_handling_dispute_preserves_confirmed_severity(self):
+        yes = self.returned("yes", disposition="new")
+        refresh(self.report, yes, reviewer="Sam")
+        for index in range(1, len(self.packet)):
+            refresh(self.report, self.returned(idx=index), reviewer="Sam")
+        initial = summarize(read_state(self.report))
+        other = self.returned("yes", disposition="already_known")
+        state = second_review(self.report, other, "Lee")
+        summary = summarize(state)
+        for field in (
+            "graded",
+            "confirmed_serious",
+            "estimate",
+            "interval",
+            "screen_metrics",
+        ):
+            self.assertEqual(summary[field], initial[field])
+        self.assertEqual(summary["unknown"], 1)
+        self.assertEqual(
+            summary["new_findings"]["estimate_range"], [0.0, initial["estimate"]]
+        )
+        self.assertIsNone(summary["new_findings"]["estimate"])
+        self.assertEqual(weekly_review.workload(state)["handling_unknown"], 0)
+        self.assertEqual(weekly_review.follow_up(state), [])
+        self.assertIn("1 confirmed serious", digest(self.report))
+        issue = review_status(state)["open_disputes"][0]["dispute_id"]
+        resolved = adjudicate(
+            self.report, self.case, issue, "Kim", "second", "Verified ledger", 4
+        )
+        self.assertEqual(summarize(resolved)["new_findings"]["estimate"], 0)
+
+    def test_older_signed_handling_dispute_retains_its_bytes_on_read(self):
+        refresh(self.report, self.returned("yes"), reviewer="Sam")
+        record = weekly_review.record_second
+
+        def old_record(state, case, grade, reviewer):
+            changed = record(state, case, grade, reviewer)
+            # Earlier versions stored an unresolved severity for any open dispute.
+            state["grades"][case]["serious"] = None
+            return changed
+
+        with patch.object(weekly_review, "record_second", old_record):
+            second_review(
+                self.report, self.returned("yes", disposition="already_known"), "Lee"
+            )
+        old = self.report.read_bytes()
+        historical = read_state(self.report)
+        self.assertIsNone(historical["grades"][self.case]["serious"])
+        self.assertEqual(summarize(historical)["confirmed_serious"], 1)
+        self.assertIn("1 confirmed serious", digest(self.report))
+        self.assertEqual(verified_html(self.report), old)
+
+    def test_severity_dispute_can_still_agree_the_case_is_not_new(self):
+        for index in range(len(self.packet)):
+            refresh(self.report, self.returned(idx=index), reviewer="Sam")
+        before = summarize(read_state(self.report))
+        other = self.returned("yes", disposition="already_known")
+        state = second_review(self.report, other, "Lee")
+        summary = summarize(state)
+        self.assertIsNone(summary["estimate"])
+        self.assertEqual(summary["new_findings"], before["new_findings"])
+        self.assertEqual(review_status(state)["open"], 1)
 
     def test_different_copies_cannot_commit_competing_changes(self):
         replica = self.root / "copy.html"

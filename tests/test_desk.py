@@ -78,6 +78,7 @@ class DeskFlow(unittest.TestCase):
         head, page = self.request("GET", "/testtoken/")
         self.assertIn("200 OK", head)
         self.assertIn("nonce-", head)
+        self.assertIn("form-action 'none'", head)
         self.assertNotIn("testtoken", head)
         self.assertNotIn(b"testtoken", page)
         self.assertNotIn(b"SESSION_NONCE", page)
