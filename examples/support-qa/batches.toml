@@ -1,0 +1,13 @@
+schema = 1
+
+[shifts.week-1]
+cutoff = "2026-09-07T12:00:00Z"
+capacity = 8
+live_version = "support-priority-v1"
+tie_break = "id-asc"
+membership_source = "synthetic-support-ledger/week-1@v1"
+eligible = "eligible.csv"
+picks = "picks.csv"
+cutoff_inputs = "cutoff-inputs.csv"
+mandatory = ["Q-001"]
+overrides = []

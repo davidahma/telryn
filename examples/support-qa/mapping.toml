@@ -1,0 +1,14 @@
+schema = 1
+
+[columns]
+id = "conversation_id"
+slot = "review_rank"
+revision = "transcript_revision"
+known_at = "completed_at"
+evidence = "transcript_reference"
+cohort = "assistant"
+
+[inputs]
+priority = "created_priority"
+risk = "frozen_risk"
+revised = "frozen_revised_priority"

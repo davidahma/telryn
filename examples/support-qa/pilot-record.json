@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "comparison_id": "COPY_FROM_EXPLAIN",
+  "decision_revision": "COPY_FROM_EXPLAIN",
+  "evidence": "synthetic",
+  "decision_date": "2026-09-08",
+  "comparator": "Native QA exports and independent SQL",
+  "material_minutes_saved": 60,
+  "policy_changes_last_year": 2,
+  "matched": {
+    "same_starting_exports": true,
+    "same_policy_change": true,
+    "same_eligible_population": true,
+    "same_rubrics_and_evidence": true,
+    "same_staffing_and_grading_budget": true
+  },
+  "lead_review": {
+    "equally_supported": true,
+    "baseline_missed_serious_cases": []
+  },
+  "baseline": {
+    "setup_minutes": 60,
+    "analyst_minutes": 100,
+    "reviewer_minutes": 50,
+    "adjudication_minutes": 10,
+    "lead_minutes": 20
+  },
+  "telryn": {
+    "setup_minutes": 420,
+    "analyst_minutes": 20,
+    "reviewer_minutes": 25,
+    "adjudication_minutes": 5,
+    "lead_minutes": 10
+  }
+}

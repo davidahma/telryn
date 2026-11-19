@@ -94,6 +94,8 @@ The qualification suite exercises both workflows and runs from a checkout
 and release archive with networking disabled. The examples establish the
 mechanics on synthetic data. The [pilot protocol](docs/evaluation.md#support-qa-pilot)
 shows how to compare the tool with native QA assignments plus SQL, Sheets,
-or a coding agent, and measure setup and recurring effort on an authorized queue.
+or a coding agent. Reuse one intake mapping across cutoffs and use
+`benchmark` to check whether comparable time savings recover setup at the
+team’s actual policy-change cadence.
 
 [Release evidence](https://github.com/davidahma/telryn/releases) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Apache-2.0](LICENSE)

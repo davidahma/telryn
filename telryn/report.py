@@ -61,6 +61,13 @@ def recommendation(state: dict) -> dict:
     summary.update(
         {
             "comparison_id": state["comparison_id"],
+            "decision_revision": fingerprint(
+                {
+                    "comparison_id": state["comparison_id"],
+                    "grade_history": state["grade_history"],
+                    "reviewer_unblinded": state.get("reviewer_unblinded", False),
+                }
+            ),
             "schema": 1,
             "legacy_report": legacy,
             "shadow_trials": shadow.summarize(state),
