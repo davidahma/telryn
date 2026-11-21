@@ -194,6 +194,98 @@ unflagged_sample=8
         self.assertEqual(self.cli()[1]["complaints"], checked)
         self.assertEqual(before, weekly_report.verified_packet(self.report))
 
+    def test_source_opening_limits_owner_history_without_inferring_from_quote_time(
+        self,
+    ):
+        for cid in ("C2", "C3"):
+            spec = next(r for r in self.manifest["cases"] if r["case_id"] == cid)
+            spec["source_citation"] = {
+                "revision": "v1",
+                "evidence_ref": f"conversations/{cid}/v1",
+                "passage": 1,
+                "passages": [{"at": self.deadline, "text": "Please investigate."}],
+                "quote": "Please investigate.",
+            }
+        self.actions = [
+            self.event(cid, f"event-{cid}", "accepted", "2026-11-08T11:00:00Z")
+            for cid in ("C2", "C3")
+        ]
+        citation = self.manifest["cases"][2]["source_citation"]
+        citation["contact_at"] = self.cutoff
+        with self.assertRaisesRegex(
+            InputError, "predates the supplied contact opening"
+        ):
+            self.attach()
+        citation["contact_at"] = "2026-11-08T11:30:00Z"
+        _, rows = self.attach()
+        self.assertEqual(rows["C2"]["owner_at_cutoff"], "accepted")
+        self.assertEqual(rows["C3"]["owner_at_cutoff"], "unresolved")
+        self.assertEqual(rows["C3"]["actions"], [self.actions[1]])
+
+    def test_source_citation_binds_frozen_case_retains_only_quote(self):
+        before = self.packet.read_bytes()
+        citation = {
+            "evidence_ref": "conversations/C3/v1",
+            "revision": "v1",
+            "passages": [
+                {"at": self.deadline, "text": "Other private background."},
+                {
+                    "at": self.deadline,
+                    "text": "Contact details. I want <this> investigated.",
+                },
+            ],
+            "passage": 2,
+            "quote": "I want <this> investigated.",
+        }
+        self.manifest["cases"][2]["source_citation"] = citation
+        for update in (
+            {"evidence_ref": "conversations/C8/v1"},
+            {"revision": "v2"},
+            {"passage": True},
+            {"passage": 1},
+            {"passage": 3},
+            {"quote": "Another issue"},
+            {"passage": 1, "passages": [{"at": self.later, "text": citation["quote"]}]},
+        ):
+            with self.subTest(update=update):
+                self.manifest["cases"][2]["source_citation"] = {**citation, **update}
+                self.save()
+                with self.assertRaises(InputError):
+                    weekly_report.attach_complaints(self.report, self.path)
+        self.manifest["cases"][2]["source_citation"] = citation
+        self.save()
+        state = weekly_report.read_state(self.report)
+        frozen = next(case for case in state["cases"] if case["case_id"] == "C3")
+        frozen["completed_at"] = "2026-11-08T11:59:59Z"
+        with self.assertRaisesRegex(InputError, "citation postdates"):
+            complaints.attach(state, self.path, self.audit_id)
+        summary, rows = self.attach()
+        self.assertEqual(
+            rows["C3"]["source_citation"],
+            {
+                "evidence_ref": "conversations/C3/v1",
+                "revision": "v1",
+                "passage": 2,
+                "quote": citation["quote"],
+                "at": self.deadline,
+            },
+        )
+        self.assertEqual(rows["C3"]["deadline"], self.deadline)
+        self.assertNotIn("episode_id", rows["C3"])
+        html = self.report.read_text()
+        self.assertIn("I want &lt;this&gt; investigated.", html)
+        self.assertNotIn("Contact details.", html)
+        self.assertNotIn("Other private background.", html)
+        self.assertEqual(weekly_report._envelope(self.report.read_bytes())["schema"], 5)
+        self.assertEqual(self.packet.read_bytes(), before)
+        self.assertEqual(self.cli()[1]["complaints"], summary)
+        self.manifest["previous_receipt"] = summary["receipt"]
+        del self.manifest["cases"][2]["source_citation"]
+        self.save()
+        with self.assertRaisesRegex(InputError, "frozen"):
+            weekly_report.attach_complaints(self.report, self.path)
+        self.assertEqual(self.cli()[1]["complaints"], summary)
+
     def test_already_registered_at_cutoff_with_future_deadline(self):
         for case in self.manifest["cases"]:
             if case["case_id"] in ("C1", "C4", "C8"):

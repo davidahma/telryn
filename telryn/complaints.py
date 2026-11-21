@@ -8,7 +8,7 @@ from html import escape
 from pathlib import Path
 
 from . import episodes
-from .contracts import InputError, fingerprint, read_json, timestamp
+from .contracts import InputError, fingerprint, integer, read_json, sequence, timestamp
 from .weekly_review import effective_grades
 
 REGISTER = ("match_key", "entry_id", "recorded_at", "evidence_ref")
@@ -43,6 +43,42 @@ def _text(value, label):
 
 def _time(value):
     return timestamp(_text(value, "timestamp"), "complaint evidence timestamp")
+
+
+def _source_citation(source, frozen, cutoff):
+    fields = ("evidence_ref", "revision", "passages", "passage", "quote")
+    if isinstance(source, dict) and "contact_at" in source:
+        fields = (*fields, "contact_at")
+    _fields(
+        source,
+        fields,
+        "source citation",
+    )
+    if any(source[k] != frozen[k] for k in ("evidence_ref", "revision")):
+        raise InputError(
+            "source citation must match the frozen conversation reference and revision"
+        )
+    passages = sequence(source["passages"], "source passages")
+    number = integer(source["passage"], "one-based passage number", minimum=1)
+    if number > len(passages):
+        raise InputError("source citation passage is absent")
+    cited = passages[number - 1]
+    _fields(cited, ("at", "text"), "dated passage")
+    quote = _text(source["quote"], "redacted passage quote")
+    if not isinstance(cited["text"], str) or quote not in cited["text"]:
+        raise InputError("source citation quote must occur in the numbered passage")
+    when = _time(cited["at"])
+    if "contact_at" in source and _time(source["contact_at"]) > when:
+        raise InputError("source citation predates the supplied contact opening")
+    if when > cutoff or (
+        frozen.get("completed_at") and when > _time(frozen["completed_at"])
+    ):
+        raise InputError("source citation postdates the frozen closure or audit cutoff")
+    return {
+        **{k: source[k] for k in ("evidence_ref", "revision", "passage", "quote")},
+        **({"contact_at": source["contact_at"]} if "contact_at" in source else {}),
+        "at": cited["at"],
+    }
 
 
 def _ledger(folder, descriptor, fields, selected, as_of):
@@ -166,7 +202,10 @@ def attach(state, path: Path, audit_id: str):
     if not isinstance(doc["cases"], list):
         raise InputError("complaint cases must be an array")
     for item in doc["cases"]:
-        _fields(item, CASE, "complaint case")
+        if isinstance(item, dict) and "source_citation" in item:
+            _fields(item, (*CASE, "source_citation"), "complaint case")
+        else:
+            _fields(item, CASE, "complaint case")
         case = _text(item["case_id"], "case_id")
         if (
             case in rows
@@ -185,6 +224,10 @@ def attach(state, path: Path, audit_id: str):
                     "a pack-backed audit computes deadlines from cited events; leave deadline null"
                 )
             _time(item["deadline"])
+        if "source_citation" in item:
+            item["source_citation"] = _source_citation(
+                item["source_citation"], sampled[case], cutoff
+            )
         rows[case] = item
     doc["cases"] = rows
     keys = {item["match_key"] for item in rows.values()} - {None}
@@ -200,6 +243,15 @@ def attach(state, path: Path, audit_id: str):
             control=state.get("control"),
             frozen_policy=pack["clock_policy"] if pack is not None else None,
         )
+        for contact in doc["episodes"]["contacts"]:
+            citation = rows.get(contact["case_id"], {}).get("source_citation", {})
+            opened = _time(contact["contact_at"])
+            if "contact_at" in citation and _time(citation["contact_at"]) != opened:
+                raise InputError(
+                    "source citation and episode disagree on the contact opening"
+                )
+            if citation and _time(citation["at"]) < opened:
+                raise InputError("source citation predates the linked contact opening")
         for binding in episodes.bindings(doc, _time(doc["as_of"])).values():
             keys.update(binding["keys"])
             action_ids.update(binding["members"])
@@ -226,7 +278,7 @@ def attach(state, path: Path, audit_id: str):
             or any(
                 key not in rows
                 or any(
-                    value is not None and value != rows[key][field]
+                    value is not None and value != rows[key].get(field)
                     for field, value in item.items()
                 )
                 for key, item in old["cases"].items()
@@ -304,20 +356,24 @@ def _complete(source, at):
     )
 
 
-def _owner(rows, source, at):
+def _owner(rows, source, at, contact_starts):
     if not _complete(source, at):
         return "unresolved"
     order = {"unobserved": 0, "requested": 1, "accepted": 2, "completed": 3}
-    status, previous_time = "unobserved", None
+    status, previous_time, previous_owner = "unobserved", None, None
     for row in rows:  # sorted by recorded_at
         when, next_status = _time(row["recorded_at"]), row["status"]
         if when > at:
             break
+        start = contact_starts.get(row["case_id"])
+        if start is not None and when < start:
+            return "unresolved"
         if order[next_status] < order[status] or (
-            when == previous_time and next_status != status
+            when == previous_time
+            and (next_status != status or row["owner"] != previous_owner)
         ):
             return "unresolved"
-        status, previous_time = next_status, when
+        status, previous_time, previous_owner = next_status, when, row["owner"]
     return status
 
 
@@ -347,6 +403,17 @@ def reconcile(state):
         by_key[r["match_key"]].append(r)
     for r in doc["actions"]["rows"]:
         by_case[r["case_id"]].append(r)
+    contact_starts = {
+        cid: _time(spec["source_citation"]["contact_at"])
+        for cid, spec in doc["cases"].items()
+        if "contact_at" in spec.get("source_citation", {})
+    }
+    contact_starts.update(
+        {
+            r["case_id"]: _time(r["contact_at"])
+            for r in doc.get("episodes", {}).get("contacts", [])
+        }
+    )
     at_bindings = episodes.bindings(doc, cutoff)
     now_bindings = episodes.bindings(doc, as_of)
     policy_doc = doc.get("episodes", {}).get("policy")
@@ -427,7 +494,7 @@ def reconcile(state):
             current = "registered"
         elif exact and not entries and _complete(doc["register"], as_of):
             current = "missing"
-        owner = _owner(actions, doc["actions"], as_of)
+        owner = _owner(actions, doc["actions"], as_of, contact_starts)
         due_now = deadline is not None and _time(deadline) <= as_of
         overdue_now = grade is True and due_now and current == "missing"
         policy_gaps = [
@@ -472,6 +539,16 @@ def reconcile(state):
                 "evidence_ref": case["evidence_ref"],
                 "completed_at": case.get("completed_at"),
                 "grade": grade,
+                **(
+                    {"source_citation": spec["source_citation"]}
+                    if "source_citation" in spec
+                    else {}
+                ),
+                **(
+                    {"classification_reason": grades[cid]["classification_reason"]}
+                    if "classification_reason" in grades.get(cid, {})
+                    else {}
+                ),
                 "deadline": deadline,
                 "policy_ref": spec.get("policy_ref"),
                 "match_key": key,
@@ -479,7 +556,9 @@ def reconcile(state):
                 "registration_at_cutoff": at_cutoff,
                 "registration_as_of": current,
                 "registration_overdue_as_of": overdue_now,
-                "owner_at_cutoff": _owner(earlier_actions, doc["actions"], cutoff),
+                "owner_at_cutoff": _owner(
+                    earlier_actions, doc["actions"], cutoff, contact_starts
+                ),
                 "owner_as_of": owner,
                 "register_entries": entries,
                 "actions": actions,
@@ -564,6 +643,10 @@ def html(state):
             ("Revision", case["revision"]),
             ("Closure at recorded source cutoff", case["completed_at"]),
             ("Policy", case["policy_ref"]),
+            (
+                "Complaint under policy",
+                {True: "Yes", False: "No", None: "Undetermined"}[case["grade"]],
+            ),
             ("Deadline", case["deadline"]),
             ("Register match key", case["match_key"]),
             ("Match at follow-up", case["match_status"].replace("_", " ")),
@@ -574,6 +657,17 @@ def html(state):
         parts.extend(
             f"<p>{label} · {escape(value or 'unknown')}</p>" for label, value in details
         )
+        if citation := case.get("source_citation"):
+            if "contact_at" in citation:
+                parts.append(
+                    f"<p>Contact opened · {escape(citation['contact_at'])}</p>"
+                )
+            parts.append(
+                f"<blockquote>{escape(citation['quote'])}</blockquote><p>{escape(citation['at'])} · "
+                f"{escape(citation['evidence_ref'])} ({escape(citation['revision'])}), passage {citation['passage']}</p>"
+            )
+        if reason := case.get("classification_reason"):
+            parts.append(f"<p>Reviewer’s classification basis · {escape(reason)}</p>")
         if "contacts" in case:
             parts.append(
                 f"<p>Complaint episode · {escape(case.get('episode_id') or 'unresolved')} · Policy {escape(case['policy_id'])} {escape(case['policy_version'])}</p>"

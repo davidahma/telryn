@@ -209,9 +209,7 @@ class ComplaintControlTests(unittest.TestCase):
         self.assertIn("1–2", digest)
         self.assertNotIn("scope", digest)
 
-    def test_deadline_after_cutoff_enters_current_work_without_changing_historical_estimate(
-        self,
-    ):
+    def issue_approaching_deadlines(self):
         self.submit([self.vote(i) for i in range(3)], "first")
         cutoff = "2026-10-12T00:00:00Z"
         later = "2026-10-14T00:00:00Z"
@@ -250,7 +248,12 @@ class ComplaintControlTests(unittest.TestCase):
             ",".join(complaints.ACTIONS)
             + f"\nB,a,accepted,owner-b,{later},source/b\nC,b,completed,owner-c,{later},source/c\n"
         )
-        state = weekly_report.attach_complaints(self.report, path)
+        return path, manifest, weekly_report.attach_complaints(self.report, path)
+
+    def test_deadline_after_cutoff_enters_current_work_without_changing_historical_estimate(
+        self,
+    ):
+        _, _, state = self.issue_approaching_deadlines()
         ledger = complaints.reconcile(state)
         self.assertTrue(
             all(
@@ -294,6 +297,34 @@ class ComplaintControlTests(unittest.TestCase):
             b"3 whose deadlines passed after cutoff",
             weekly_report.verified_html(self.report),
         )
+
+    def test_unresolved_owner_history_routes_to_the_control_owner(self):
+        path, manifest, state = self.issue_approaching_deadlines()
+        as_of = "2026-10-15T00:00:00Z"
+        with (self.root / "actions.csv").open("a") as stream:
+            stream.write(
+                f"B,bb,accepted,Case manager,{as_of},source/bb\n"
+                f"B,bc,accepted,Other manager,{as_of},source/bc\n"
+                f"C,cc,requested,New requester,{as_of},source/cc\n"
+            )
+        manifest["as_of"] = as_of
+        manifest["register"]["complete_through"] = as_of
+        for through in (manifest["actions"]["complete_through"], as_of):
+            with self.subTest(complete_through=through):
+                manifest["actions"]["complete_through"] = through
+                manifest["previous_receipt"] = complaints.reconcile(state)["receipt"]
+                path.write_text(json.dumps(manifest))
+                state = weekly_report.attach_complaints(self.report, path)
+                ledger = complaints.reconcile(state)
+                self.assertTrue({"B", "C"} <= set(ledger["worklist"]["unresolved"]))
+                case_b = next(r for r in ledger["cases"] if r["case_id"] == "B")
+                self.assertEqual(case_b["owner_as_of"], "unresolved")
+                self.assertEqual(case_b["actions"][0]["evidence_ref"], "source/b")
+                follow_up = control.summary(state)["unresolved"]
+                self.assertEqual(
+                    {r["owner"] for r in follow_up if r["case_id"] in ("B", "C")},
+                    {self.cfg["gap_owner"]},
+                )
 
     def test_phrasing_limits_and_config_errors(self):
         self.cfg["population_basis"] = "shortlist_union"

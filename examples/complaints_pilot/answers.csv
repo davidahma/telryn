@@ -1,5 +1,5 @@
 case_id,serious,disposition,owner,action,primary_minutes,second_minutes,category,vulnerability,redress,classification_reason
-C102,yes,new,Complaints lead,Request owner decision,5,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
+C102,yes,new,Complaints lead,Request owner decision,5,3,Service complaint,unknown,unknown,The customer explicitly asked Fin to open a complaint about a duplicate charge.
 C103,yes,new,Complaints lead,Request owner decision,6,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
 C104,yes,already_known,,,5,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
 C105,yes,already_known,,,4,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
@@ -10,7 +10,7 @@ C109,yes,new,Case manager,Review dated source records,5,3,Service complaint,unkn
 C110,no,none,,,3,3,none,unknown,unknown,The customer sought information or confirmed resolution.
 C202,yes,new,Complaints lead,Request owner decision,6,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
 C203,yes,new,Complaints lead,Request owner decision,6,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
-C204,yes,new,Complaints lead,Request owner decision,5,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
+C204,yes,new,Complaints lead,Request owner decision,5,3,Service complaint,unknown,unknown,The customer explicitly asked Fin to register a service complaint.
 C205,insufficient,unknown,,,5,3,unknown,unknown,unknown,The referenced evidence is unavailable.
 C206,no,none,,,3,3,none,unknown,unknown,The customer sought information or confirmed resolution.
 C207,yes,new,Case manager,Review dated source records,5,3,Service complaint,unknown,completed,Customer requested a response to harm under the example policy.

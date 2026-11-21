@@ -179,12 +179,15 @@ def summary(state):
                 if closed and ledger
                 else None
             )
+            owner = grade.get("owner") or cfg["gap_owner"]
+            if row.get("owner_as_of") == "unresolved":
+                owner = cfg["gap_owner"]
+            elif row.get("actions"):
+                owner = row["actions"][-1]["owner"]
             unresolved.append(
                 {
                     "case_id": cid,
-                    "owner": (row.get("actions") or [{}])[-1].get("owner")
-                    or grade.get("owner")
-                    or cfg["gap_owner"],
+                    "owner": owner,
                     "review_date": cfg["gap_review_date"],
                     "age_days_since_close": age,
                 }
@@ -386,7 +389,12 @@ def html(state, s):
         ),
     )
     gaps = table(
-        ["Conversation", "Owner", "Review date", "Days since close at observation"],
+        [
+            "Conversation",
+            "Follow-up owner",
+            "Review date",
+            "Days since close at observation",
+        ],
         (
             [
                 g["case_id"],

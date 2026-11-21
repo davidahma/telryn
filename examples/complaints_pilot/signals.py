@@ -1,9 +1,10 @@
 """The rehearsal's transparent screen uses only evidence visible at selection."""
 
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from telryn import screen
+from telryn.contracts import timestamp
 
 # These example prompts for human review deliberately include broad triggers.
 TRIGGERS = {
@@ -16,8 +17,8 @@ TRIGGERS = {
 
 def prior_related(case, contacts, days):
     """Look back from the conversation, ignoring subsequent and unrelated contacts."""
-    closed = datetime.fromisoformat(case["closed_at"])
-    start = closed - timedelta(days=days)
+    closed = timestamp(case["closed_at"], "conversation closure")
+    start = (closed[0] - timedelta(days=days), closed[1])
     subject, matter = case["subject_ref"], case["matter_ref"]
     return [
         c
@@ -27,7 +28,7 @@ def prior_related(case, contacts, days):
         and c["subject_ref"] == subject
         and c["matter_ref"] == matter
         and c["case_id"] != case["case_id"]
-        and start <= datetime.fromisoformat(c["contact_at"]) < closed
+        and start <= timestamp(c["contact_at"], "earlier contact time") < closed
     ]
 
 

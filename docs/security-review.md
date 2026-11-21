@@ -1,10 +1,10 @@
-# Telryn security review pack · v0.9.3
+# Telryn security review pack · v0.9.4
 
 **What would leave the bank's network during a weekly audit?** Nothing needs to. The weekly command reads local files, draws the sample, accepts grades and writes a signed report. The browser desk serves a private session from the operator's machine. Neither path makes outbound calls by default. Run the weekly job with networking disabled to enforce that boundary independently of the application. Pulling the image and verifying its publisher are deployment steps. IT can do those in a connected staging environment before importing the approved image into a restricted network.
 
-This pack covers the open-source release for the complaints lead, the reviewer who sees a blinded packet and the IT team operating the image. The signed release includes an image for each Linux architecture, a software bill of materials for each image, and the procedure to verify the bytes IT receives. [Release files](https://github.com/davidahma/telryn/releases/tag/v0.9.3) · [Container deployment and verification](https://github.com/davidahma/telryn/blob/v0.9.3/docs/container.md)
+This pack covers the open-source release for the complaints lead, the reviewer who sees a blinded packet and the IT team operating the image. The signed release includes an image for each Linux architecture, a software bill of materials for each image, and the procedure to verify the bytes IT receives. [Release files](https://github.com/davidahma/telryn/releases/tag/v0.9.4) · [Container deployment and verification](https://github.com/davidahma/telryn/blob/v0.9.4/docs/container.md)
 
-Analysts can also install the CLI from [PyPI](https://pypi.org/project/telryn/0.9.3/). The wheel and Python source distribution carry PyPI publisher attestations from the repository’s `workflow.yml` on protected `main`. The PyPI publishing environment accepts only that branch. The workflow checks the signed GitHub source archive against the tagged commit before building the Python distributions. The GitHub source archive includes the full checkout. It shares a filename with the PyPI source distribution, which contains the files used to build and exercise the Python package. Use the SHA-256 digest and provenance from the channel where you obtained the artifact. The core Python install uses the standard library. The Bedrock extra adds the AWS SDK. [Check PyPI provenance](https://docs.pypi.org/attestations/consuming-attestations/)
+Analysts can also install the CLI from [PyPI](https://pypi.org/project/telryn/0.9.4/). The wheel and Python source distribution carry PyPI publisher attestations from the repository’s `workflow.yml` on protected `main`. The PyPI publishing environment accepts only that branch. The workflow checks the signed GitHub source archive against the tagged commit before building the Python distributions. The GitHub source archive includes the full checkout. It shares a filename with the PyPI source distribution, which contains the files used to build and exercise the Python package. Use the SHA-256 digest and provenance from the channel where you obtained the artifact. The core Python install uses the standard library. The Bedrock extra adds the AWS SDK. [Check PyPI provenance](https://docs.pypi.org/attestations/consuming-attestations/)
 
 ## Data flow
 
@@ -32,7 +32,7 @@ Optional, explicitly enabled routes
   Synthetic messages ------> agent test tenant --> separate test register read
 ```
 
-The desk shares the CLI's report logic. The lead report can identify a customer through a quoted passage, a reference or a linked case. The blinded CSV removes the screening answer and register findings, but still contains identifiers and the references reviewers need. Restrict both artifacts as customer records. [Evidence and retention](https://github.com/davidahma/telryn/blob/v0.9.3/docs/complaint-clocks.md)
+The desk shares the CLI's report logic. The lead report can identify a customer through a quoted passage, a reference or a linked case. The blinded CSV removes the screening answer and register findings, but still contains identifiers and the references reviewers need. Restrict both artifacts as customer records. [Evidence and retention](https://github.com/davidahma/telryn/blob/v0.9.4/docs/complaint-clocks.md)
 
 ## What IT should verify
 
@@ -41,7 +41,7 @@ The desk shares the CLI's report logic. The lead report can identify a customer 
 3. Use the image by digest or import the verified OCI archive. Mount source exports read-only. Give the process separate writable storage for runs and the private team trust store. Keep the QA desk reachable only by the authorized operator.
 4. Exercise an offline synthetic audit and restore a signed audit with its original trust store from backup. If the team enables cloud extraction, repeat the review for that provider's endpoint, account, credentials, model, network route, logging and retention.
 
-The pack archive contains this guide and the two platform inventories. The release workflow signs the checksum manifest that covers the pack, the portable image, the source and the example reports. Keep the signed manifest and bundle alongside the pack. Signing identifies what the project published. The firm's review determines whether to deploy it. [Release workflow](https://github.com/davidahma/telryn/blob/v0.9.3/.github/workflows/release-container.yml) · [Sigstore verification](https://docs.sigstore.dev/cosign/verifying/verify/)
+The pack archive contains this guide and the two platform inventories. The release workflow signs the checksum manifest that covers the pack, the portable image, the source and the example reports. Keep the signed manifest and bundle alongside the pack. Signing identifies what the project published. The firm's review determines whether to deploy it. [Release workflow](https://github.com/davidahma/telryn/blob/v0.9.4/.github/workflows/release-container.yml) · [Sigstore verification](https://docs.sigstore.dev/cosign/verifying/verify/)
 
 ## Vendor-risk questions
 
@@ -59,4 +59,4 @@ The pack archive contains this guide and the two platform inventories. The relea
 | Who patches the image? | Maintainers publish releases and instructions for private vulnerability reports. The deploying firm monitors advisories, reviews replacement digests and schedules rollout or rollback. Keep graded reports and their registry together when restoring. |
 | What assurance or service commitment comes with the project? | The release provides reviewable source, tests, signatures and inventories under Apache-2.0. This pack supplies technical evidence. Audit certifications, regulatory approval, a support SLA and disaster-recovery targets require separate evidence or agreement. |
 
-[Private vulnerability reporting](https://github.com/davidahma/telryn/security/advisories/new) · [Audit trust and recovery](https://github.com/davidahma/telryn/blob/v0.9.3/docs/trust.md) · [Network integrations](https://github.com/davidahma/telryn/blob/v0.9.3/docs/integrations.md) · [Transcript processing](https://github.com/davidahma/telryn/blob/v0.9.3/docs/transcripts.md)
+[Private vulnerability reporting](https://github.com/davidahma/telryn/security/advisories/new) · [Audit trust and recovery](https://github.com/davidahma/telryn/blob/v0.9.4/docs/trust.md) · [Network integrations](https://github.com/davidahma/telryn/blob/v0.9.4/docs/integrations.md) · [Transcript processing](https://github.com/davidahma/telryn/blob/v0.9.4/docs/transcripts.md)

@@ -248,13 +248,12 @@ Record first-week onboarding by team in minutes and include it once in each meth
 
 #### Run the local rehearsal
 
-The installed CLI prints both report paths when you run `telryn demo --complaints --out runs/complaints-pilot`. For the full comparison JSON and the Intercom ledger check, run these commands from the [matching source checkout](weekly-qa.md#use-the-example-input-files).
+From a fresh PyPI installation, issue both weeks to a new directory. For a machine-readable result, add `--format json` to the same command. Either format saves the actual draw in `runs/field-rehearsal/comparison.json`.
 
 ```sh
-python3 -m examples.complaints_pilot --out runs/field-rehearsal > field-rehearsal.json
-python3 -m examples.complaints_pilot.intercom
+telryn demo --complaints --out runs/field-rehearsal
 ```
 
-The first command runs two invented weeks with a capable saved SQL query and Telryn's weekly sample. Both see the same cutoff-limited register, owner actions, repeated contacts, consumer escalation, hardship and post-refund evidence. Four examples exercise complaints phrased without “complaint”. The deduplicated union receives two blind grades. Each dated directory contains one signed report and one grading packet. `field-rehearsal.json` records the actual frozen selections, staff time and owner outcomes. Preserve the JSON and team trust store to replay the assignments.
+The rehearsal compares a saved SQL query with Telryn's weekly sample. Both see the same cutoff-limited register, owner actions, repeated contacts, consumer escalation, hardship and post-refund evidence. Four examples exercise complaints phrased without “complaint”. Each selected case receives two blind grades, including cases picked by both methods. Each dated directory contains one signed report and one grading packet. Preserve the reports, comparison JSON and rehearsal trust store. To run the separate Intercom ledger check, use `python3 -m examples.complaints_pilot.intercom` in the [matching source checkout](weekly-qa.md#use-the-example-input-files).
 
 On the published first draw SQL found five accepted episodes in 125 stipulated staff minutes. Telryn found those five and one other in 131 minutes. Across all 1,350 permitted two-week selections on the fixture, SQL matches or beats Telryn on episode count 96% of the time. That calculation uses the staged acceptances only after the two shortlists are frozen. It describes sensitivity to sampling on this fixture. A field comparison must still establish customer effort, earlier action and willingness to pay. [Worked case, method and results](../examples/complaints_pilot/README.md)

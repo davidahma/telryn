@@ -14,7 +14,7 @@ from pathlib import Path
 
 from telryn import complaints, control, weekly, weekly_report, weekly_review
 
-from telryn.contracts import InputError, canonical, fingerprint
+from telryn.contracts import InputError, canonical, fingerprint, integer, timestamp
 from telryn.integrations_coverage import new_receipt, publish
 
 from . import signals
@@ -112,10 +112,15 @@ def source_cutoff(week):
 
 
 def ledger_through(name, cutoff):
-    rows = read_csv(FIXTURE / (name + ".csv"))
-    return list(rows[0]), [
-        r for r in rows if datetime.fromisoformat(r["recorded_at"]) <= cutoff
-    ]
+    with (FIXTURE / (name + ".csv")).open(encoding="utf-8-sig", newline="") as stream:
+        reader = csv.DictReader(stream)
+        if not reader.fieldnames:
+            raise InputError(f"{name} requires a CSV header")
+        return reader.fieldnames, [
+            r
+            for r in reader
+            if timestamp(r["recorded_at"], "ledger time") <= (cutoff, "")
+        ]
 
 
 def current_contact(case):
@@ -126,8 +131,8 @@ def current_contact(case):
         },
         "revision": "v1",
         "evidence_ref": "conversations/" + case["case_id"],
-        "contact_at": case["closed_at"],
-        "passages": [{"at": case["closed_at"], "text": case["message"]}],
+        "contact_at": case["opened_at"],
+        "passages": [{"at": case["message_at"], "text": case["message"]}],
         "events": [],
     }
 
@@ -135,7 +140,28 @@ def current_contact(case):
 def visible_contacts(population, cutoff):
     archive = json.loads((FIXTURE / "prior-contacts.json").read_text())["contacts"]
     contacts = [*archive, *(current_contact(c) for c in population)]
-    return [c for c in contacts if datetime.fromisoformat(c["contact_at"]) <= cutoff]
+    history = []
+    horizon = (cutoff, "")
+    for contact in contacts:
+        if timestamp(contact["contact_at"], "contact time") > horizon:
+            continue
+        passages = []
+        for number, row in enumerate(contact["passages"], 1):
+            if timestamp(row["at"], "passage time") <= horizon:
+                if number != len(passages) + 1:
+                    raise InputError(
+                        "supply the transcript revision at cutoff to preserve passage numbering"
+                    )
+                passages.append(row)
+        events = []
+        for event in contact["events"]:
+            number = integer(event["passage"], "event passage", minimum=1)
+            if number > len(contact["passages"]):
+                raise InputError("event refers to an absent source passage")
+            if number <= len(passages):
+                events.append(event)
+        history.append({**contact, "passages": passages, "events": events})
+    return history
 
 
 def shortlists(work, week, cases, protocol, history):
@@ -149,6 +175,15 @@ def shortlists(work, week, cases, protocol, history):
     links, screened, cues, eligible = [], [], {}, []
     for case in cases:
         cid = case["case_id"]
+        if not (
+            timestamp(case["opened_at"], "conversation opening")
+            <= timestamp(case["message_at"], "source passage time")
+            <= timestamp(case["closed_at"], "conversation closure")
+            <= (cutoff, "")
+        ):
+            raise InputError(
+                f"{cid} needs a source passage between opening and closure by cutoff"
+            )
         prior = signals.prior_related(case, history, policy["episode_days"])
         related = [current_contact(case), *prior]
         links.extend((cid, c["case_id"], c["match_key"]) for c in related)
@@ -238,7 +273,7 @@ def grade_union(report, work, answers):
     return packet[0]["audit_id"]
 
 
-def attach_records(report, work, week, union, protocol, audit_id, history):
+def records_manifest(work, week, union, protocol, audit_id, history):
     cutoff = source_cutoff(week)
     as_of = cutoff + timedelta(days=2)
     # Each simulated vendor export ends at its observation date. In particular,
@@ -270,6 +305,14 @@ def attach_records(report, work, week, union, protocol, audit_id, history):
                 "deadline": case["deadline"] or None,
                 "match_key": case["match_key"],
                 "policy_ref": protocol["policy"] + "#logging-deadline",
+                "source_citation": {
+                    "evidence_ref": "conversations/" + case["case_id"],
+                    "revision": "v1",
+                    "contact_at": case["opened_at"],
+                    "passages": current_contact(case)["passages"],
+                    "passage": 1,
+                    "quote": case["message"],
+                },
             }
             for case in union
         ],
@@ -294,7 +337,7 @@ def attach_records(report, work, week, union, protocol, audit_id, history):
         )
     path = work / "records.json"
     path.write_text(canonical(manifest))
-    weekly_report.attach_complaints(report, path)
+    return path
 
 
 def ownership(episodes_by_method):
@@ -308,10 +351,9 @@ def ownership(episodes_by_method):
     }
 
 
-def tally(state, picks, effort, protocol):
+def owner_findings(state):
     outcomes = complaints.reconcile(state)
-    cases = {r["case_id"]: r for r in outcomes["cases"]}
-    cutoff = datetime.fromisoformat(outcomes["cutoff"])
+    cutoff = timestamp(outcomes["cutoff"], "comparison cutoff")
     observed = {}
     index = read_csv(FIXTURE / "owner-episodes.csv")
     episodes = {}
@@ -320,35 +362,50 @@ def tally(state, picks, effort, protocol):
         episodes.setdefault(key, set()).add(row["complaint_episode"])
     grades = weekly_review.effective_grades(state)
     pending = []
-    for ident, outcome in cases.items():
+    unresolved = []
+    for outcome in outcomes["cases"]:
+        ident = outcome["case_id"]
         if (
             outcome["grade"] is not True
             or grades[ident]["disposition"] != "new"
             or outcome["registration_at_cutoff"] != "missing"
-            or outcome["owner_at_cutoff"] != "unobserved"
         ):
             continue
-        events = sorted(
-            (e for e in outcome["actions"] if e["status"] in ("accepted", "completed")),
-            key=lambda event: datetime.fromisoformat(event["recorded_at"]),
-        )
+        if "unresolved" in (outcome["owner_at_cutoff"], outcome["owner_as_of"]):
+            unresolved.append(ident)
+            continue
+        if outcome["owner_at_cutoff"] != "unobserved" or any(
+            timestamp(e["recorded_at"], "owner event time") <= cutoff
+            for e in outcome["actions"]
+        ):
+            continue
+        if outcome["match_status"] != "exact_key":
+            unresolved.append(ident)
+            continue
+        events = [
+            e for e in outcome["actions"] if e["status"] in ("accepted", "completed")
+        ]
         if not events:
             pending.append(ident)
             continue
 
         def elapsed(event):
-            return (
-                datetime.fromisoformat(event["recorded_at"]) - cutoff
-            ).total_seconds() / 60
+            when, remainder = timestamp(event["recorded_at"], "owner event time")
+            # timestamp preserves any fraction smaller than a microsecond separately.
+            seconds = (when - cutoff[0]).total_seconds()
+            seconds += float("0.000000" + remainder) - float("0.000000" + cutoff[1])
+            return seconds / 60
 
         acceptance = next((e for e in events if e["status"] == "accepted"), None)
         completed = next((e for e in events if e["status"] == "completed"), None)
-        links = [episodes.get((ident, e["action_id"]), set()) for e in events]
+        links = [episodes.get((e["case_id"], e["action_id"]), set()) for e in events]
         matched = set.union(*links)
         episode = next(iter(matched)) if all(links) and len(matched) == 1 else None
         observed[ident] = {
             "owner": events[0]["owner"],
             "complaint_episode": episode,
+            "acceptance_owner": acceptance["owner"] if acceptance else None,
+            "completion_owner": completed["owner"] if completed else None,
             "acceptance_ref": acceptance["evidence_ref"] if acceptance else None,
             "minutes_to_owner_acceptance_from_cutoff": elapsed(acceptance)
             if acceptance
@@ -359,6 +416,33 @@ def tally(state, picks, effort, protocol):
             "action_ref": completed["evidence_ref"] if completed else None,
         }
 
+    return {
+        "observed_owner_actions": observed,
+        "new_awaiting_owner_acceptance": sorted(pending),
+        "unresolved_owner_evidence": sorted(unresolved),
+        "owner_episode_index_fingerprint": fingerprint(index),
+        "episode_unresolved": sorted(
+            i for i, r in observed.items() if r["complaint_episode"] is None
+        ),
+        "completed_without_recorded_acceptance": sorted(
+            i
+            for i, r in observed.items()
+            if r["action_ref"] and not r["acceptance_ref"]
+        ),
+    }
+
+
+def accepted_episodes(findings):
+    return {
+        case: result["complaint_episode"]
+        for case, result in findings["observed_owner_actions"].items()
+        if result["complaint_episode"] and result["acceptance_ref"]
+    }
+
+
+def tally(state, picks, effort, protocol):
+    findings = owner_findings(state)
+    accepted = accepted_episodes(findings)
     measures = {}
     cap = protocol["staff_minutes_per_arm"]
     for method, selected in picks.items():
@@ -374,13 +458,7 @@ def tally(state, picks, effort, protocol):
         measures[method] = {
             "selected": selected,
             "owner_accepted_new": sorted(
-                {
-                    observed[i]["complaint_episode"]
-                    for i in selected
-                    if i in observed
-                    and observed[i]["complaint_episode"]
-                    and observed[i]["acceptance_ref"]
-                }
+                {accepted[i] for i in selected if i in accepted}
             ),
             "staff_minutes": phases,
             "total_staff_minutes": total,
@@ -394,35 +472,44 @@ def tally(state, picks, effort, protocol):
         "owner_accepted": ownership(
             {arm: m["owner_accepted_new"] for arm, m in measures.items()}
         ),
-        "new_awaiting_owner_acceptance": sorted(pending),
-        "observed_owner_actions": observed,
-        "owner_episode_index_fingerprint": fingerprint(index),
-        "episode_unresolved": sorted(
-            i for i, r in observed.items() if r["complaint_episode"] is None
-        ),
-        "completed_without_recorded_acceptance": sorted(
-            i
-            for i, r in observed.items()
-            if r["action_ref"] and not r["acceptance_ref"]
-        ),
+        **findings,
     }
 
 
-def possible_selections(work, week, protocol):
-    """Sensitivity to the draw using staged owner outcomes only after grading."""
-    cutoff = source_cutoff(week)
-    _, events = ledger_through("owner-events", cutoff + timedelta(days=2))
-    accepted = {
-        (e["case_id"], e["action_id"])
-        for e in events
-        if e["status"] == "accepted"
-        and datetime.fromisoformat(e["recorded_at"]) > cutoff
+def fixture_acceptances(work, week, protocol, cases, history, answers):
+    """Score the authored outcomes under the same evidence rules as the actual draw."""
+    eligible = [c for c in cases if c["ordinary_reviewed"] == "no"]
+    audit = "synthetic-sensitivity"
+    work.mkdir()
+    manifest = records_manifest(work, week, eligible, protocol, audit, history)
+    staged = {
+        "week": week,
+        "rubric": protocol["policy"],
+        "cases": [
+            {
+                "case_id": c["case_id"],
+                "revision": "v1",
+                "evidence_ref": "conversations/" + c["case_id"],
+                "completed_at": c["closed_at"],
+            }
+            for c in eligible
+        ],
+        "grades": {
+            c["case_id"]: {
+                "serious": {"yes": True, "no": False, "insufficient": None}[
+                    answers[c["case_id"]]["serious"]
+                ],
+                "disposition": answers[c["case_id"]]["disposition"],
+            }
+            for c in eligible
+        },
     }
-    episode_by_case = {
-        row["case_id"]: row["complaint_episode"]
-        for row in read_csv(FIXTURE / "owner-episodes.csv")
-        if (row["case_id"], row["action_id"]) in accepted
-    }
+    complaints.attach(staged, manifest, audit)
+    return accepted_episodes(owner_findings(staged))
+
+
+def possible_selections(work, protocol, episode_by_case):
+    """Enumerate alternatives without issuing assignments or crediting hypothetical time."""
     reviewed = {r["case_id"] for r in read_csv(work / "ordinary.csv")}
     pool = read_csv(work / "population.csv")
     choices = []
@@ -477,7 +564,8 @@ def run(out: Path):
             report = weekly_report.start(blind_plan, staging / week)
             answers = {r["case_id"]: r for r in read_csv(FIXTURE / "answers.csv")}
             audit_id = grade_union(report, work, answers)
-            attach_records(report, work, week, union, protocol, audit_id, history)
+            manifest = records_manifest(work, week, union, protocol, audit_id, history)
+            weekly_report.attach_complaints(report, manifest)
             effort = {
                 r["method"]: r
                 for r in read_csv(FIXTURE / "staff-minutes.csv")
@@ -486,7 +574,10 @@ def run(out: Path):
             state = weekly_report.read_state(report)
             result = tally(state, picks, effort, protocol)
             result["control_statement"] = control.summary(state)
-            possible.append(possible_selections(work / "frame", week, protocol))
+            accepted = fixture_acceptances(
+                work / "sensitivity", week, protocol, cases, history, answers
+            )
+            possible.append(possible_selections(work / "frame", protocol, accepted))
             weeks.append(
                 {
                     "week": week,
@@ -496,7 +587,15 @@ def run(out: Path):
                     **result,
                 }
             )
+        result = two_week_result(weeks, possible, protocol)
+        (staging / "comparison.json").write_text(
+            canonical(result) + "\n", encoding="utf-8"
+        )
         staging.rename(out)
+    return result
+
+
+def two_week_result(weeks, possible, protocol):
     help_minutes = weeks[1]["methods"]["telryn"]["staff_minutes"]["operator_help"]
     all_episodes = {
         arm: {i for w in weeks for i in w["methods"][arm]["owner_accepted_new"]}
