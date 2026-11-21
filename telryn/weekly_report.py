@@ -38,15 +38,27 @@ COLUMNS = FIXED + ANSWERS
 def _columns(state: dict) -> tuple:
     evidence = ("completed_at",) if "coverage_sha256" in state else ()
     rubric = ("category_options",) if "control" in state else ()
+    guidance = (
+        ("policy_applicability", "policy_sources")
+        if state.get("pack_packet_version") == 2
+        else ()
+    )
     dimensions = control.FIELDS if "control" in state else ()
-    return FIXED + evidence + rubric + ANSWERS + dimensions
+    return FIXED + evidence + rubric + guidance + ANSWERS + dimensions
 
 
 def _audit_id(state: dict) -> str:
     frozen = {
         key: value
         for key, value in state.items()
-        if key not in ("grades", "earlier_grades", "case_reviews", "complaint_records")
+        if key
+        not in (
+            "grades",
+            "earlier_grades",
+            "case_reviews",
+            "complaint_records",
+            "pack_reviews",
+        )
     }
     return "W-" + fingerprint(frozen)
 
@@ -71,6 +83,10 @@ def _packet(state: dict) -> dict:
             fields["category_options"] = json.dumps(
                 state["control"]["categories"], ensure_ascii=False
             )
+        if state.get("pack_packet_version") == 2:
+            pack = state["policy_pack"]
+            fields["policy_applicability"] = pack["applicability"]
+            fields["policy_sources"] = json.dumps(pack["sources"], ensure_ascii=False)
         rows[row_id] = (
             case["case_id"],
             {key: render_cell(value) for key, value in fields.items()},
@@ -215,7 +231,9 @@ def digest(report_path: Path, *, allow_legacy=False) -> str:
     else:
         state, revision, signature = verified_snapshot(report_path)
     lines = _digest_lines(state, summarize(state))
-    if state.get("complaint_records", {}).get("policy_reviews"):
+    if state.get("pack_reviews") or state.get("complaint_records", {}).get(
+        "policy_reviews"
+    ):
         lines.append("Policy re-review required. Open the report for affected clauses.")
     if "control" in state:
         lines.append(f"Signed report revision {revision}, HMAC {signature}.")
@@ -314,6 +332,13 @@ def _coverage_lines(state: dict) -> list[str]:
 
 def _report_schema(state):
     records = state.get("complaint_records", {})
+    issued_policy = records.get("snapshot", {}).get("episodes", {}).get("policy", {})
+    if (
+        "policy_pack" in state
+        or "business_weekdays" in issued_policy
+        or any("pack_digest" in n for n in records.get("policy_reviews", []))
+    ):
+        return 4
     if (
         "control" in state
         or "episodes" in records.get("snapshot", {})
@@ -337,6 +362,16 @@ def _render(state: dict, auth: dict) -> str:
     if "control" in state and not registration:
         registration = "<section><h2>Registration evidence pending</h2><p>Attach a dated register and work record with the weekly command and <code>--complaint-records</code>.</p></section>"
     scope = f"<p>{escape(state['scope_note'])}</p>" if state.get("scope_note") else ""
+    if pack := result.get("policy_pack"):
+        scope += (
+            f"<p>Policy and rubric pack <strong>{escape(pack['reference'])}</strong>. "
+            f"{escape(pack['applicability'])}</p><p>Policy sources: "
+            + "; ".join(escape(source) for source in pack["sources"])
+            + f"</p><p>Pack SHA-256: <code>{pack['sha256']}</code></p>"
+        )
+        for notice in state.get("pack_reviews", []):
+            changed = ", ".join(notice["changed_pack_fields"])
+            scope += f"<p>Review these grades against pack {escape(notice['review_version'])}. Changed fields: {escape(changed)}.</p>"
     scope += "".join(f"<p>{escape(line)}</p>" for line in _coverage_lines(state))
     if cov := state.get("coverage"):
         scope += f"<p>Source scope: {escape(cov['scope'])}. UTC interval [{escape(cov['since'])}, {escape(cov['until'])}).</p>"
@@ -492,7 +527,7 @@ def _verify_signed(raw, db, key):
             "weekly report signature does not match the team's local key or report bytes"
         )
     envelope = _envelope(data)
-    if type(envelope.get("schema")) is not int or envelope["schema"] not in (2, 3):
+    if type(envelope.get("schema")) is not int or envelope["schema"] not in (2, 3, 4):
         raise InputError("unrecognized signed weekly report version")
     state = versioned(envelope.get("state"), "weekly evidence")
     auth = envelope["auth"]
@@ -524,6 +559,7 @@ def _verify_signed(raw, db, key):
                 "stale or diverging weekly report; open the latest signed revision"
             )
     validate_state(state)
+    audit_trust.bind_policy_versions(db, state)
     return state, revision, actual
 
 
@@ -533,6 +569,7 @@ def _legacy(raw):
     if (
         "draw_commitment" in state
         or "publication_id" in state
+        or "policy_pack" in state
         or "control" in state
         or "complaint_records" in state
         or fingerprint(state) != envelope.get("checksum")
@@ -610,13 +647,16 @@ def start(plan_path: Path, out_dir: Path) -> Path:
         raise FileExistsError(f"output directory already exists: {out_dir}")
     state = prepare(plan_path)
     state["publication_id"] = secrets.token_hex(16)
-    with audit_trust.registry() as (db, key):
-        audit_trust.check_draw(db, key, state)
-        data, signature = _signed(state, key, 1, None)
-        db.execute(
-            "INSERT INTO reports VALUES (?,1,?)", (state["publication_id"], signature)
-        )
-        with new_directory(out_dir) as staging:
+    with new_directory(out_dir) as staging:
+        # Publish the packet only after its signature and pack identity commit.
+        with audit_trust.registry() as (db, key):
+            audit_trust.check_draw(db, key, state)
+            audit_trust.bind_policy_versions(db, state)
+            data, signature = _signed(state, key, 1, None)
+            db.execute(
+                "INSERT INTO reports VALUES (?,1,?)",
+                (state["publication_id"], signature),
+            )
             (staging / "report.html").write_bytes(data)
             (staging / "grades.csv").write_bytes(_packet_bytes(state))
     return out_dir / "report.html"
@@ -693,6 +733,7 @@ def _update(report_path: Path, change) -> dict:
         state, revision, previous = _verify_signed(report_path.read_bytes(), db, key)
         if change(state):
             validate_state(state)
+            audit_trust.bind_policy_versions(db, state)
             data, signature = _signed(state, key, revision + 1, previous)
             db.execute(
                 "UPDATE reports SET revision=?,signature=? WHERE id=?",

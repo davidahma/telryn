@@ -117,8 +117,10 @@ def groups(contacts, window, horizon):
     return by_id
 
 
-def load(contact_path, policy_path, doc, sampled, *, control=None):
-    clock_policy = policy.load(policy_path)
+def load(contact_path, policy_path, doc, sampled, *, control=None, frozen_policy=None):
+    clock_policy = (
+        frozen_policy if frozen_policy is not None else policy.load(policy_path)
+    )
     archive = policy.read_input(contact_path, "episode evidence")
     policy.fields(archive, ("schema", "contacts"), "episode evidence")
     key = audit_trust._key()

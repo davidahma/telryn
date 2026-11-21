@@ -48,7 +48,7 @@ python3 -m telryn integrations cohort lifecycle.csv \
   --since 2026-11-02 --until 2026-11-09 --scope "UK support warehouse" --out population.csv
 ```
 
-The weekly plan discovers the adjacent coverage receipt. When it is stored elsewhere, set `coverage_receipt="path/to/coverage.json"`. Telryn checks the seven-day interval and exact membership before drawing. To fetch transcripts or hand off through a native connector, keep its namespaced case IDs, such as `zendesk:acme:902`.
+If an interrupted export leaves just the coverage receipt, repeat the original export. An identical receipt can finish the publication. For a different export, choose a fresh destination. All connector writers reserve the data file and its adjacent receipt together. The weekly plan discovers the adjacent coverage receipt. When it is stored elsewhere, set `coverage_receipt="path/to/coverage.json"`. Telryn checks the seven-day interval and exact membership before drawing. To fetch transcripts or hand off through a native connector, keep its namespaced case IDs, such as `zendesk:acme:902`.
 
 ## Match the ordinary QA reviews
 

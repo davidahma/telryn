@@ -1,6 +1,7 @@
 """Account for the source records included and excluded from a weekly population."""
 
 import csv
+import fcntl
 import json
 import os
 import re
@@ -197,18 +198,29 @@ def publish(path, rows, receipt):
 
 def publish_with_receipt(path, artifact, receipt):
     """Publish the coverage first, so a newly visible data file always has its provenance."""
-    if path.exists() or path.is_symlink():
-        raise InputError(f"output already exists: {path}")
     artifact.chmod(0o600)
     with artifact.open("rb") as stream:
         os.fsync(stream.fileno())
+    # All connector writers take the same directory lock through both no-clobber
+    # links. An uncovered writer cannot interleave with an incoming receipt.
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(directory, fcntl.LOCK_EX)
+        _publish_links(path, artifact, receipt)
+    finally:
+        os.close(directory)
+
+
+def _publish_links(path, artifact, receipt):
+    if path.exists() or path.is_symlink():
+        raise InputError(f"output already exists: {path}")
+    ledger = Path(str(path) + ".coverage.json")
     if receipt is not None:
         info = artifact.with_name("coverage.tmp")
         info.write_text(canonical(receipt) + "\n", encoding="utf-8")
         info.chmod(0o600)
         with info.open("rb") as stream:
             os.fsync(stream.fileno())
-        ledger = Path(str(path) + ".coverage.json")
         try:
             os.link(info, ledger)
         except FileExistsError:
@@ -217,7 +229,7 @@ def publish_with_receipt(path, artifact, receipt):
                     f"unmatched coverage receipt already exists: {ledger}"
                 ) from None
         sync_directory(path.parent)
-    elif Path(str(path) + ".coverage.json").exists():
+    elif ledger.exists() or ledger.is_symlink():
         raise InputError("output path already has a coverage receipt")
     os.link(artifact, path)
     sync_directory(path.parent)

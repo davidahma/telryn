@@ -43,6 +43,20 @@ def _date(value):
     raise InputError("review date must use YYYY-MM-DD")
 
 
+def categories(value):
+    labels = [
+        _text(label, "category").casefold() for label in sequence(value, "categories")
+    ]
+    if (
+        not labels
+        or len(labels) != len(set(labels))
+        or {"none", "unknown"}.intersection(labels)
+    ):
+        raise InputError(
+            "supply distinct categories in ascending order, excluding none and unknown"
+        )
+
+
 def profile(value):
     cfg = versioned(value, "complaint control")
     if set(cfg) - {"population_basis", "schema", "synthetic"} != {
@@ -64,18 +78,7 @@ def profile(value):
         _text(cfg[name], name)
     _date(cfg["gap_review_date"])
     integer(cfg["onboarding_minutes"], "onboarding minutes")
-    labels = [
-        _text(label, "category").casefold()
-        for label in sequence(cfg["categories"], "categories")
-    ]
-    if (
-        not labels
-        or len(labels) != len(set(labels))
-        or {"none", "unknown"}.intersection(labels)
-    ):
-        raise InputError(
-            "supply distinct categories in ascending order, excluding none and unknown"
-        )
+    categories(cfg["categories"])
     seen = set()
     for row in sequence(cfg["channels"], "channels"):
         if set(mapping(row, "channel")) != CHANNEL:
@@ -243,7 +246,8 @@ def summary(state):
             "count": len(latency),
             "median": median(latency) if latency else None,
         },
-        "policy_reviews": len(ledger.get("policy_reviews", [])),
+        "policy_reviews": len(ledger.get("policy_reviews", []))
+        + len(state.get("pack_reviews", [])),
     }
 
 

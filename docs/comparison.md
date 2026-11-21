@@ -10,6 +10,11 @@ Telryn excludes a required shift if either membership lists any of the same
 requests. When tuning data is kept elsewhere, the lead must verify that its
 cases are disjoint from the held-out population.
 
+For a candidate from a weekly audit, include membership for every tuning shift
+named in the comparison plan. Telryn excludes those cases from both the
+held-out evaluation and subsequent shadow trials. Re-run older proposal
+comparisons that named tuning shifts before starting another trial.
+
 ## Definition
 
 The version 1 TOML format is illustrated by

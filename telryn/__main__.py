@@ -15,6 +15,7 @@ from . import (
     benchmark,
     intake,
     integrations,
+    packs,
     planning,
     policy,
     screen,
@@ -97,6 +98,7 @@ def _parser() -> argparse.ArgumentParser:
         help="maximum seats to explore when proposing a rule",
     )
     weekly_report.register_review_arguments(week, action)
+    packs.register_arguments(commands)
     planning.register_arguments(commands)
     policy.register_arguments(commands)
     audit_trust.register_arguments(commands)
@@ -107,6 +109,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     desk.add_argument(
         "--out", type=Path, required=True, help="directory for private weekly runs"
+    )
+    desk.add_argument(
+        "--container-port",
+        type=int,
+        metavar="PORT",
+        help="listen on container interfaces; publish only to host 127.0.0.1 on the same port",
     )
     desk.add_argument(
         "--no-browser",
@@ -379,7 +387,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "desk":
             from .desk import serve
 
-            return serve(args.out, open_browser=not args.no_browser)
+            return serve(
+                args.out,
+                open_browser=not args.no_browser,
+                container_port=args.container_port,
+            )
         if args.command == "weekly":
             return weekly_audit(args)
         if args.command == "integrations":
@@ -388,6 +400,8 @@ def main(argv: list[str] | None = None) -> int:
             return seed.execute(args)
         if args.command == "screen":
             return screen.execute(args)
+        if args.command == "pack":
+            return packs.execute(args)
         if args.command == "plan-week":
             return planning.execute(args)
         if args.command == "policy-review":

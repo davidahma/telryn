@@ -100,6 +100,16 @@ def recommendation(state: dict, *, require_current: bool = False) -> dict:
     )
     if "weekly_proposal" in state:
         proposal = state["weekly_proposal"]
+        if (
+            state["plan"].get("tuning_shifts")
+            and "declared_tuning_id_hashes" not in proposal
+        ):
+            if summary["recommendation"] == SHADOW:
+                summary["recommendation"] = INCONCLUSIVE
+            summary["open_items"].append(
+                "Re-run compare with membership for every declared tuning shift "
+                "before using this report to start a shadow trial."
+            )
         if require_current:
             with lineage.current(state):
                 pass

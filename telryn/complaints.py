@@ -121,7 +121,13 @@ def attach(state, path: Path, audit_id: str):
     previous = doc.pop("previous_receipt", None)
     contacts_file = doc.pop("episode_evidence", None)
     policy_file = doc.pop("clock_policy", None)
-    if (contacts_file is None) != (policy_file is None):
+    pack = state.get("policy_pack")
+    if pack is not None:
+        if contacts_file is None or policy_file is not None:
+            raise InputError(
+                "a pack-backed audit uses its frozen policy; supply episode_evidence and omit clock_policy"
+            )
+    elif (contacts_file is None) != (policy_file is None):
         raise InputError("episode_evidence and clock_policy must be supplied together")
     _fields(
         doc,
@@ -169,9 +175,15 @@ def attach(state, path: Path, audit_id: str):
         ):
             raise InputError("duplicate or unmatched frozen complaint case/revision")
         _text(item["policy_ref"], "policy_ref")
+        if pack is not None and item["policy_ref"] != state["rubric"]:
+            raise InputError("case policy_ref must identify the frozen policy pack")
         if item["match_key"] is not None:
             _text(item["match_key"], "match_key")
         if item["deadline"] is not None:
+            if pack is not None:
+                raise InputError(
+                    "a pack-backed audit computes deadlines from cited events; leave deadline null"
+                )
             _time(item["deadline"])
         rows[case] = item
     doc["cases"] = rows
@@ -180,10 +192,13 @@ def attach(state, path: Path, audit_id: str):
     if contacts_file is not None:
         doc["episodes"] = episodes.load(
             path.parent / _text(contacts_file, "episode evidence file"),
-            path.parent / _text(policy_file, "clock policy file"),
+            path.parent / _text(policy_file, "clock policy file")
+            if pack is None
+            else None,
             doc,
             sampled,
             control=state.get("control"),
+            frozen_policy=pack["clock_policy"] if pack is not None else None,
         )
         for binding in episodes.bindings(doc, _time(doc["as_of"])).values():
             keys.update(binding["keys"])

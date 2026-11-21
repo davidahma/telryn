@@ -1,0 +1,3 @@
+case_id,revision,evidence_ref,screen_flag,channel
+A,r1,chat/a,true,Chat
+B,r1,chat/b,false,Chat

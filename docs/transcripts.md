@@ -1,6 +1,6 @@
 # Screen the conversation behind a case
 
-Use the local model when the evidence is conversation text. Telryn asks it for policy facts, checks that each yes or no cites a passage in the redacted source, then applies the selected rule in code. The flag assigns review priority. A human grades the case against the documented policy.
+Choose local Ollama or an approved cloud deployment when the evidence is conversation text. Telryn asks the model for policy facts, checks that each yes or no cites a passage in the redacted source, then applies the selected rule in code. The flag assigns review priority. A human grades the case against the documented policy.
 
 ## Get the text for the frozen population
 
@@ -22,7 +22,7 @@ These readers cover text visible to the credential. Attachments, audio, payment 
 
 ### Import a customer archive
 
-Supply one JSON object per case. `case_id`, `revision` and `evidence_ref` are nonempty strings. Messages are ordered, with a nonempty `text` and a `role` of `customer`, `agent`, `system` or `unknown`. Each row may also carry the same set of string dimensions from `channel`, `agent_type` and `product`. The local model receives only passage text, roles, passage numbers and the policy.
+Supply one JSON object per case. `case_id`, `revision` and `evidence_ref` are nonempty strings. Messages are ordered, with a nonempty `text` and a `role` of `customer`, `agent`, `system` or `unknown`. Each row may also carry the same set of string dimensions from `channel`, `agent_type` and `product`. The selected model receives redacted passage text, roles, passage numbers, the policy and the response schema.
 
 ```json
 {"case_id":"C01","revision":"r3","evidence_ref":"archive/C01/r3","as_of":"2026-11-04T11:00:00Z","channel":"chat","agent_type":"ai","messages":[{"role":"customer","text":"Someone signed into my account."},{"role":"agent","text":"I referred this case to the fraud desk."}]}
@@ -51,12 +51,46 @@ Every passage is processed in bounded chunks. Source quotes and offsets refer to
 
 The default is two workers, configurable from one to sixteen. If a run stops, repeat it with the same input, model, policy, redaction configuration, checkpoint and output path. Telryn checks the installed model digest before committing a group of results to its private SQLite checkpoint. A retry reuses verified groups and reruns work interrupted before verification. On the first resume after upgrading from v0.6.0 or earlier, Telryn reprocesses the old checkpoint once. Only a complete screen publishes a population. Keep the same local weights throughout a run and use a fresh checkpoint and output directory when changing the inputs.
 
+## Use a model in the firm's cloud account
+
+The complaints lead and cloud owner choose the deployment, credential, approved policy and permitted network route. Passing `--model-endpoint` on a transcript screen explicitly sends the approved policy and redacted passages to that deployment. Source case IDs, evidence references, revision labels and grouping columns stay on the machine. Review the firm's terms, provider logging and retention, geographic routing, capacity and private DNS settings. Run a synthetic batch on the actual deployment before authorizing customer data.
+
+**Azure OpenAI.** Create a JSON file for one public Azure resource with private DNS and Private Link where required. The endpoint is `https://<resource>.openai.azure.com/openai/v1/chat/completions`. Supply exactly one credential in the environment: `AZURE_OPENAI_API_KEY` or a short-lived Microsoft Entra access token in `TELRYN_AZURE_ACCESS_TOKEN`. The latter comes from the team's identity process. Refresh an expired token and resume. Use a Chat Completions deployment supporting structured output. Enter the dated model identifier returned by Azure for that deployment; choose an approved, provisioned revision.
+
+```json
+{"schema":1,"provider":"azure-openai","resource":"example-bank","model_revision":"gpt-4o-2024-08-06"}
+```
+
+```sh
+python3 -m telryn screen transcripts.jsonl --model-endpoint azure.json \
+  --model complaint-extractor --policy unlogged-complaint \
+  --policy-text approved-policy.txt --redact private-identifiers.txt --out runs/azure-screen
+```
+
+The request addresses the deployment name. Every reply must report the exact expected dated model, finish normally and contain the requested facts and valid passage numbers. A content refusal, truncated reply or revision mismatch stops publication. [Azure authentication and deployment names](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/chatgpt) · [Structured outputs and response model](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs)
+
+**Amazon Bedrock.** Use the SDK included in the published container. For a source checkout, install `python3 -m pip install --only-binary=:all: --require-hashes -r requirements-bedrock.txt` in the environment used for Telryn. Supply the team's AWS role through the standard SDK credential chain. The role needs regional STS access and `bedrock:InvokeModel` permission scoped to the approved foundation model. Configure both regional STS and Bedrock Runtime private endpoints and DNS if the deployment requires private routing.
+
+```json
+{"schema":1,"provider":"bedrock","account_id":"123456789012","region":"us-east-1"}
+```
+
+```sh
+python3 -m telryn screen transcripts.jsonl --model-endpoint bedrock.json \
+  --model amazon.nova-lite-v1:0 --policy unlogged-complaint \
+  --policy-text approved-policy.txt --redact private-identifiers.txt --out runs/bedrock-screen
+```
+
+Choose a versioned foundation model available for direct in-region Converse in the configured commercial AWS region. Telryn verifies the caller's account with regional STS, invokes the regional foundation-model ARN with signed requests, and checks the account before saving a group of new results. Models requiring cross-region inference profiles need a different deployment. The model must return a complete JSON object; every claimed fact passes the same passage and speaker checks as the Ollama and Azure paths. [AWS credential chain](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/credentials.html) · [STS caller identity](https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html) · [Bedrock Converse](https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html)
+
+For both providers the checkpoint binds the endpoint, deployed model, extraction recipe, approved policy, redactions and source. The completion receipt records the cloud scope and the prompt fingerprint. A cloud model ID identifies the provider deployment or revision. It cannot attest to a hash of the provider's private model weights. Copy the issued `screen_version` and `screen_receipt` into the weekly plan. Switching providers, resources, accounts or model revisions requires a different checkpoint and a new receipt.
+
 ## Review the output
 
 | File | How to use it |
 | --- | --- |
 | `population.csv` | Use as `population` in the weekly audit. It preserves every case, revision and grouping dimension. |
-| `receipt.json` | Copy `screen_version` into the weekly plan and set `screen_receipt` to this file. It binds the model digest, recipe, inputs and output bytes. |
+| `receipt.json` | Copy `screen_version` into the weekly plan and set `screen_receipt` to this file. It binds the local weights digest or configured cloud model identity, recipe, inputs and output bytes. |
 | `signals.csv` | Read the extracted yes/no/unknown fields or apply another deterministic rule when the required facts were extracted. |
 | `citations.jsonl` | Inspect cited passage, message number, role, redacted offsets and classification. Empty citations mean no supported fact for that field. |
 | `population.csv.coverage.json` | When supplied with the source, carries the verified completion cohort and exclusions into the weekly report. |

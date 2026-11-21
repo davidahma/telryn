@@ -27,6 +27,7 @@ FILES = {
     "receipt": "receipt.json",
     "coverage": "coverage.json",
     "control": "control.json",
+    "policy_pack": "pack.json",
     "grades": "return.csv",
 }
 PLAN_FILES = {
@@ -35,6 +36,7 @@ PLAN_FILES = {
     "receipt": "screen_receipt",
     "coverage": "coverage_receipt",
     "control": "control",
+    "policy_pack": "policy_pack",
 }
 
 
@@ -90,29 +92,36 @@ def _form(content_type, body):
 
 @contextmanager
 def _plan(fields):
-    required = {
-        "week",
-        "rubric",
-        "rubric_question",
-        "screen_version",
-        "population",
-        "reviewed",
-    }
-    allowed = required | {
-        "receipt",
-        "coverage",
-        "control",
-        "group_by",
-        "flagged_sample",
-        "unflagged_sample",
-        "planning",
-    }
+    required = {"week", "screen_version", "population", "reviewed"}
+    rubric_fields = {"rubric", "rubric_question"}
+    if not fields.get("policy_pack"):
+        required |= rubric_fields
+    allowed = (
+        required
+        | rubric_fields
+        | {
+            "policy_pack",
+            "receipt",
+            "coverage",
+            "control",
+            "group_by",
+            "flagged_sample",
+            "unflagged_sample",
+            "planning",
+        }
+    )
     if not required <= fields.keys() <= allowed:
         raise InputError("the weekly intake form has missing or unknown fields")
     with tempfile.TemporaryDirectory() as temp:
         base = Path(temp)
         lines = ["schema = 1"]
         for key in ("week", "rubric", "rubric_question", "screen_version"):
+            if (
+                fields.get("policy_pack")
+                and key in rubric_fields
+                and not fields.get(key)
+            ):
+                continue
             value = fields[key]
             if not isinstance(value, str) or not value.isprintable():
                 raise InputError(f"enter a single line for {key}")
@@ -126,7 +135,7 @@ def _plan(fields):
             lines.append("group_by = " + json.dumps(groups))
         for key, config_key in PLAN_FILES.items():
             value = fields.get(key, "")
-            if not value and key in ("receipt", "coverage", "control"):
+            if not value and key in ("receipt", "coverage", "control", "policy_pack"):
                 continue
             (base / FILES[key]).write_text(value, encoding="utf-8", newline="")
             lines.append(f'{config_key} = "{FILES[key]}"')
@@ -397,10 +406,17 @@ def handler(desk: Desk, token: str):
     return Handler
 
 
-def serve(root: Path, *, open_browser: bool = True) -> int:
+def serve(
+    root: Path, *, open_browser: bool = True, container_port: int | None = None
+) -> int:
+    if container_port is not None and not 1024 <= container_port <= 65535:
+        raise InputError("container port must be between 1024 and 65535")
+    address = (
+        ("0.0.0.0", container_port) if container_port is not None else ("127.0.0.1", 0)
+    )
     token = secrets.token_hex(32)
     desk = Desk(root)
-    with ThreadingHTTPServer(("127.0.0.1", 0), handler(desk, token)) as server:
+    with ThreadingHTTPServer(address, handler(desk, token)) as server:
         url = f"http://127.0.0.1:{server.server_port}/{token}/"
         print(
             f"Weekly QA desk: {url}\nPrivate audit directory: {root.resolve()}",

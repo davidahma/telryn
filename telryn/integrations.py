@@ -10,7 +10,6 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 
 from . import integrations_coverage, integrations_sierra, integrations_transcripts
-from .artifacts import sync_directory
 from .contracts import InputError
 from .integrations_http import Client, query, slug
 from .integrations_sources import (
@@ -145,10 +144,7 @@ def write_csv(path, fields, rows):
             if fields:
                 writer.writerow(fields)
             writer.writerows(rows)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.link(name, path)
-        sync_directory(path.parent)
+        integrations_coverage.publish_with_receipt(path, Path(name), None)
     finally:
         os.unlink(name)
 

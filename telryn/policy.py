@@ -14,6 +14,7 @@ from .contracts import (
     mapping,
     read_json,
     timestamp,
+    versioned,
 )
 
 
@@ -41,9 +42,13 @@ def read_input(path, name):
 
 
 def load(path):
-    obj = read_input(path, "clock policy")
+    return validate(read_input(path, "clock policy"))
+
+
+def validate(obj):
+    versioned(obj, "clock policy")
     fields(
-        obj,
+        {key: value for key, value in obj.items() if key != "business_weekdays"},
         (
             "schema",
             "id",
@@ -58,6 +63,16 @@ def load(path):
     )
     for key in ("id", "version", "timezone", "registration_clause"):
         label(obj[key], key)
+    weekdays = obj.get("business_weekdays", [1, 2, 3, 4, 5])
+    if (
+        not isinstance(weekdays, list)
+        or not weekdays
+        or any(type(day) is not int or not 1 <= day <= 7 for day in weekdays)
+        or len(set(weekdays)) != len(weekdays)
+    ):
+        raise InputError(
+            "business_weekdays must list distinct ISO weekdays from 1 through 7"
+        )
     try:
         ZoneInfo(obj["timezone"])
     except (ValueError, ZoneInfoNotFoundError) as exc:
@@ -122,9 +137,10 @@ def deadline(start, rule, policy):
     count = rule["count"]
     if rule["unit"] == "business_days":
         holidays = set(policy["holidays"])
+        weekdays = set(policy.get("business_weekdays", [1, 2, 3, 4, 5]))
         while count:
             day += timedelta(days=1)
-            count -= day.weekday() < 5 and day.isoformat() not in holidays
+            count -= day.isoweekday() in weekdays and day.isoformat() not in holidays
     else:
         day += timedelta(days=count * (7 if rule["unit"] == "weeks" else 1))
     same_time = rule["due_time"] == "same"
@@ -153,11 +169,14 @@ def dependency(policy, name):
             policy["timezone"],
             policy["episode_days"],
             policy["holidays"] if rule["unit"] == "business_days" else [],
+            sorted(policy.get("business_weekdays", [1, 2, 3, 4, 5]))
+            if rule["unit"] == "business_days"
+            else [],
         ]
     )
 
 
-def mark(state, next_policy):
+def mark(state, next_policy, *, pack_digest=None):
     records = state.get("complaint_records", {})
     evidence = records.get("snapshot", {}).get("episodes")
     if not evidence or evidence["policy"]["id"] != next_policy["id"]:
@@ -189,10 +208,16 @@ def mark(state, next_policy):
             | {old["registration_clause"], next_policy["registration_clause"]}
         )
     digest = fingerprint(next_policy)
-    for prior in records.get("policy_reviews", []):
+    for prior in state.get("pack_reviews", []):
         if (
             prior["review_version"] == next_policy["version"]
-            and prior["policy_digest"] != digest
+            and prior.get("policy_digest", digest) != digest
+        ):
+            raise InputError("different clock contents reuse a reviewed pack version")
+    for prior in records.get("policy_reviews", []):
+        if prior["review_version"] == next_policy["version"] and (
+            prior["policy_digest"] != digest
+            or (pack_digest and prior.get("pack_digest", pack_digest) != pack_digest)
         ):
             raise InputError("different policy contents reuse a review version")
     if not changed:
@@ -208,9 +233,14 @@ def mark(state, next_policy):
     notices = records.setdefault("policy_reviews", [])
     for prior in notices:
         if prior["review_version"] == next_policy["version"]:
-            if prior != notice:
+            if any(prior.get(k) != v for k, v in notice.items()):
                 raise InputError("different policy contents reuse a review version")
+            if pack_digest and "pack_digest" not in prior:
+                prior["pack_digest"] = pack_digest
+                return True
             return False
+    if pack_digest:
+        notice["pack_digest"] = pack_digest
     notices.append(notice)
     return True
 
@@ -260,7 +290,25 @@ def execute(args):
     from . import report as comparison
     from . import weekly_report
 
-    next_policy = load(args.policy)
+    from . import packs
+
+    supplied = read_input(args.policy, "revised policy or pack")
+    candidate = packs.validate_local(supplied) if "clock_policy" in supplied else None
+    next_policy = (
+        candidate["clock_policy"] if candidate is not None else validate(supplied)
+    )
+
+    def update(state):
+        rubric_changed = candidate is not None and packs.review_rubric(state, candidate)
+        return (
+            mark(
+                state,
+                next_policy,
+                pack_digest=fingerprint(candidate) if candidate else None,
+            )
+            or rubric_changed
+        )
+
     paths = set()
     explicit = set()
     for item in args.reports:
@@ -284,11 +332,24 @@ def execute(args):
                 comparison.load_report(path)
                 skipped.append(str(path))
                 continue
-        state = weekly_report._update(path, lambda state: mark(state, next_policy))
+        state = weekly_report._update(path, update)
         checked += 1
-        for flag in state.get("complaint_records", {}).get("policy_reviews", []):
-            if flag["policy_digest"] == fingerprint(next_policy):
-                affected.append({"report": str(path), **flag})
+        flags = [
+            f
+            for f in state.get("complaint_records", {}).get("policy_reviews", [])
+            if f["policy_digest"] == fingerprint(next_policy)
+        ]
+        if candidate is not None:
+            flags.extend(
+                f
+                for f in state.get("pack_reviews", [])
+                if f["pack_digest"] == fingerprint(candidate)
+            )
+        if flags:
+            combined = {"report": str(path)}
+            for flag in flags:
+                combined.update(flag)
+            affected.append(combined)
     print(
         canonical(
             {

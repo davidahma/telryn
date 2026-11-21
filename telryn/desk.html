@@ -18,6 +18,7 @@ summary{font-weight:600;cursor:pointer}details[open] summary{margin-bottom:1rem}
 <label>Week starting (UTC)<input name="week" type="date" required></label>
 <label>Eligible conversations <input name="population" type="file" accept=".csv" required><small>CSV with case_id, revision, evidence_ref and screen_flag. It may also contain channel, agent_type and product.</small></label>
 <label>Ordinary human reviews <input name="reviewed" type="file" accept=".csv" required><small>CSV with one case_id per reviewed conversation.</small></label>
+<label>Policy and rubric pack (optional)<input name="policy_pack" type="file" accept=".json"><small>A versioned pack supplies the reviewer question, category order and clocks. Include the control profile for this queue.</small></label>
 <label>Complaint control profile <input name="control" type="file" accept=".json"><small>For a complaint audit, attach the firm’s taxonomy, channel inventory, owners and review dates.</small></label>
 <details><summary>Coverage and screen receipts</summary>
 <label>Population coverage receipt<input name="coverage" type="file" accept=".json"><small>Use the receipt supplied by the connector to show completion dates and exclusions.</small></label>

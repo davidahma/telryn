@@ -16,6 +16,7 @@ from fractions import Fraction
 from functools import cache
 from pathlib import Path
 
+from . import packs
 from .contracts import (
     InputError,
     canonical,
@@ -164,6 +165,15 @@ def load_frame(plan_path: Path) -> Frame:
     plan = versioned(
         tomllib.loads(plan_path.read_text(encoding="utf-8")), "weekly plan"
     )
+    cfg = None
+    if "control" in plan:
+        cfg = read_json(
+            plan_path.parent / string(plan["control"], "control"), "complaint control"
+        )
+    pack = None
+    if "policy_pack" in plan:
+        pack = packs.load(string(plan["policy_pack"], "policy_pack"), plan_path.parent)
+        packs.apply(plan, cfg, pack)
     meta = {
         key: _field(plan.get(key), key)
         for key in ("rubric", "rubric_question", "screen_version")
@@ -171,15 +181,13 @@ def load_frame(plan_path: Path) -> Frame:
     for key in ("finding_label", "scope_note"):
         if key in plan:
             meta[key] = _field(plan[key], key)
-    if "control" in plan:
+    if cfg is not None:
         from .control import profile
 
-        meta["control"] = profile(
-            read_json(
-                plan_path.parent / string(plan["control"], "control"),
-                "complaint control",
-            )
-        )
+        meta["control"] = profile(cfg)
+    if pack is not None:
+        meta["policy_pack"] = pack
+        meta["pack_packet_version"] = 2
     week = _week(plan.get("week"))
     path = plan_path.parent / string(plan.get("population"), "population")
     raw = path.read_bytes()
@@ -187,7 +195,7 @@ def load_frame(plan_path: Path) -> Frame:
     receipt_digest = None
     receipt = {}
     generated_screen = meta["screen_version"].startswith(
-        ("local-model:", "policy-events:")
+        ("local-model:", "cloud-model:", "policy-events:")
     )
     if "screen_receipt" in plan:
         receipt = read_json(
@@ -236,8 +244,13 @@ def load_frame(plan_path: Path) -> Frame:
             raise InputError(
                 "screen receipt does not match the source coverage or completion cutoffs"
             )
+    # A control report must retain the channel used to admit each sampled case.
+    # Choosing a sampling dimension is independent of checking source provenance.
+    retained = set(CASE_COLUMNS) | set(dims)
+    if "control" in meta:
+        retained.add("channel")
     population = {
-        i: {k: r[k] for k in (*CASE_COLUMNS, *dims)} for i, r in population.items()
+        i: {k: v for k, v in r.items() if k in retained} for i, r in population.items()
     }
     if meta["screen_version"] == "none" and any(
         row["screen_flag"] for row in population.values()
@@ -314,6 +327,7 @@ def prepare(plan_path: Path) -> dict:
             meta.get("screen_receipt_digest"),
             plan.get("planning"),
             *([meta["control"]] if "control" in meta else []),
+            *([fingerprint(meta["policy_pack"])] if "policy_pack" in meta else []),
             sample_targets,
             targets,
             sorted(population.values(), key=lambda row: row["case_id"]),
@@ -378,13 +392,25 @@ def validate_state(state: dict) -> tuple[dict, dict]:
     for key in ("finding_label", "scope_note"):
         if key in state:
             _field(state[key], key)
+    if "policy_pack" in state:
+        pack = packs.validate(state["policy_pack"])
+        if type(state.get("pack_packet_version", 1)) is not int or state.get(
+            "pack_packet_version", 1
+        ) not in (1, 2):
+            raise InputError("unsupported grading packet version for this policy pack")
+        if (
+            state["rubric"] != packs.reference(pack)
+            or state["rubric_question"] != pack["rubric_question"]
+            or state.get("control", {}).get("categories") != pack["categories"]
+        ):
+            raise InputError("frozen rubric or taxonomy differs from its policy pack")
     if state.get("sampling") != SAMPLING:
         raise InputError("unsupported weekly sampling algorithm")
     _digest(state.get("seed"), "weekly sampling seed")
     _digest(state.get("population_sha256"), "weekly population fingerprint")
     if state.get("screen_receipt_digest") is not None or state[
         "screen_version"
-    ].startswith(("local-model:", "policy-events:")):
+    ].startswith(("local-model:", "cloud-model:", "policy-events:")):
         _digest(state.get("screen_receipt_digest"), "screen receipt fingerprint")
     population = _membership(
         state,
@@ -763,6 +789,14 @@ def summarize(state: dict) -> dict:
         "stratum_results": groups,
         "coverage": state.get("coverage"),
         "draw_commitment": state.get("draw_commitment"),
+        **(
+            {"pack_reviews": state["pack_reviews"]} if state.get("pack_reviews") else {}
+        ),
+        **(
+            {"policy_pack": packs.receipt(state["policy_pack"])}
+            if "policy_pack" in state
+            else {}
+        ),
         **(
             {"planning": state["planning"]}
             if {"detection", "staff_minutes"}.intersection(state.get("planning", {}))

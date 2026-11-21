@@ -16,7 +16,7 @@ from telryn.proposal import propose
 from telryn.replay import load_selector
 from telryn.report import load_report, recommendation
 from telryn.screen import _signals
-from telryn.session import compare, record_shadow
+from telryn.session import compare, publish, record_shadow
 from telryn.weekly_report import refresh, second_review, start
 
 
@@ -313,3 +313,39 @@ class WeeklyProposalTests(unittest.TestCase):
                 self.assertEqual(
                     ["demo-week-three"], list(load_report(path)["shadow_trials"])
                 )
+
+    def test_declared_tuning_shift_is_required_and_stays_excluded_in_shadow(self):
+        proposal = self.completed_proposal()
+        plan = self.base / "held-out.toml"
+        plan.write_text(
+            'tuning_shifts = ["development-extra"]\n'
+            + (FIXTURE / plan.name).read_text()
+        )
+        for name in ("held-out-serious-grades.json", "live.sql"):
+            (self.base / name).write_bytes((FIXTURE / name).read_bytes())
+        export = self.base / "held-out.json"
+        export.write_bytes((FIXTURE / export.name).read_bytes())
+        with self.assertRaisesRegex(
+            InputError, "tuning membership for development-extra"
+        ):
+            compare(plan, proposal_path=proposal)
+        data = json.loads(export.read_text())
+        data["shifts"]["development-extra"] = {"membership": {"ids": ["S01"]}}
+        export.write_text(json.dumps(data))
+        state = compare(plan, proposal_path=proposal)
+        report = publish(self.out, state)
+        decision = recommendation(state, require_current=True)
+        self.assertEqual(decision["recommendation"], "Try in shadow")
+        observed = json.loads((FIXTURE / "shadow-template.json").read_text())
+        for key in ("comparison_id", "decision_revision"):
+            observed[key] = decision[key]
+        obs = self.base / "observations.json"
+        obs.write_text(json.dumps(observed))
+        with self.assertRaisesRegex(InputError, "need new cases"):
+            record_shadow(report, obs)
+        observed["batches"]["week-three"]["picks"][0]["id"] = "S03"
+        obs.write_text(json.dumps(observed))
+        self.assertIn("demo-week-three", record_shadow(report, obs)["shadow_trials"])
+        # Pre-upgrade snapshots did not retain IDs for these declared tuning shifts.
+        del state["weekly_proposal"]["declared_tuning_id_hashes"]
+        self.assertEqual(recommendation(state)["recommendation"], "Inconclusive")

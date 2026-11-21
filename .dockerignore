@@ -1,0 +1,14 @@
+**
+!Dockerfile
+!LICENSE
+!requirements-bedrock.txt
+!requirements-container.txt
+!telryn/
+!telryn/**
+!examples/
+!examples/**
+!tests/
+!tests/**
+**/__pycache__/
+**/*.pyc
+**/.env*
