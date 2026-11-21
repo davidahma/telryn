@@ -12,3 +12,6 @@ runs/
 audit.key
 ledger.sqlite3*
 .*.checkpoint/
+dist/
+build/
+*.egg-info/

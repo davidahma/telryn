@@ -1,81 +1,40 @@
 # Telryn
 
-**Was this customer’s complaint handled under our policy?** Telryn helps the complaints lead at a lender or payments company answer that question across human and AI support. It joins conversations to the complaints register, checks the firm’s clocks and follows what the case owner did. The lead gets one local, signed report. Reviewers get one blinded grading packet.
+Telryn helps a complaints lead at a lender or payments company find closed support conversations that should have reached the complaints register. It brings human and AI support contacts, policy deadlines, register entries and owner actions into one local report. Reviewers get a separate, blinded grading packet.
 
-In the synthetic rehearsal, Mira tells Fin about a duplicate charge on 4 August. “Even with a refund I want to know how this happened.” Fin refunds her and closes the chat. She calls on 18 August. The agent records a query. When her case comes up in October, the report traces it back to the August passage. Under the example firm’s policy, its eight-week final-response deadline was 29 September. The registration check uses a separate clock. The register and action history show what the case manager still owes her. Refunding the charge settled only part of the complaint.
+In the synthetic rehearsal, Mira tells the Fin agent about a duplicate charge on 4 August. “Even with a refund I want to know how this happened.” Fin refunds her and closes the chat. Two weeks later she calls, and an agent records a query. In October the lead can trace both contacts to the same charge, read Mira’s original words and see what the case manager still owes her. Under the example firm’s policy, the eight-week final-response deadline was 29 September. Registration has its own clock. [Open the worked report](https://github.com/davidahma/telryn/releases/download/v0.9.2/synthetic-complaints-audit.html)
 
-[Download Telryn](https://github.com/davidahma/telryn/releases/latest) · [Open the synthetic complaints report](https://github.com/davidahma/telryn/releases/download/v0.9.1/synthetic-complaints-audit.html) · [Apache-2.0](LICENSE) · [![CI](https://github.com/davidahma/telryn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/davidahma/telryn/actions/workflows/ci.yml)
+## Install
 
-## Deploy inside your network
-
-IT can run the desk and weekly job from the signed Linux container on amd64 or arm64. Start with the offline weekly job. It reads mounted exports and writes the report and packet on storage you control. On Windows, use a Linux container engine and follow the volume setup in the deployment guide.
-
-The security review pack includes a data-flow diagram, answers to vendor-risk questions and an SPDX inventory for each architecture. The release also includes a portable image for teams that import approved software into a private registry. [Container deployment and signature verification](docs/container.md) · [Read the security review](docs/security-review.md) · [Download the review pack with both SBOMs](https://github.com/davidahma/telryn/releases/download/v0.9.1/telryn-security-review.tar.gz)
-
-## Follow one complaint through two weeks of QA
-
-Use CPython 3.12–3.15 with SQLite on Linux or macOS. The included examples run offline.
+For an analyst on Linux or macOS, use pipx with CPython 3.12–3.15 and SQLite. The base CLI has no third-party runtime dependencies. Run the two-week rehearsal from any directory. Choose a new output directory each time.
 
 ```sh
-git clone --depth 1 https://github.com/davidahma/telryn.git
-cd telryn
-python3 -m examples.complaints_pilot --out runs/complaints-pilot
+pipx install telryn
+telryn demo --complaints --out runs/complaints-pilot
 ```
 
-Open **`runs/complaints-pilot/2026-10-05/report.html`**. Start with the channels the team could see and the week’s control statement. Follow the case references to inspect contacts, cited passages, deadlines, dated register evidence and owner action. A missing entry supports a finding only if the records cover the relevant period. A shared identifier or incomplete export can leave the case unresolved.
+Open `runs/complaints-pilot/2026-10-05/report.html` and find case **C108**. The report lists which channels the team could see. An incomplete register or an ambiguous match leaves a case unresolved. [PyPI package](https://pypi.org/project/telryn/) · [Rehearsal inputs and results](https://github.com/davidahma/telryn/blob/v0.9.2/examples/complaints_pilot/README.md)
 
-The rehearsal gives Telryn and a saved SQL search the same records, selection capacity and staff budget. Both submit their picks before reviewers grade the combined shortlist. Across all 1,350 possible two-week draws on this fixture, Telryn finds more accepted episodes in 54, ties in 324 and finds fewer in 972. The saved search finds at least as many in **96%** of draws. Your run shows which episodes each method found and what each cost. These are synthetic cases with assigned times. The field test repeats the comparison with the team’s usual tools and measures actual work, earlier action and whether the lead pays to run it again. [Rehearsal and results](examples/complaints_pilot/README.md) · [Field protocol](docs/evaluation.md#two-weeks-on-one-complaints-queue)
+For a managed deployment, IT can import the signed Linux image for amd64 or arm64. Windows users can run it through Docker Desktop with Linux containers. The weekly job runs with networking disabled. The security review pack includes the data flow, outbound connections, storage responsibilities and an SPDX software inventory for each architecture. [Container instructions](https://github.com/davidahma/telryn/blob/v0.9.2/docs/container.md) · [Download the security review pack](https://github.com/davidahma/telryn/releases/download/v0.9.2/telryn-security-review.tar.gz)
 
-## Set up the weekly check
+## Run a week with your team
 
-The complaints lead owns the decision, the register evidence and the follow-up. Each team supplies a different part of the record.
+Start the private browser desk with `telryn desk --out runs/desk`. For a scheduled job, use `telryn weekly /path/to/week.toml --out /path/to/new-run`. Keep the team signing key and revision registry in persistent private storage. [Weekly operating guide and scheduler example](https://github.com/davidahma/telryn/blob/v0.9.2/docs/weekly-qa.md#schedule-a-weekly-run)
 
-| Team | What it connects |
-| --- | --- |
-| Support operations | Helpdesk conversations, dated closures and channel coverage |
-| AI agent owner | Bot configuration, prompt revision and handoff logs |
-| Complaints | Dated register exports, case owners and subsequent actions |
-| Second line | Approved policy, clock clauses, holidays and classification taxonomy |
-| QA | Ordinary human review ledger and independent grades |
-| Contact centre | Calls, transcript revisions and the customer and matter references used to link them |
+1. **Set the scope.** Support operations supplies closed conversations. QA supplies completed human reviews. The contact centre and AI agent owner supply transcript references and handoff records. Complaints supplies the dated register and action history. Record missing channels and who owns each gap.
+2. **Issue the sample.** The policy owner approves the rubric, clock rules and calendar. Choose a versioned FCA DISP, US Regulation E or CFPB Company Portal starter, or use the firm’s own policy. Preview what the grading budget can detect. Telryn draws from both flagged and unflagged conversations that ordinary QA left unreviewed. [Policy packs](https://github.com/davidahma/telryn/blob/v0.9.2/docs/policy-packs.md)
+3. **Grade and follow up.** Reviewers decide whether a case qualifies before seeing the register finding. Record second reviews and settle disagreements. The lead can verify the signed report, follow a case to its source passages, and check the deadline, register coverage and owner action. [Evidence formats](https://github.com/davidahma/telryn/blob/v0.9.2/docs/complaint-records.md) · [Report verification](https://github.com/davidahma/telryn/blob/v0.9.2/docs/trust.md)
 
-Start from a versioned FCA DISP, US Regulation E or CFPB complaint-handling pack, or supply the firm’s own rubric and taxonomy. The policy owner chooses which clauses apply and approves the operating calendar. [Configure policy and rubric packs](docs/policy-packs.md)
+## What the evidence supports
 
-Record which channels the team can read, who owns the gaps and when they will review them. Count onboarding time, the delay from closure to registration and the age of open follow-ups. The checklist covers chat, calls, email, disputes and social channels. [Evaluation guide](docs/evaluation.md) · [Evidence formats](docs/complaint-records.md)
+A clean sample can miss rare failures. If exactly 25 of 5,000 unreviewed conversations qualify and reviewers recognize every one, a uniform random sample of 50 has a 22.3% chance of finding at least one. Reaching 95% takes 564 first grades. [Sampling assumptions](https://github.com/davidahma/telryn/blob/v0.9.2/docs/statistics.md)
 
-Start the private browser desk on the lead’s machine.
+The rehearsal compares Telryn with a saved SQL search using the same records and staff budget. Across its 1,350 possible two-week draws, the saved search finds at least as many owner-accepted episodes in 96% of draws. The cases and staff times are synthetic. The field protocol measures whether either method brings action forward or saves staff time on a real queue. [Field protocol](https://github.com/davidahma/telryn/blob/v0.9.2/docs/evaluation.md#two-weeks-on-one-complaints-queue)
 
-```sh
-python3 -m telryn desk --out runs/desk
-```
+## AI agents and integrations
 
-1. **Plan the work.** Import this week’s queue and the ledger of ordinary human reviews. Set a reviewer budget, including second reviews and disputes. Preview the chance of detecting a problem before issuing the sample.
-2. **Review the evidence.** Use the blinded packet to grade selected conversations. Record the complaint decision, classification, vulnerability and redress separately when the control profile is configured. Return grades, obtain second reviews and adjudicate disagreements. The report preserves the history.
-3. **Check what happened.** Attach approved policy, contact, register and action evidence. Read the weekly statement alongside its coverage gaps. Use the signed report to investigate a count or trace a case. The lead can also send an aggregate digest through the team’s SMTP service.
+- **Before an agent release**, send synthetic complaints through the test agent and check its test register independently. A missing, late or unverifiable entry keeps the release gate closed. [Agent test and adapter contract](https://github.com/davidahma/telryn/blob/v0.9.2/docs/agent-release.md)
+- **For transcript screening**, use structured signals or select Ollama, Azure OpenAI or regional Amazon Bedrock. Each definite extracted fact needs a cited passage. Bedrock users can install the AWS SDK with `pipx install 'telryn[bedrock]'`. [Model setup and data handling](https://github.com/davidahma/telryn/blob/v0.9.2/docs/transcripts.md)
+- **For intake and handoff**, use helpdesk connectors or approved exports. The integration guide lists the evidence each provider exposes, including when the team must supply a lifecycle ledger. [Supported integrations](https://github.com/davidahma/telryn/blob/v0.9.2/docs/integrations.md)
 
-A weekly plan runs from the CLI for scheduled work. The desk and CLI verify the report against the team’s private signing key and revision registry. Back them up together. An HTML file opened directly is a static copy. [Weekly operating guide](docs/weekly-qa.md) · [Trust and migration](docs/trust.md) · [Security](SECURITY.md)
-
-## Test a changed AI support agent before release
-
-The lead supplies synthetic complaint phrases and the registration deadlines. The AI agent owner submits them to the test deployment after changing the prompt, policy or handoff. Telryn reads the test register separately and checks that a unique entry arrived on time for every case. A missing entry blocks the release. A pending or unverifiable result also keeps the gate closed.
-
-```sh
-python3 -m examples.agent_release
-```
-
-The first simulated agent drops one complaint. The next passes all four. To gate your own deployment, run `telryn seed` with a test sender and a read-only register adapter. [CI command and adapter contract](docs/agent-release.md)
-
-## What the numbers cover
-
-A sampled conversation and a customer’s complaint episode answer different questions. Two contacts about one charge can support one episode. A signed report can establish a missed registration for a graded case when it has sufficient policy and register evidence. A population estimate also needs a probability sample covering that population. A head-to-head shortlist describes the cases the two methods picked.
-
-Even a clean sample can be weak evidence. If exactly 25 of 5,000 unreviewed conversations qualify and reviewers recognize each one, a uniform random sample of 50 has a **22.3%** chance of finding one. Reaching 95% takes 564 first grades. The planner exposes these assumptions before the team spends its hours. [Sampling and uncertainty](docs/statistics.md)
-
-## Other uses and integrations
-
-- **Helpdesks and AI support.** Pull completions from Intercom (including Fin), Zendesk, Salesforce Service Cloud or Freshdesk. Use a lifecycle export where a provider lacks dated resolution history. Import a versioned Sierra export from customer-owned S3 or map an approved Fin, Sierra or Decagon CSV. Hand work back to existing QA tools. [Integration coverage](docs/integrations.md)
-- **Transcript screening.** Select local Ollama, an Azure OpenAI deployment or regional Amazon Bedrock in an approved account to extract signals from authorized transcript revisions. Each definite answer requires a supporting passage. A deterministic policy flags cases for review. Teams with structured events can use them directly. [Transcript intake and citations](docs/transcripts.md)
-- **Other serious support failures.** Run `python3 -m examples.fintech --out runs/fintech` for an account-compromise audit. Replay a proposed queue change against staffing and serious-loss checks before a trial. [Fintech example](examples/fintech/README.md) · [Comparison and exit codes](docs/comparison.md)
-- **Public benchmark.** The Ubuntu example uses 200 real technical-support dialogues, researchers’ human labels and archived GPT-4o flags. Ordinary QA selection is simulated. Run `python3 -m examples.public_demo --census --out runs/public-census` to verify the 86 human-labeled friction cases among the 160 left for audit. [Dataset and reproduction](examples/public_demo/NOTICE.md)
-
-Run `python3 -m telryn qualify` from a checkout or unpacked release. [Architecture](docs/architecture.md) · [Contributing](CONTRIBUTING.md)
+Run `telryn qualify` to exercise the bundled checks. [Architecture](https://github.com/davidahma/telryn/blob/v0.9.2/docs/architecture.md) · [Public support dataset](https://github.com/davidahma/telryn/blob/v0.9.2/examples/public_demo/NOTICE.md) · [Contributing](https://github.com/davidahma/telryn/blob/v0.9.2/CONTRIBUTING.md) · [Apache-2.0](https://github.com/davidahma/telryn/blob/v0.9.2/LICENSE)

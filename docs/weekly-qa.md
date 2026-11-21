@@ -144,3 +144,27 @@ Attach dated register and action records. The statement at the top of the report
 The open-work table gives each unresolved registration or missing grade an owner and review date. Age is elapsed whole days from conversation close to the register observation date. The timing measure is the median hours from close to a matched registration across conversations with both timestamps. Registration can precede closure. Missing timestamps stay unknown. The optional aggregate email identifies the exact signed report revision and omits case references, free text and names. [Register and action records](complaint-records.md)
 
 Set the optional boolean `synthetic` to `true` in a rehearsal control profile. The signed report and the aggregate email subject identify the simulation.
+
+## Schedule a weekly run
+
+On Linux or macOS install the CLI with `pipx install telryn` using CPython 3.12–3.15 with SQLite. Run `command -v telryn` as the account that will own the audits. Record that absolute executable path in the scheduler. To pin an approved version, use `pipx install 'telryn==0.9.2'` in a fresh environment. Use `pipx upgrade telryn` when the team approves a newer release.
+
+In this cron example the export job delivers a directory every Monday, named by **delivery date in UTC**. Each directory contains a plan for the completed audit week, its frozen population and its review ledger. Use paths relative to the plan for those inputs. Set up the inbox and output parent under the audit account, then save this script at `/srv/telryn/run-weekly.sh`. Replace the executable and storage paths with the ones on your host.
+
+```sh
+#!/bin/sh
+set -eu
+umask 077
+delivery=$(date -u +%F)
+export TELRYN_TRUST_DIR=/srv/telryn/private/team
+exec /home/qa/.local/bin/telryn weekly "/srv/telryn/inbox/$delivery/week.toml" \
+  --out "/srv/telryn/runs/$delivery"
+```
+
+Schedule it after the export arrives, for example with this entry in the audit account’s crontab. The trigger time uses the scheduler’s time zone. Give that account permission to read the inputs, create the report and write the trust store and log.
+
+```cron
+15 8 * * 1 /bin/sh /srv/telryn/run-weekly.sh >> /srv/telryn/weekly.log 2>&1
+```
+
+Each delivery has its own output directory. A repeat against an existing report fails and preserves the issued sample. To verify that report or import grades, pass the existing HTML to `telryn weekly` with the same trust directory. Monitor the job’s exit status and back up the trust store with the reports.

@@ -14,6 +14,11 @@ import time
 import unittest
 from pathlib import Path
 
+# Direct, isolated execution from `telryn qualify` resolves only our own
+# fixtures and test modules, even if another distribution installs "tests".
+if __name__ == "__main__" and not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from telryn.contracts import fingerprint
 from telryn.decision import bounds, evaluate
 from telryn.report import load_report, render_report
@@ -1390,4 +1395,4 @@ def qualify(case: str | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(qualify())
+    raise SystemExit(qualify(*sys.argv[1:]))

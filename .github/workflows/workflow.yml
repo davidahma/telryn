@@ -1,0 +1,116 @@
+name: Publish Python package
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pypi-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      commit: ${{ steps.release.outputs.commit }}
+      wheel: ${{ steps.hashes.outputs.wheel }}
+      sdist: ${{ steps.hashes.outputs.sdist }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Require an immutable release of the CI-qualified main commit
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag=$GITHUB_REF_NAME
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$(git cat-file -t "refs/tags/$tag")" = tag
+          commit=$(git rev-parse HEAD)
+          test "$(git rev-parse "refs/tags/$tag^{}")" = "$commit"
+          git merge-base --is-ancestor "$commit" origin/main
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" |
+            jq -e --arg sha "$commit" '.immutable and (.draft | not) and .target_commitish == $sha'
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$commit&event=push&branch=main" |
+            jq -e --arg sha "$commit" 'any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")'
+          test "v$(python -m telryn --version)" = "$tag"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - name: Build and exercise the exact files for publication
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          python -m pip install build twine
+          bash scripts/check_distributions.sh "$RUNNER_TEMP/dist" "$VERSION"
+      - id: hashes
+        run: |
+          cd "$RUNNER_TEMP/dist"
+          echo "wheel=$(sha256sum ./*.whl | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "sdist=$(sha256sum ./*.tar.gz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: python-distributions
+          path: ${{ runner.temp }}/dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/project/telryn/${{ needs.build.outputs.version }}/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: python-distributions
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+
+  verify:
+    needs: [build, publish]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      WHEEL: ${{ needs.build.outputs.wheel }}
+      SDIST: ${{ needs.build.outputs.sdist }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.build.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+      - name: Compare public hashes and run the PyPI install
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 8 --retry-all-errors --retry-delay 5 "https://pypi.org/pypi/telryn/$VERSION/json" > package.json
+          jq -e --arg w "$WHEEL" --arg s "$SDIST" '
+            (.urls | length) == 2 and
+            any(.urls[]; .packagetype == "bdist_wheel" and .digests.sha256 == $w) and
+            any(.urls[]; .packagetype == "sdist" and .digests.sha256 == $s)' package.json
+          export PIPX_HOME="$RUNNER_TEMP/pipx" PIPX_BIN_DIR="$RUNNER_TEMP/bin"
+          pipx install --python "$(command -v python)" --index-url https://pypi.org/simple "telryn==$VERSION"
+          test "$("$PIPX_BIN_DIR/telryn" --version)" = "$VERSION"
+          "$PIPX_HOME/venvs/telryn/bin/python" -I "$GITHUB_WORKSPACE/scripts/verify_installed.py" "$VERSION"
