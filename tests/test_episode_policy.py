@@ -101,6 +101,45 @@ class EpisodeTests(unittest.TestCase):
         sampled["channel"] = "chat"
         self.assertTrue(complaints.attach(state, self.f.path, self.f.audit_id))
 
+    def test_frozen_case_cannot_supply_a_later_cited_event(self):
+        from telryn import complaints
+
+        self.contacts[0]["passages"][0]["at"] = self.f.cutoff
+        self.save()
+        self.f.save()
+        state = weekly_report.read_state(self.f.report)
+        row = next(c for c in state["cases"] if c["case_id"] == "C1")
+        row["completed_at"] = "2026-09-02T00:00:00Z"
+        with self.assertRaisesRegex(InputError, "cited event postdates"):
+            complaints.attach(state, self.f.path, self.f.audit_id)
+
+    def test_on_time_registration_still_needs_missing_response_evidence(self):
+        from telryn import control
+
+        self.f.register = [self.f.entry("C1", "R1", "2026-09-02T00:00:00Z")]
+        self.contacts[1]["events"] = []
+        summary, rows = self.attach()
+        self.assertEqual(rows["C1"]["registration_at_cutoff"], "on_time")
+        self.assertEqual(rows["C1"]["follow_up"], "verify_policy_clock_evidence")
+        self.assertEqual(
+            rows["C1"]["policy_clauses_needing_evidence"], ["final-response"]
+        )
+        self.assertIn("C1", summary["worklist"]["policy_clock_review"])
+        self.assertIn(
+            "Policy deadline passed with no cited completion", self.f.report.read_text()
+        )
+        state = weekly_report.read_state(self.f.report)
+        state["control"] = {
+            "scope": self.f.manifest["scope"],
+            "gap_owner": "Case manager",
+            "gap_review_date": "2026-11-11",
+            "onboarding_minutes": 0,
+        }
+        item = next(
+            r for r in control.summary(state)["unresolved"] if r["case_id"] == "C1"
+        )
+        self.assertEqual((item["owner"], item["review_date"]), ("owner", "2026-11-11"))
+
     def test_later_phone_closes_episode_without_rewriting_cutoff(self):
         packet = self.f.packet.read_bytes()
         _, rows = self.attach()
@@ -289,6 +328,19 @@ class EpisodeTests(unittest.TestCase):
             [str((folder / "report.html").resolve())],
         )
         self.assertEqual(result["checked"], 1)
+
+    def test_directory_scan_accepts_only_reports_within_its_selected_scope(self):
+        self.attach()
+        selected = self.f.root / "selected"
+        selected.mkdir()
+        link = selected / "report.html"
+        link.symlink_to(self.f.report)
+        original = self.f.report.read_bytes()
+        with self.assertRaisesRegex(InputError, "outside the selected directory"):
+            list(policy._directory_reports(selected))
+        self.assertEqual(original, self.f.report.read_bytes())
+        code, checked = self.review(self.policy_doc, self.f.report)
+        self.assertEqual((code, checked["checked"]), (0, 1))
 
     def test_scan_rejects_damaged_files(self):
         self.attach()

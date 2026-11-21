@@ -135,6 +135,21 @@ unflagged_sample=8
         result = complaints.reconcile(state)
         return result, {r["case_id"]: r for r in result["cases"]}
 
+    def test_later_mapping_cannot_reassign_a_settled_historical_match(self):
+        self.manifest["cases"][3]["match_key"] = None
+        first, rows = self.attach()
+        self.assertEqual(rows["C1"]["registration_at_cutoff"], "on_time")
+        self.manifest["previous_receipt"] = first["receipt"]
+        self.manifest["cases"][3]["match_key"] = "C1"
+        with self.assertRaisesRegex(InputError, "issued register match"):
+            self.attach()
+        _, result = self.cli()
+        self.assertEqual(result["complaints"]["receipt"], first["receipt"])
+        self.manifest["cases"][3]["match_key"] = "separate-case"
+        second, rows = self.attach()
+        self.assertNotEqual(first["receipt"], second["receipt"])
+        self.assertEqual(rows["C1"]["registration_at_cutoff"], "on_time")
+
     def test_signed_cli_deadline_to_action_packet_and_statistical_invariance(self):
         before = self.packet.read_bytes()
         _, initial = self.cli()

@@ -21,7 +21,7 @@ python3 -m telryn seed suite.json --run-id "$TRIAL_ID" \
   --format json > release-receipt.json
 ```
 
-Choose a fresh trial ID per suite and candidate. Retry the same trial after the register catches up. Exit **0** requires a unique, on-time register entry for every synthetic conversation. Exit **1** carries the case results for missing, late, duplicate, pending or incomplete evidence. Exit **2** means the configuration, adapter or evidence failed validation. Keep the receipt with the build that it gates. A later successful check still uses the first submission time.
+Choose a fresh trial ID per suite and candidate. Each marker also binds the suite digest, including the candidate revisions and case wording, so evidence from a different suite cannot clear this gate. Retry the same trial after the register catches up. Exit **0** requires a unique, on-time register entry for every synthetic conversation. Exit **1** carries the case results for missing, late, duplicate, pending or incomplete evidence. Exit **2** means the configuration, adapter or evidence failed validation. Keep the receipt with the build that it gates. A later successful check still uses the first submission time.
 
 ### Adapter contract
 

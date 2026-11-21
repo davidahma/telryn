@@ -155,6 +155,12 @@ def load(contact_path, policy_path, doc, sampled, *, control=None):
                 completed and instant(row["contact_at"]) > instant(completed)
             ):
                 raise InputError("contact begins after its frozen closure")
+            if completed and any(
+                instant(e["at"]) > instant(completed) for e in row["events"]
+            ):
+                raise InputError(
+                    "a cited event postdates the sampled conversation's frozen closure"
+                )
         contacts[cid] = row
     ordered = sorted(
         contacts.values(), key=lambda r: (instant(r["contact_at"]), r["case_id"])

@@ -60,7 +60,7 @@ python3 -m telryn integrations reviewed-zendesk population.csv \
   --since 2026-11-02 --until 2026-11-10 --out reviewed.csv
 ```
 
-The dates here bound review creation, so the end date can extend past the conversation completion week. Telryn matches the ticket URL and external ID, ignores other scorecards and tickets outside the population, and writes each matched ID once. Set the review window through your ordinary QA cutoff and supply every review source in the baseline. For multiple scorecards or tools, combine their records locally into one `case_id` column and remove duplicates. Store the original dated exports beside the weekly evidence. [Zendesk QA workspace review export](https://developer.zendesk.com/documentation/qa/exporting-data/)
+The dates here bound review creation, so the end date can extend past the conversation completion week. Telryn matches the ticket URL and external ID, ignores other scorecards and tickets outside the population, and writes each matched ID once. The operator chooses a human-only scorecard. For an in-window match the export must show a reviewer ID or email, a numeric score (zero counts), and a last update before the cutoff. If later edits or incomplete records leave the historical review uncertain, supply the archived review ledger. Reviewer details stay out of the output. Set the review window through your ordinary QA cutoff and supply every review source in the baseline. For multiple scorecards or tools, combine their records locally into one `case_id` column and remove duplicates. Store the original dated exports beside the weekly evidence. [Zendesk QA workspace review export](https://developer.zendesk.com/documentation/qa/exporting-data/)
 
 ## Use a customer-exported agent file
 

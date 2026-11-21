@@ -132,7 +132,15 @@ def run(path, run_id, agent, register):
     submissions = {}
     conversations = set()
     for case in plan["cases"]:
-        marker = fingerprint(["telryn-seed-v1", scope["workspace"], run_id, case["id"]])
+        marker = fingerprint(
+            [
+                "telryn-seed-v1",
+                scope["workspace"],
+                base["suite_digest"],
+                run_id,
+                case["id"],
+            ]
+        )
         sent = call(
             agent, "submit", case_id=case["id"], marker=marker, phrase=case["phrase"]
         )

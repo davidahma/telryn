@@ -58,6 +58,22 @@ class SeedReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(InputError, "failed during submit"):
             self.run_suite()
 
+    def test_old_release_receipts_cannot_qualify_a_changed_prompt(self):
+        first = self.run_suite()
+        # Retain the real pre-change register and simulate a sender losing its local
+        # run-ID index during an update. The release gate still isolates the candidates.
+        with sqlite3.connect(self.db) as db:
+            db.execute("DELETE FROM runs")
+        self.plan["agent_revision"] = "demo-prompt-v1"
+        with patch.dict(os.environ, {"TELRYN_DEMO_AGENT_REVISION": "demo-prompt-v1"}):
+            changed = self.run_suite()
+        self.assertFalse(
+            {x["marker"] for x in first["cases"]}
+            & {x["marker"] for x in changed["cases"]}
+        )
+        self.assertFalse(changed["passed"])
+        self.assertEqual(changed["cases"][-1]["status"], "missing")
+
     def test_scope_checked_before_submission(self):
         self.plan["handoff_revision"] = "other"
         with self.assertRaisesRegex(InputError, "deployed revision"):

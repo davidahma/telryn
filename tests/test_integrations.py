@@ -261,7 +261,13 @@ class IntegrationTests(unittest.TestCase):
         self.pull(
             "zendesk", [response({"results": [TICKET], "meta": {"has_more": False}})]
         )
-        review = {"scorecard": {"id": "c"}, "created": DAY}
+        review = {
+            "scorecard": {"id": "c"},
+            "created": DAY,
+            "updated": DAY,
+            "reviewer": {"email": "lead@example.test"},
+            "score": 0,
+        }
         record = {
             "externalId": "90",
             "externalUrl": "https://demo.zendesk.com/agent/tickets/90",
@@ -304,6 +310,25 @@ class IntegrationTests(unittest.TestCase):
         self.assertIn(b"/qa/api/export/workspace/12/reviews?", wire[0][1])
         self.assertEqual(self.rows("reviewed.csv"), [{"case_id": "zendesk:demo:90"}])
         (self.root / "reviewed.csv").unlink()
+        for uncertain in (
+            dict(record, sourceType="intercom"),
+            dict(record, reviews=[dict(review, updated="2025-01-13T00:00:00Z")]),
+            dict(record, reviews=[dict(review, reviewer={})]),
+            dict(record, reviews=[dict(review, score=None)]),
+        ):
+            self.command(
+                cmd,
+                [
+                    response(
+                        {
+                            "conversations": [uncertain],
+                            "pagination": {"page": 1, "total": 1},
+                        }
+                    )
+                ],
+                expected=2,
+            )
+            self.assertFalse((self.root / "reviewed.csv").exists())
         changed = dict(
             record,
             reviews=[

@@ -20,6 +20,7 @@ WORKLIST = {
     "owner_accepted": "Still unregistered, an owner accepted the work",
     "reconcile_completed": "Still unregistered after documented owner completion",
     "unresolved": "Registration or owner evidence needs checking",
+    "policy_clock_review": "Policy deadline passed with no cited completion",
 }
 
 
@@ -221,12 +222,14 @@ def attach(state, path: Path, audit_id: str):
             )
         old_keys = {r["match_key"] for r in old["cases"].values()}
         old_ids = set(sampled)
+        issued_horizon = _time(old["as_of"])
+        previous_bindings = episodes.bindings(old, issued_horizon)
         if "episodes" in old:
             prior = old["episodes"]
             after = doc.get("episodes", {})
             if prior["policy"] != after.get("policy"):
                 raise InputError("cannot replace the policy of an issued episode")
-            for binding in episodes.bindings(old, _time(old["as_of"])).values():
+            for binding in previous_bindings.values():
                 old_keys.update(binding["keys"])
                 old_ids.update(binding["members"])
             old_collisions, new_collisions = prior["collisions"], after["collisions"]
@@ -249,6 +252,15 @@ def attach(state, path: Path, audit_id: str):
                 raise InputError(
                     "follow-up changed or backfilled dated episode contacts"
                 )
+        current_bindings = episodes.bindings(doc, issued_horizon)
+        if any(
+            link["match"] == "exact_key"
+            and current_bindings[cid]["match"] != "exact_key"
+            for cid, link in previous_bindings.items()
+        ):
+            raise InputError(
+                "a follow-up cannot invalidate an issued register match; investigate the mapping in a fresh audit"
+            )
         _extends(
             old["register"],
             doc["register"],
@@ -325,7 +337,9 @@ def reconcile(state):
     policy_doc = doc.get("episodes", {}).get("policy")
     grades = effective_grades(state)
     rows = []
-    worklist = {group: [] for group in WORKLIST}
+    worklist = {
+        group: [] for group in WORKLIST if group != "policy_clock_review" or policy_doc
+    }
 
     def view(cid, spec, bindings, horizon):
         info = bindings.get(
@@ -401,6 +415,15 @@ def reconcile(state):
         owner = _owner(actions, doc["actions"], as_of)
         due_now = deadline is not None and _time(deadline) <= as_of
         overdue_now = grade is True and due_now and current == "missing"
+        policy_gaps = [
+            name
+            for name, clock in clocks.items()
+            if grade is True
+            and name != policy_doc["registration_clause"]
+            and clock["status"] == "past_due_without_evidence"
+        ]
+        if policy_gaps:
+            worklist["policy_clock_review"].append(cid)
         if overdue_now:
             if owner == "completed":
                 follow_up = "check_registration_after_completed_work"
@@ -408,6 +431,8 @@ def reconcile(state):
                 follow_up = "verify_owner_work"
             else:
                 follow_up = "registration_outstanding"
+        elif policy_gaps:
+            follow_up = "verify_policy_clock_evidence"
         elif current == "registered":
             follow_up = "registration_observed"
         else:
@@ -463,6 +488,7 @@ def reconcile(state):
                         ],
                         "repeat_contacts": len(info["contacts"]) - 1,
                         "clocks": clocks,
+                        "policy_clauses_needing_evidence": policy_gaps,
                         "clocks_at_cutoff": earlier_clocks,
                         "policy_id": policy_doc["id"],
                         "policy_version": policy_doc["version"],
@@ -500,8 +526,8 @@ def html(state):
         parts.append(
             f"<p><strong>Policy re-review required</strong> · {escape(notice['policy'])} {escape(notice['review_version'])} · affected clauses {clauses}. The original findings use the issued policy.</p>"
         )
-    for key, label in WORKLIST.items():
-        cases = summary["worklist"][key]
+    for key, cases in summary["worklist"].items():
+        label = WORKLIST[key]
         preview = ", ".join(escape(case) for case in cases[:12])
         more = " …" if len(cases) > 12 else ""
         parts.append(f"<p><strong>{label} · {len(cases)}</strong> {preview}{more}</p>")

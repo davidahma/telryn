@@ -1,5 +1,6 @@
 """Calculate and track clocks defined by the firm's dated policy evidence."""
 
+import os
 import re
 from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
@@ -228,6 +229,33 @@ def register_arguments(commands):
     )
 
 
+def _directory_reports(root):
+    root = root.resolve(strict=True)
+
+    def unreadable(error):
+        raise InputError(
+            f"cannot inspect policy-review directory {error.filename}"
+        ) from error
+
+    for directory, subdirs, files in os.walk(root, onerror=unreadable):
+        parent = Path(directory)
+        for name in subdirs:
+            folder = parent / name
+            if folder.is_symlink() and not folder.resolve(strict=True).is_relative_to(
+                root
+            ):
+                raise InputError(
+                    f"policy-review directory contains a linked subtree; supply its reports explicitly: {parent / name}"
+                )
+        if "report.html" in files:
+            report = (parent / "report.html").resolve(strict=True)
+            if not report.is_relative_to(root):
+                raise InputError(
+                    f"report resolves outside the selected directory; supply the intended report explicitly: {parent}"
+                )
+            yield report
+
+
 def execute(args):
     from . import report as comparison
     from . import weekly_report
@@ -237,7 +265,7 @@ def execute(args):
     explicit = set()
     for item in args.reports:
         if item.is_dir():
-            paths.update(path.resolve() for path in item.rglob("report.html"))
+            paths.update(_directory_reports(item))
         else:
             path = item.resolve(strict=True)
             explicit.add(path)

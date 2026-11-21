@@ -1,6 +1,7 @@
 """Explicit live imports and opt-in handoff of a frozen weekly review sample."""
 
 import csv
+import math
 import os
 import re
 import tempfile
@@ -256,14 +257,38 @@ def reviewed_zendesk(client, args, since, until):
                 continue
             if prefix + external not in eligible:
                 continue
+            if record.get("sourceType", "zendesk") != "zendesk":
+                raise InputError("Zendesk QA source type conflicts with the ticket URL")
             for review in records(record, "reviews"):
                 if (
                     str(object_at(object_at(review, "scorecard"), "id"))
-                    == args.scorecard
+                    != args.scorecard
                 ):
-                    when = instant(object_at(review, "created"))
-                    if since <= when < until:
-                        selected.add(prefix + external)
+                    continue
+                created = instant(
+                    review.get("createdISO") or object_at(review, "created")
+                )
+                if not since <= created < until:
+                    continue
+                updated = instant(
+                    review.get("updatedISO") or object_at(review, "updated")
+                )
+                reviewer = object_at(review, "reviewer")
+                score = object_at(review, "score")
+                if (
+                    not created <= updated < until
+                    or not isinstance(reviewer, dict)
+                    or not any(
+                        isinstance(reviewer.get(k), str) and reviewer[k].strip()
+                        for k in ("id", "email")
+                    )
+                    or type(score) not in (int, float)
+                    or not math.isfinite(score)
+                ):
+                    raise InputError(
+                        "cannot establish a scored human review by the QA cutoff; supply an archived human review ledger"
+                    )
+                selected.add(prefix + external)
         walked += len(items)
         if walked == total:
             return [(key,) for key in sorted(selected)]
