@@ -132,12 +132,17 @@ jobs:
           files=(*)
           test "${#files[@]}" -eq 2
           printf '%s  %s\n' "$WHEEL" "$wheel" "$SDIST" "$sdist" | sha256sum --check --strict -
+          # Reading the project inventory keeps the first request for a new
+          # version URL until after upload, even on caches that ignore queries.
+          project="$RUNNER_TEMP/pypi-project.json"
           record="$RUNNER_TEMP/pypi-existing.json"
-          status=$(curl -sSL --retry 4 --retry-all-errors -o "$record" -w '%{http_code}' \
-            "https://pypi.org/pypi/telryn/$VERSION/json?preflight=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT")
+          status=$(curl -sSL --retry 4 --retry-all-errors -o "$project" -w '%{http_code}' \
+            "https://pypi.org/pypi/telryn/json")
           case "$status" in
             404) ;; # First upload for this version.
             200)
+              jq -e --arg v "$VERSION" '
+                .releases | select(type == "object") | {urls: (.[$v] // [])}' "$project" > "$record"
               jq -e --arg w "$wheel" --arg s "$sdist" --arg wh "$WHEEL" --arg sh "$SDIST" '
                 .urls | type == "array" and all(.[];
                   (.yanked == false) and

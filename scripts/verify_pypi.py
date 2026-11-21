@@ -1,11 +1,31 @@
 """Verify PyPI publish attestations for the two distributions tested by CI."""
 
 import sys
+import time
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 from pypi_attestations import Distribution, Provenance
 from sigstore.verify.policy import Identity
+
+
+def fetch_provenance(url):
+    # An edge can see the distribution before its integrity record is available.
+    # An existing record is parsed immediately; signature failures are final.
+    for attempt in range(12):
+        request = Request(
+            f"{url}?verify={time.time_ns()}",
+            headers={"Cache-Control": "no-cache"},
+        )
+        try:
+            with urlopen(request, timeout=15) as response:
+                return Provenance.model_validate_json(response.read())
+        except HTTPError as exc:
+            exc.close()
+            if exc.code != 404 or attempt == 11:
+                raise
+        time.sleep(5)
 
 
 def verify(file, version):
@@ -15,8 +35,7 @@ def verify(file, version):
         issuer="https://token.actions.githubusercontent.com",
     )
     url = f"https://pypi.org/integrity/telryn/{version}/{file.name}/provenance"
-    with urlopen(url, timeout=30) as response:
-        provenance = Provenance.model_validate_json(response.read())
+    provenance = fetch_provenance(url)
     expected = {
         "kind": "GitHub",
         "repository": repository,
