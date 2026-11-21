@@ -50,15 +50,24 @@ def complaint_control_flow(page, root):
             }
         ],
     }
+    pack_path = (
+        Path(__file__).resolve().parents[1]
+        / "telryn/policy_packs/firm-example@1.0.0.json"
+    )
+    pack = json.loads(pack_path.read_text())
+    pack["clock_policy"]["id"] = "desk-fixture"
+    pack["categories"] = control.pop("categories")
     for name, text in {
+        "policy_pack": json.dumps(pack),
         "control": json.dumps(control),
         "population": "case_id,revision,evidence_ref,screen_flag\nc1,v1,fixture/1,0\n",
         "reviewed": "case_id\n",
     }.items():
-        filename = name + (".json" if name == "control" else ".csv")
+        filename = name + (".json" if name in ("control", "policy_pack") else ".csv")
         form.locator(f"[name={name}]").set_input_files(
             {"name": filename, "mimeType": "text/plain", "buffer": text.encode()}
         )
+    expect(form.locator("[name=rubric_question]")).to_be_disabled()
     page.locator("#create").click()
     expect(page.locator("#message")).to_contain_text("Audit ready")
     with page.expect_download() as download:
@@ -113,6 +122,7 @@ def complaint_control_flow(page, root):
     expect(report.value.get_by_role("heading", level=1)).to_have_text(
         "Weekly complaints control statement"
     )
+    expect(report.value.locator("header")).to_contain_text("desk-fixture@1.0.0")
     expect(report.value.locator("#control-inventory")).to_contain_text("Support ops")
     expect(
         report.value.get_by_text("Category downgrade requested.", exact=False).first

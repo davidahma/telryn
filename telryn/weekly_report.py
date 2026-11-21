@@ -46,7 +46,14 @@ def _audit_id(state: dict) -> str:
     frozen = {
         key: value
         for key, value in state.items()
-        if key not in ("grades", "earlier_grades", "case_reviews", "complaint_records")
+        if key
+        not in (
+            "grades",
+            "earlier_grades",
+            "case_reviews",
+            "complaint_records",
+            "pack_reviews",
+        )
     }
     return "W-" + fingerprint(frozen)
 
@@ -215,7 +222,9 @@ def digest(report_path: Path, *, allow_legacy=False) -> str:
     else:
         state, revision, signature = verified_snapshot(report_path)
     lines = _digest_lines(state, summarize(state))
-    if state.get("complaint_records", {}).get("policy_reviews"):
+    if state.get("pack_reviews") or state.get("complaint_records", {}).get(
+        "policy_reviews"
+    ):
         lines.append("Policy re-review required. Open the report for affected clauses.")
     if "control" in state:
         lines.append(f"Signed report revision {revision}, HMAC {signature}.")
@@ -314,6 +323,9 @@ def _coverage_lines(state: dict) -> list[str]:
 
 def _report_schema(state):
     records = state.get("complaint_records", {})
+    issued_policy = records.get("snapshot", {}).get("episodes", {}).get("policy", {})
+    if "policy_pack" in state or "business_weekdays" in issued_policy:
+        return 4
     if (
         "control" in state
         or "episodes" in records.get("snapshot", {})
@@ -337,6 +349,16 @@ def _render(state: dict, auth: dict) -> str:
     if "control" in state and not registration:
         registration = "<section><h2>Registration evidence pending</h2><p>Attach a dated register and work record with the weekly command and <code>--complaint-records</code>.</p></section>"
     scope = f"<p>{escape(state['scope_note'])}</p>" if state.get("scope_note") else ""
+    if pack := result.get("policy_pack"):
+        scope += (
+            f"<p>Policy and rubric pack <strong>{escape(pack['reference'])}</strong>. "
+            f"{escape(pack['applicability'])}</p><p>Policy sources: "
+            + "; ".join(escape(source) for source in pack["sources"])
+            + f"</p><p>Pack SHA-256: <code>{pack['sha256']}</code></p>"
+        )
+        for notice in state.get("pack_reviews", []):
+            changed = ", ".join(notice["changed_pack_fields"])
+            scope += f"<p>Review these grades against pack {escape(notice['review_version'])}. Changed fields: {escape(changed)}.</p>"
     scope += "".join(f"<p>{escape(line)}</p>" for line in _coverage_lines(state))
     if cov := state.get("coverage"):
         scope += f"<p>Source scope: {escape(cov['scope'])}. UTC interval [{escape(cov['since'])}, {escape(cov['until'])}).</p>"
@@ -492,7 +514,7 @@ def _verify_signed(raw, db, key):
             "weekly report signature does not match the team's local key or report bytes"
         )
     envelope = _envelope(data)
-    if type(envelope.get("schema")) is not int or envelope["schema"] not in (2, 3):
+    if type(envelope.get("schema")) is not int or envelope["schema"] not in (2, 3, 4):
         raise InputError("unrecognized signed weekly report version")
     state = versioned(envelope.get("state"), "weekly evidence")
     auth = envelope["auth"]
@@ -533,6 +555,7 @@ def _legacy(raw):
     if (
         "draw_commitment" in state
         or "publication_id" in state
+        or "policy_pack" in state
         or "control" in state
         or "complaint_records" in state
         or fingerprint(state) != envelope.get("checksum")

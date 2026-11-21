@@ -136,7 +136,9 @@ def propose(report: Path, out: Path, max_reserved: int = 1) -> dict:
             "routing proposals need a probability sample of the weekly queue; "
             "the combined shortlists only compare the discovery methods"
         )
-    if state.get("complaint_records", {}).get("policy_reviews"):
+    if state.get("pack_reviews") or state.get("complaint_records", {}).get(
+        "policy_reviews"
+    ):
         raise InputError("policy re-review required before a new rule proposal")
     result = summarize(state)
     if result["estimate"] is None or result["unknown"]:

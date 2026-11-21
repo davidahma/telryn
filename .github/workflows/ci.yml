@@ -37,6 +37,11 @@ jobs:
         run: |
           python -m pip install playwright==1.65.2
           python -m tests.browser_desk
+      - name: Build and exercise the private container
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        run: |
+          docker build -t telryn:ci .
+          python scripts/container_smoke.py telryn:ci
 
   offline:
     name: Offline checkout and archive

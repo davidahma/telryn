@@ -263,6 +263,12 @@ async function loadRubrics() {
   });
 }
 
+intake.elements.policy_pack.addEventListener("change", () => {
+  const packed = intake.elements.policy_pack.files.length > 0;
+  intake.elements.rubric.disabled = packed;
+  intake.elements.rubric_question.disabled = packed;
+  byId("starter").disabled = packed;
+});
 for (const form of [intake, grade, resolution]) form.addEventListener("submit", submit);
 intake.addEventListener("input", () => { intakeVersion++; byId("forecast").hidden = true; });
 resolution.elements.dispute.addEventListener("change", displayDispute);

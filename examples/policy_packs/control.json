@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "synthetic": true,
+  "scope": "Synthetic payments queue",
+  "gap_owner": "Complaints lead",
+  "gap_review_date": "2026-10-20",
+  "onboarding_minutes": 12,
+  "channels": [
+    {"name": "Chat", "coverage": "covered", "owner": "Support ops", "ordinary_qa": "Completed human reviews", "register_link": "Ticket ID", "retention": "30 days", "review_date": "2026-10-20"}
+  ]
+}

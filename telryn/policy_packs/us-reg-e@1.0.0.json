@@ -1,0 +1,73 @@
+{
+  "schema": 1,
+  "applicability": "US starter for eligible consumer EFT error notices under Regulation E. The firm determines whether the standard investigation, new-account or conditional extension path applies. An approved extension runs from the original notice. Registration, the calendar, business close and categories are firm settings.",
+  "sources": [
+    "https://www.consumerfinance.gov/rules-policy/regulations/1005/11/",
+    "https://www.consumerfinance.gov/rules-policy/regulations/1005/2/"
+  ],
+  "rubric_question": "Did the customer give a qualifying EFT error notice that the firm's error-resolution policy requires it to log?",
+  "categories": [
+    "EFT error notice",
+    "EFT error notice with material impact"
+  ],
+  "clock_policy": {
+    "schema": 1,
+    "id": "us-reg-e",
+    "version": "1.0.0",
+    "timezone": "America/New_York",
+    "holidays": [],
+    "episode_days": 90,
+    "registration_clause": "firm-register",
+    "clauses": {
+      "firm-register": {
+        "start_event": "firm_registration_trigger",
+        "stop_event": "register_entry",
+        "unit": "business_days",
+        "count": 1,
+        "due_time": "17:00"
+      },
+      "ordinary-determination": {
+        "start_event": "ordinary_error_notice",
+        "stop_event": "investigation_determination",
+        "unit": "business_days",
+        "count": 10,
+        "due_time": "17:00"
+      },
+      "new-account-determination": {
+        "start_event": "qualifying_new_account_notice",
+        "stop_event": "investigation_determination",
+        "unit": "business_days",
+        "count": 20,
+        "due_time": "17:00"
+      },
+      "extended-determination": {
+        "start_event": "approved_45_day_notice_at_receipt",
+        "stop_event": "investigation_determination",
+        "unit": "calendar_days",
+        "count": 45,
+        "due_time": "17:00"
+      },
+      "extended-special-determination": {
+        "start_event": "approved_90_day_notice_at_receipt",
+        "stop_event": "investigation_determination",
+        "unit": "calendar_days",
+        "count": 90,
+        "due_time": "17:00"
+      },
+      "correct-confirmed-error": {
+        "start_event": "error_determined",
+        "stop_event": "error_corrected",
+        "unit": "business_days",
+        "count": 1,
+        "due_time": "17:00"
+      },
+      "notify-results": {
+        "start_event": "investigation_determination",
+        "stop_event": "results_sent",
+        "unit": "business_days",
+        "count": 3,
+        "due_time": "17:00"
+      }
+    }
+  }
+}

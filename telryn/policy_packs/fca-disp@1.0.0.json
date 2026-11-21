@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "applicability": "UK starter for a firm-approved DISP route. Cite receipt under the relevant route and evidence of an applicable response. Screen for exclusions, temporary rule changes and alternate response obligations. Registration, the 17:00 close, holidays and episode window are illustrative firm settings.",
+  "sources": [
+    "https://handbook.fca.org.uk/handbook/disp1"
+  ],
+  "rubric_question": "Did the customer raise a complaint the firm should register under its approved DISP policy?",
+  "categories": [
+    "Service complaint",
+    "Complaint with material impact"
+  ],
+  "clock_policy": {
+    "schema": 1,
+    "id": "fca-disp",
+    "version": "1.0.0",
+    "timezone": "Europe/London",
+    "holidays": [],
+    "episode_days": 90,
+    "registration_clause": "firm-register",
+    "clauses": {
+      "firm-register": {
+        "start_event": "firm_registration_trigger",
+        "stop_event": "register_entry",
+        "unit": "business_days",
+        "count": 1,
+        "due_time": "17:00"
+      },
+      "summary-resolution": {
+        "start_event": "summary_route_receipt",
+        "stop_event": "customer_accepted_resolution",
+        "unit": "business_days",
+        "count": 3,
+        "due_time": "17:00"
+      },
+      "standard-response": {
+        "start_event": "standard_disp_receipt",
+        "stop_event": "qualifying_eight_week_response_sent",
+        "unit": "weeks",
+        "count": 8,
+        "due_time": "17:00"
+      },
+      "payments-response": {
+        "start_event": "ordinary_psd_emd_receipt",
+        "stop_event": "final_response_sent",
+        "unit": "business_days",
+        "count": 15,
+        "due_time": "17:00"
+      },
+      "exceptional-payments-holding": {
+        "start_event": "exceptional_psd_emd_receipt",
+        "stop_event": "qualifying_holding_response_sent",
+        "unit": "business_days",
+        "count": 15,
+        "due_time": "17:00"
+      },
+      "exceptional-payments-final": {
+        "start_event": "exceptional_psd_emd_receipt",
+        "stop_event": "final_response_sent",
+        "unit": "business_days",
+        "count": 35,
+        "due_time": "17:00"
+      }
+    }
+  }
+}

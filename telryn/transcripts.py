@@ -1,4 +1,4 @@
-"""Extract cited policy events with a local model. Publish only complete batches."""
+"""Extract cited policy events and publish only complete, scoped batches."""
 
 import csv
 import fcntl
@@ -190,7 +190,33 @@ def citation_format(choices):
     }
 
 
-def extract_case(case, model, policy, prompt, keys, literals):
+def _local_completion(model, prompt, visible, schema):
+    response = screen._api(
+        "/api/chat",
+        {
+            "model": model,
+            "stream": False,
+            "format": schema,
+            "options": OPTIONS,
+            "messages": [
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": canonical(visible)},
+            ],
+        },
+    )
+    msg = response.get("message")
+    if (
+        response.get("model") != model
+        or response.get("done") is not True
+        or response.get("done_reason") != "stop"
+        or not isinstance(msg, dict)
+        or not isinstance(msg.get("content"), str)
+    ):
+        raise InputError("incomplete or misattributed transcript extraction")
+    return msg["content"]
+
+
+def extract_case(case, model, policy, prompt, keys, literals, *, endpoint=None):
     evidence = passages(case["messages"], literals)
     citations = {k: [] for k in screen.SIGNALS}
     for group in chunks(evidence):
@@ -199,29 +225,13 @@ def extract_case(case, model, policy, prompt, keys, literals):
         visible = [
             {"passage": p["n"], "role": p["role"], "text": p["quote"]} for p in group
         ]
-        response = screen._api(
-            "/api/chat",
-            {
-                "model": model,
-                "stream": False,
-                "format": citation_format(choices),
-                "options": OPTIONS,
-                "messages": [
-                    {"role": "system", "content": prompt},
-                    {"role": "user", "content": canonical(visible)},
-                ],
-            },
+        schema = citation_format(choices)
+        content = (
+            endpoint.complete(prompt, visible, schema)
+            if endpoint
+            else _local_completion(model, prompt, visible, schema)
         )
-        msg = response.get("message")
-        if (
-            response.get("model") != model
-            or response.get("done") is not True
-            or response.get("done_reason") != "stop"
-            or not isinstance(msg, dict)
-            or not isinstance(msg.get("content"), str)
-        ):
-            raise InputError("incomplete or misattributed transcript extraction")
-        facts = json.loads(msg["content"], object_pairs_hook=screen._unique_keys)
+        facts = json.loads(content, object_pairs_hook=screen._unique_keys)
         if not isinstance(facts, dict) or set(facts) != set(RELEVANT[policy]):
             raise InputError("model omitted a required transcript fact")
         for key, fact in facts.items():
@@ -309,6 +319,7 @@ def extract(
     checkpoint=None,
     redact=None,
     policy_text=None,
+    model_endpoint=None,
 ):
     if not model or type(workers) is not int or not 1 <= workers <= 16:
         raise InputError("transcripts require --model and 1–16 workers")
@@ -328,23 +339,38 @@ def extract(
         if redact
         else []
     )
-    model_digest = screen._installed(model)
-
-    def verify_model():
-        if screen._installed(model) != model_digest:
-            raise InputError(
-                "model changed during extraction; unverified checkpoint results discarded"
-            )
-
     prompt, keys = recipe(policy, policy_definition)
-    version = "local-model:" + fingerprint(
+    endpoint = None
+    if model_endpoint is None:
+        model_digest = screen._installed(model)
+        backend = {"model_digest": model_digest}
+
+        def verify_model():
+            if screen._installed(model) != model_digest:
+                raise InputError(
+                    "model changed during extraction; unverified checkpoint results discarded"
+                )
+
+        prefix = "local-model:"
+        options = OPTIONS
+    else:
+        from . import model_endpoints
+
+        endpoint = model_endpoints.load(model_endpoint, model)
+        endpoint.verify()
+        verify_model = endpoint.verify
+        backend = {"model_endpoint": endpoint.identity}
+        model_digest = fingerprint(endpoint.identity)
+        prefix = "cloud-model:"
+        options = endpoint.identity
+    version = prefix + fingerprint(
         [
             "transcript-events-v2",
             model_digest,
             prompt,
             keys,
             sorted(STAFF_ACTIONS),
-            OPTIONS,
+            options,
             CHUNK_BYTES,
             policy,
             screen.POLICIES[policy],
@@ -385,7 +411,7 @@ def extract(
                     cases,
                     identity,
                     lambda case: extract_case(
-                        case, model, policy, prompt, keys, literals
+                        case, model, policy, prompt, keys, literals, endpoint=endpoint
                     ),
                     workers,
                     verify_model,
@@ -429,7 +455,8 @@ def extract(
                     "coverage_sha256": fingerprint(coverage) if coverage else None,
                     "policy": policy,
                     "model": model,
-                    "model_digest": model_digest,
+                    **backend,
+                    "prompt_fingerprint": fingerprint(prompt),
                     "transcripts_fingerprint": source,
                     "policy_fingerprint": fingerprint(policy_definition),
                     "events_fingerprint": fingerprint(rows),

@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "applicability": "US company portal response expectations for complaints forwarded by the CFPB. Date the trigger from the portal routing record. The longer final-response path applies only to eligible cases with a timely in-progress response. This program is separate from Regulation E. Registration and business settings are illustrative.",
+  "sources": [
+    "https://www.consumerfinance.gov/compliance/consumer-complaint-program/company-process/"
+  ],
+  "rubric_question": "Did the CFPB route a complaint to this firm through its Company Portal that the firm's policy requires it to register?",
+  "categories": [
+    "Portal complaint",
+    "Priority portal complaint"
+  ],
+  "clock_policy": {
+    "schema": 1,
+    "id": "cfpb-company-portal",
+    "version": "1.0.0",
+    "timezone": "America/New_York",
+    "holidays": [],
+    "episode_days": 90,
+    "registration_clause": "firm-register",
+    "clauses": {
+      "firm-register": {
+        "start_event": "firm_registration_trigger",
+        "stop_event": "register_entry",
+        "unit": "business_days",
+        "count": 1,
+        "due_time": "17:00"
+      },
+      "initial-portal-response": {
+        "start_event": "cfpb_routed",
+        "stop_event": "portal_response_submitted",
+        "unit": "calendar_days",
+        "count": 15,
+        "due_time": "17:00"
+      },
+      "extended-portal-final": {
+        "start_event": "cfpb_in_progress_path_at_original_routing",
+        "stop_event": "portal_final_response_submitted",
+        "unit": "calendar_days",
+        "count": 60,
+        "due_time": "17:00"
+      }
+    }
+  }
+}

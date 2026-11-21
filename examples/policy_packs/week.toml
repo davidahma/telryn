@@ -1,0 +1,9 @@
+schema = 1
+week = "2026-10-05"
+policy_pack = "firm-example@1.0.0"
+control = "control.json"
+population = "population.csv"
+reviewed = "reviewed.csv"
+screen_version = "synthetic-ledger"
+flagged_sample = 1
+unflagged_sample = 1

@@ -189,9 +189,12 @@ def screen(path: Path, out: Path, model: str | None, policy: str, **options) -> 
         return extract(path, out, model, policy, **options)
     if path.suffix.lower() != ".csv":
         raise InputError("supply transcript .jsonl or structured event .csv")
-    if options.get("policy_text") or options.get("redact") or options.get("checkpoint"):
+    if any(
+        options.get(k)
+        for k in ("policy_text", "redact", "checkpoint", "model_endpoint")
+    ):
         raise InputError(
-            "policy text, redaction and checkpoints apply to transcript extraction"
+            "policy text, redaction, checkpoints and model endpoints apply to transcript extraction"
         )
     rows, dims = _signals(path, with_dimensions=True)
     # The recipe and its version identify the deterministic truth table.
@@ -225,12 +228,17 @@ def register_arguments(commands):
     )
     parser.add_argument(
         "--model",
-        help="installed Ollama tag for transcript extraction; CSV policy evaluation is deterministic",
+        help="installed Ollama tag, Azure deployment, or versioned Bedrock foundation model ID",
+    )
+    parser.add_argument(
+        "--model-endpoint",
+        type=Path,
+        help="explicitly send redacted passages to a configured Azure OpenAI or AWS Bedrock endpoint",
     )
     parser.add_argument("--policy", required=True, choices=tuple(POLICIES))
     parser.add_argument("--out", required=True, type=Path)
     parser.add_argument(
-        "--workers", type=int, default=2, help="1–16 local transcript workers"
+        "--workers", type=int, default=2, help="1–16 transcript workers"
     )
     parser.add_argument(
         "--checkpoint",
@@ -258,6 +266,7 @@ def execute(args):
                 args.model,
                 args.policy,
                 workers=args.workers,
+                model_endpoint=args.model_endpoint,
                 checkpoint=args.checkpoint,
                 redact=args.redact,
                 policy_text=args.policy_text,

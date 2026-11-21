@@ -4,7 +4,13 @@
 
 In the synthetic rehearsal, Mira tells Fin about a duplicate charge on 4 August. “Even with a refund I want to know how this happened.” Fin refunds her and closes the chat. She calls on 18 August. The agent records a query. When her case comes up in October, the report traces it back to the August passage. Under the example firm’s policy, its eight-week final-response deadline was 29 September. The registration check uses a separate clock. The register and action history show what the case manager still owes her. Refunding the charge settled only part of the complaint.
 
-[Download Telryn](https://github.com/davidahma/telryn/releases/latest) · [Open the synthetic complaints report](https://github.com/davidahma/telryn/releases/download/v0.8.0/synthetic-complaints-audit.html) · [Apache-2.0](LICENSE) · [![CI](https://github.com/davidahma/telryn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/davidahma/telryn/actions/workflows/ci.yml)
+[Download Telryn](https://github.com/davidahma/telryn/releases/latest) · [Open the synthetic complaints report](https://github.com/davidahma/telryn/releases/download/v0.9.0/synthetic-complaints-audit.html) · [Apache-2.0](LICENSE) · [![CI](https://github.com/davidahma/telryn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/davidahma/telryn/actions/workflows/ci.yml)
+
+## Deploy inside your network
+
+IT can run the desk and weekly job from the signed Linux container on amd64 or arm64. Start with the offline weekly job. It reads mounted exports and writes the report and packet on storage you control. On Windows, use a Linux container engine and follow the volume setup in the deployment guide.
+
+The security review pack includes a data-flow diagram, answers to vendor-risk questions and an SPDX inventory for each architecture. The release also includes a portable image for teams that import approved software into a private registry. [Container deployment and signature verification](docs/container.md) · [Security review pack](docs/security-review.md)
 
 ## Follow one complaint through two weeks of QA
 
@@ -32,6 +38,8 @@ The complaints lead owns the decision, the register evidence and the follow-up. 
 | Second line | Approved policy, clock clauses, holidays and classification taxonomy |
 | QA | Ordinary human review ledger and independent grades |
 | Contact centre | Calls, transcript revisions and the customer and matter references used to link them |
+
+Start from a versioned FCA DISP, US Regulation E or CFPB complaint-handling pack, or supply the firm’s own rubric and taxonomy. The policy owner chooses which clauses apply and approves the operating calendar. [Configure policy and rubric packs](docs/policy-packs.md)
 
 Record which channels the team can read, who owns the gaps and when they will review them. Count onboarding time, the delay from closure to registration and the age of open follow-ups. The checklist covers chat, calls, email, disputes and social channels. [Evaluation guide](docs/evaluation.md) · [Evidence formats](docs/complaint-records.md)
 
@@ -66,7 +74,7 @@ Even a clean sample can be weak evidence. If exactly 25 of 5,000 unreviewed conv
 ## Other uses and integrations
 
 - **Helpdesks and AI support.** Pull completions from Intercom (including Fin), Zendesk, Salesforce Service Cloud or Freshdesk. Use a lifecycle export where a provider lacks dated resolution history. Import a versioned Sierra export from customer-owned S3 or map an approved Fin, Sierra or Decagon CSV. Hand work back to existing QA tools. [Integration coverage](docs/integrations.md)
-- **Transcript screening.** A local Ollama model can extract signals with supporting passages from authorized transcript revisions. A deterministic policy flags cases for review. Teams with structured events can use them directly. [Transcript intake and citations](docs/transcripts.md)
+- **Transcript screening.** Select local Ollama, an Azure OpenAI deployment or regional Amazon Bedrock in an approved account to extract signals from authorized transcript revisions. Each definite answer requires a supporting passage. A deterministic policy flags cases for review. Teams with structured events can use them directly. [Transcript intake and citations](docs/transcripts.md)
 - **Other serious support failures.** Run `python3 -m examples.fintech --out runs/fintech` for an account-compromise audit. Replay a proposed queue change against staffing and serious-loss checks before a trial. [Fintech example](examples/fintech/README.md) · [Comparison and exit codes](docs/comparison.md)
 - **Public benchmark.** The Ubuntu example uses 200 real technical-support dialogues, researchers’ human labels and archived GPT-4o flags. Ordinary QA selection is simulated. Run `python3 -m examples.public_demo --census --out runs/public-census` to verify the 86 human-labeled friction cases among the 160 left for audit. [Dataset and reproduction](examples/public_demo/NOTICE.md)
 
