@@ -4,13 +4,13 @@
 
 In the synthetic rehearsal, Mira tells Fin about a duplicate charge on 4 August. “Even with a refund I want to know how this happened.” Fin refunds her and closes the chat. She calls on 18 August. The agent records a query. When her case comes up in October, the report traces it back to the August passage. Under the example firm’s policy, its eight-week final-response deadline was 29 September. The registration check uses a separate clock. The register and action history show what the case manager still owes her. Refunding the charge settled only part of the complaint.
 
-[Download Telryn](https://github.com/davidahma/telryn/releases/latest) · [Open the synthetic complaints report](https://github.com/davidahma/telryn/releases/download/v0.9.0/synthetic-complaints-audit.html) · [Apache-2.0](LICENSE) · [![CI](https://github.com/davidahma/telryn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/davidahma/telryn/actions/workflows/ci.yml)
+[Download Telryn](https://github.com/davidahma/telryn/releases/latest) · [Open the synthetic complaints report](https://github.com/davidahma/telryn/releases/download/v0.9.1/synthetic-complaints-audit.html) · [Apache-2.0](LICENSE) · [![CI](https://github.com/davidahma/telryn/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/davidahma/telryn/actions/workflows/ci.yml)
 
 ## Deploy inside your network
 
 IT can run the desk and weekly job from the signed Linux container on amd64 or arm64. Start with the offline weekly job. It reads mounted exports and writes the report and packet on storage you control. On Windows, use a Linux container engine and follow the volume setup in the deployment guide.
 
-The security review pack includes a data-flow diagram, answers to vendor-risk questions and an SPDX inventory for each architecture. The release also includes a portable image for teams that import approved software into a private registry. [Container deployment and signature verification](docs/container.md) · [Read the security review](docs/security-review.md) · [Download the review pack with both SBOMs](https://github.com/davidahma/telryn/releases/download/v0.9.0/telryn-security-review.tar.gz)
+The security review pack includes a data-flow diagram, answers to vendor-risk questions and an SPDX inventory for each architecture. The release also includes a portable image for teams that import approved software into a private registry. [Container deployment and signature verification](docs/container.md) · [Read the security review](docs/security-review.md) · [Download the review pack with both SBOMs](https://github.com/davidahma/telryn/releases/download/v0.9.1/telryn-security-review.tar.gz)
 
 ## Follow one complaint through two weeks of QA
 
