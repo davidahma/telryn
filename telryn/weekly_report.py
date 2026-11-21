@@ -12,7 +12,7 @@ import tempfile
 from html import escape
 from pathlib import Path
 
-from . import audit_trust, complaints, weekly_review
+from . import audit_trust, complaints, control, weekly_review
 from .weekly_review import review_status
 from .artifacts import new_directory, sync_directory
 from .contracts import InputError, canonical, fingerprint, versioned
@@ -36,9 +36,10 @@ COLUMNS = FIXED + ANSWERS
 
 
 def _columns(state: dict) -> tuple:
-    if "coverage_sha256" in state:
-        return FIXED + ("completed_at",) + ANSWERS
-    return COLUMNS
+    evidence = ("completed_at",) if "coverage_sha256" in state else ()
+    rubric = ("category_options",) if "control" in state else ()
+    dimensions = control.FIELDS if "control" in state else ()
+    return FIXED + evidence + rubric + ANSWERS + dimensions
 
 
 def _audit_id(state: dict) -> str:
@@ -66,6 +67,10 @@ def _packet(state: dict) -> dict:
         }
         if "completed_at" in case:
             fields["completed_at"] = case["completed_at"]
+        if "control" in state:
+            fields["category_options"] = json.dumps(
+                state["control"]["categories"], ensure_ascii=False
+            )
         rows[row_id] = (
             case["case_id"],
             {key: render_cell(value) for key, value in fields.items()},
@@ -155,6 +160,20 @@ def _screen_table(metrics: dict | None) -> str:
 
 def _digest_lines(state: dict, result: dict) -> list[str]:
     # Only controlled labels may leave the private report through the aggregate email.
+    if statement := result.get("control_statement"):
+        channels = state["control"]["channels"]
+        excluded = sum(c["coverage"] != "covered" for c in channels)
+        title = (
+            "Synthetic complaints rehearsal"
+            if state["control"].get("synthetic")
+            else "Telryn weekly complaints control"
+        )
+        return [
+            f"{title} · {state['week']}",
+            *control.statement_lines(statement),
+            f"{len(statement['unresolved'])} conversations need follow-up. {excluded} channels have partial or missing coverage.",
+            "Owners, review dates and evidence are in the signed local report.",
+        ]
     demo = state.get("finding_label") == "conversations with friction"
     label = "conversations with friction" if demo else "serious failures"
     confirmed = "confirmed friction labels" if demo else "confirmed serious"
@@ -190,8 +209,16 @@ def _digest_lines(state: dict, result: dict) -> list[str]:
 
 
 def digest(report_path: Path, *, allow_legacy=False) -> str:
-    state = read_state(report_path, allow_legacy=allow_legacy)
+    if allow_legacy and TRAILER not in (raw := report_path.read_bytes()):
+        state = _legacy(raw)
+        revision = signature = None
+    else:
+        state, revision, signature = verified_snapshot(report_path)
     lines = _digest_lines(state, summarize(state))
+    if state.get("complaint_records", {}).get("policy_reviews"):
+        lines.append("Policy re-review required. Open the report for affected clauses.")
+    if "control" in state:
+        lines.append(f"Signed report revision {revision}, HMAC {signature}.")
     if "draw_commitment" not in state:
         lines.insert(0, "Historical unsigned weekly report · provenance unverified")
     return "\n".join(lines) + "\n"
@@ -237,7 +264,10 @@ def _review_section(state: dict) -> str:
                 label = {True: "Yes", False: "No", None: "Insufficient"}[
                     grade["serious"]
                 ]
-                return f"{label} ({grade['disposition']})"
+                summary = f"{label} ({grade['disposition']})"
+                if "category" in grade:
+                    summary += f", category {grade['category']}, vulnerability {grade['vulnerability']}, redress {grade['redress']}. Basis: {grade['classification_reason']}"
+                return summary
 
             result = "Agreement"
             if check.get("decision"):
@@ -245,6 +275,8 @@ def _review_section(state: dict) -> str:
                 result = f"{d['reviewer']} accepted the {d['choice']} answer: {d['reason']} ({d['minutes']} minutes, {d['at']})"
             elif check["disputed"]:
                 result = "Open dispute " + check["id"]
+            if check.get("downgrade_requested"):
+                result = "Category downgrade requested. " + result
             values = (
                 case,
                 f"{check['primary_by']}: {vote(check['primary'])}",
@@ -280,9 +312,30 @@ def _coverage_lines(state: dict) -> list[str]:
     ]
 
 
+def _report_schema(state):
+    records = state.get("complaint_records", {})
+    if (
+        "control" in state
+        or "episodes" in records.get("snapshot", {})
+        or records.get("policy_reviews")
+    ):
+        return 3
+    return 2
+
+
 def _render(state: dict, auth: dict) -> str:
     result = summarize(state)
     label = state.get("finding_label", "serious failures")
+    lead = f"<h1>{escape(_estimate(result, label))}</h1>"
+    control_detail = ""
+    if statement := result.get("control_statement"):
+        lead, control_detail = control.html(state, statement)
+    grade_help = ""
+    if "control" in state:
+        grade_help = "<p>Use the firm’s ordered category list in <code>category_options</code>. Give a classification reason, a vulnerability answer (yes, no or unknown) and redress status (none, pending, offered, completed or unknown). A lower category requires independent review and a recorded decision.</p>"
+    registration = complaints.html(state)
+    if "control" in state and not registration:
+        registration = "<section><h2>Registration evidence pending</h2><p>Attach a dated register and work record with the weekly command and <code>--complaint-records</code>.</p></section>"
     scope = f"<p>{escape(state['scope_note'])}</p>" if state.get("scope_note") else ""
     scope += "".join(f"<p>{escape(line)}</p>" for line in _coverage_lines(state))
     if cov := state.get("coverage"):
@@ -341,7 +394,7 @@ def _render(state: dict, auth: dict) -> str:
             f"<tr><th>{stratum_label}</th><td>{total:,}</td><td>{sampled:,}</td><td>{chance}</td>"
             f"<td>{observed['confirmed']:,}</td><td>{sampled - observed['graded']:,}</td><td>{interval}</td></tr>"
         )
-    payload = canonical({"schema": 2, "auth": auth, "state": state})
+    payload = canonical({"schema": _report_schema(state), "auth": auth, "state": state})
     payload = (
         payload.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     )
@@ -360,14 +413,14 @@ def _render(state: dict, auth: dict) -> str:
         "base-uri 'none'; form-action 'none'\">"
         f"<title>Weekly support QA · {escape(state['week'])} · Telryn</title><style>{STYLE}</style>"
         "</head><body><main><header>"
-        f'<p class="eyebrow">Weekly support QA · {escape(state["week"])}</p><h1>{escape(_estimate(result, label))}</h1>'
+        f'<p class="eyebrow">Weekly support QA · {escape(state["week"])}</p>{lead}'
         f"<p><strong>{escape(_uncertainty(result, label))}</strong></p><p>{escape(state['rubric_question'])}</p>"
         f"<p>Ordinary QA reviewed {result['reviewed']:,} of {result['population']:,} eligible conversations. "
         f"This audit covers the other {result['unreviewed']:,}, including cases another control already knew about.</p>{scope}</header>"
-        f"{complaints.html(state)}"
+        f'<div id="control-register">{registration}</div>{control_detail}'
         f'<section><h2>Confirmed cases</h2><div class="grid">{cover}</div>'
         f"<p>{_new_finding_line(result)}</p>{follow_up}</section>"
-        f"<section><h2>Grading handoff</h2><p>{grade_text}</p>{_evidence_follow_up(state)}"
+        f"<section><h2>Grading handoff</h2><p>{grade_text}</p>{_evidence_follow_up(state)}{grade_help}"
         "<p>Give the reviewer <code>grades.csv</code>. Keep this lead report private so the reviewer can grade each case "
         "without seeing its screen flag. Review the listed evidence revision against the question in the packet. "
         "When the packet includes <code>completed_at</code>, use the evidence available at that UTC cutoff. "
@@ -380,7 +433,7 @@ def _render(state: dict, auth: dict) -> str:
         "<p>Import the return with <code>python3 -m telryn weekly report.html --grades returned.csv</code>. "
         "For the next primary reviewer, export the unanswered rows with "
         "<code>python3 -m telryn weekly report.html --outstanding remaining.csv</code>.</p></section>"
-        "<section><h2>Sampling and screen performance</h2><p>Cases were drawn without replacement within each group. "
+        '<section id="control-sample"><h2>Sampling and screen performance</h2><p>Cases were drawn without replacement within each group. '
         "Population estimates weight each grade by the inverse of its selection probability.</p>"
         + "".join(
             f"<p>{escape(line)}</p>"
@@ -393,7 +446,7 @@ def _render(state: dict, auth: dict) -> str:
         + "</tbody></table></div>"
         f"<h3>Screen version · {escape(state['screen_version'])}</h3>{_screen_table(result['screen_metrics'])}</section>"
         f"{_review_section(state)}"
-        f"<section><h2>Sampling commitment</h2><p>Draw <code>{state['draw_commitment']['draw_id']}</code> "
+        f"<section><h2>Random sample (verifiable)</h2><p>Draw <code>{state['draw_commitment']['draw_id']}</code> "
         f"was recorded in the team's draw registry before assignment. Use <code>telryn trust draws</code> to compare designs for this week.</p></section>"
         f"<footer><p>Signed weekly report · revision {auth['revision']} · team key <code>{auth['key_id']}</code>. Verify this file in the original Telryn trust store before relying on its contents.</p><p>Rubric {escape(state['rubric'])}</p><p>Audit <code>{_audit_id(state)}</code></p></footer></main>"
         + STATE_OPEN
@@ -439,7 +492,7 @@ def _verify_signed(raw, db, key):
             "weekly report signature does not match the team's local key or report bytes"
         )
     envelope = _envelope(data)
-    if type(envelope.get("schema")) is not int or envelope["schema"] != 2:
+    if type(envelope.get("schema")) is not int or envelope["schema"] not in (2, 3):
         raise InputError("unrecognized signed weekly report version")
     state = versioned(envelope.get("state"), "weekly evidence")
     auth = envelope["auth"]
@@ -480,6 +533,7 @@ def _legacy(raw):
     if (
         "draw_commitment" in state
         or "publication_id" in state
+        or "control" in state
         or "complaint_records" in state
         or fingerprint(state) != envelope.get("checksum")
     ):
@@ -568,11 +622,14 @@ def start(plan_path: Path, out_dir: Path) -> Path:
     return out_dir / "report.html"
 
 
-def _answer(row: dict) -> dict | None:
+def _answer(row: dict, state: dict) -> dict | None:
     serious, disposition, owner, action, minutes = (
         row[field].strip() for field in ANSWERS
     )
-    if not any((serious, disposition, owner, action, minutes)):
+    dimensions = (
+        {key: row[key].strip() for key in control.FIELDS} if "control" in state else {}
+    )
+    if not any((serious, disposition, owner, action, minutes, *dimensions.values())):
         return None
     choices = {"yes": True, "no": False, "insufficient": None}
     if (
@@ -584,6 +641,7 @@ def _answer(row: dict) -> dict | None:
             "a weekly grade needs yes, no or insufficient and nonnegative whole minutes"
         )
     return {
+        **dimensions,
         "serious": choices[serious.lower()],
         "disposition": disposition.lower(),
         "owner": owner,
@@ -619,7 +677,7 @@ def _import(path: Path, state: dict, reviewer: str, record) -> bool:
                 raise InputError(
                     f"row {row_id} no longer matches its frozen audit or evidence"
                 )
-            grade = _answer(row)
+            grade = _answer(row, state)
             if grade is not None and record(state, case_id, grade, reviewer):
                 changed = True
     if not seen:

@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "environment": "test",
+  "workspace": "local-synthetic-lab",
+  "agent_revision": "demo-prompt-v2",
+  "policy_revision": "demo-complaints-v1",
+  "handoff_revision": "demo-register-v1",
+  "cases": [
+    {"id":"repeat","phrase":"This is the third time I've asked about the duplicate charge.","registration_minutes":60},
+    {"id":"external","phrase":"I'll take this to the ombudsman.","registration_minutes":60},
+    {"id":"refund","phrase":"I received the refund and I'm still unhappy with how you treated me.","registration_minutes":60},
+    {"id":"vulnerability","phrase":"I can't read the letters you keep sending. How am I supposed to sort this out?","registration_minutes":60}
+  ]
+}

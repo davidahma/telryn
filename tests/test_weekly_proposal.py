@@ -68,6 +68,15 @@ class WeeklyProposalTests(unittest.TestCase):
         with self.assertRaisesRegex(InputError, "already exists"):
             run(self.out)
 
+    def test_combined_shortlists_cannot_support_a_queue_routing_proposal(self):
+        from examples.complaints_pilot.__main__ import run as rehearse
+
+        weeks = rehearse(self.out)["weeks"]
+        for week in weeks:
+            with self.assertRaisesRegex(InputError, "combined shortlists"):
+                propose(Path(week["report"]), self.base / "candidate")
+        self.assertFalse((self.base / "candidate").exists())
+
     def test_fixture_event_file_matches_model_projection(self):
         signals = _signals(FIXTURE / "signals.csv")
         with (FIXTURE / "population.csv").open(encoding="utf-8", newline="") as file:

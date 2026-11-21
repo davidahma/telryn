@@ -16,7 +16,9 @@ from . import (
     intake,
     integrations,
     planning,
+    policy,
     screen,
+    seed,
     weekly,
     weekly_report,
     weekly_review,
@@ -96,7 +98,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     weekly_report.register_review_arguments(week, action)
     planning.register_arguments(commands)
+    policy.register_arguments(commands)
     audit_trust.register_arguments(commands)
+    seed.register_arguments(commands)
     screen.register_arguments(commands)
     desk = commands.add_parser(
         "desk", help="open the local browser intake for a QA lead"
@@ -380,10 +384,14 @@ def main(argv: list[str] | None = None) -> int:
             return weekly_audit(args)
         if args.command == "integrations":
             return integrations.execute(args)
+        if args.command == "seed":
+            return seed.execute(args)
         if args.command == "screen":
             return screen.execute(args)
         if args.command == "plan-week":
             return planning.execute(args)
+        if args.command == "policy-review":
+            return policy.execute(args)
         if args.command == "trust":
             return audit_trust.execute(args)
         if args.command == "demo":

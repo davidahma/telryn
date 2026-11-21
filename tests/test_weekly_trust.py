@@ -162,6 +162,15 @@ class TeamAudit(unittest.TestCase):
         self.assertEqual((self.trust / "audit.key").stat().st_mode & 0o777, 0o600)
         self.assertEqual(self.trust.stat().st_mode & 0o777, 0o700)
 
+    def test_old_readers_only_receive_reports_without_new_control_evidence(self):
+        from telryn.weekly_report import _envelope, _report_schema
+
+        self.assertEqual(_envelope(self.report.read_bytes())["schema"], 2)
+        self.assertEqual(_report_schema({"control": {}}), 3)
+        self.assertEqual(
+            _report_schema({"complaint_records": {"snapshot": {"episodes": {}}}}), 3
+        )
+
     def test_authenticates_visible_html_state_and_regenerated_packet(self):
         original = self.report.read_bytes()
         packet = verified_packet(self.report)

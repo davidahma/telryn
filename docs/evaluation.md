@@ -216,7 +216,7 @@ A second week establishes whether the lead asks to use the report again and acts
 
 ### Two weeks on one complaints queue
 
-A complaints quality lead at a lender or payments company owns the pilot. Start with the last closed conversation that should have reached the complaints register. Have the lead reopen the dated conversation, the applicable policy clause, the internal deadline, the register as it stood then, and the first record showing who learned about the miss and acted. Record the first missing or inaccessible source. If a reviewer cannot reconstruct the example, resolve that evidence gap before measuring either method. The policy owner supplies the deadlines for this queue.
+A complaints quality lead at a lender or payments company owns the pilot. Start with the last closed conversation that should have reached the complaints register. Have the lead reopen the dated conversation, the applicable policy clause, the internal deadline, the register as it stood then, and the first record showing who learned about the miss and acted. Record the first missing or inaccessible source. If a reviewer cannot reconstruct the example, resolve that evidence gap before measuring either method. The policy owner supplies the versioned clauses, clock starts and stops, local calendar and approved categories for this queue. A legacy source can supply an explicit deadline per case.
 
 Before opening the two weeks, write down the queue and dates, reporting cutoff, roster of completed ordinary human reviews, evidence permitted at that cutoff, maximum **total staff minutes per method**, assistance allowed in week two and the saving the buyer considers material. Use the same release and rubric both weeks. Keep late edits and post-cutoff actions in a separate observation window. Choose an independent analyst for each method and keep the shortlists hidden from the other analyst until both are frozen.
 
@@ -231,6 +231,21 @@ Before opening the two weeks, write down the queue and dates, reporting cutoff, 
 
 Two teams supplying records, a recovered consequential complaint acted on earlier or equivalent findings at materially less total effort, and at least one budget holder paying to repeat are the investment gates. If the incumbent matches the result or the budget cannot detect a miss of interest, stop expansion. Consider an integration only after timing a recurring bottleneck. For Intercom, compare one versioned week against the lead's completed-review ledger and preserve the distinction between assignment, AI scoring, a completed human review and a later edit.
 
+#### Who supplies the evidence
+
+The complaints lead owns the decision to repeat and the budget. Agree on the sources and record the minutes each team spends obtaining access, explaining the data, joining records and resolving gaps.
+
+| Team | Source and acceptance check |
+| --- | --- |
+| Support operations | A dated export of closed and resolved conversations. Reconcile the queue, time zone and counts. |
+| AI agent owner | The agent's release version, conversation evidence, refund events and handoff logs. Distinguish a promised action from an observed outcome. |
+| Complaints | The dated register, its coverage and owner-action history. Verify the keys on a registered episode and on a disputed match. |
+| Second line | The applicable policy version, clock events, holiday calendar and categories. Assign an owner and a review date to gaps. |
+| QA | The completed human review ledger as it stood at cutoff. Exclude assignments, AI scores and later edits from ordinary-review credit. |
+| Contact centre | Authorized transcripts, retention dates and join keys. Record which calls were unavailable, including those outside retention. |
+
+Record first-week onboarding by team in minutes and include it once in each method's preparation total. Record recurring effort separately in week two. Report elapsed hours from conversation closure to registration with the count of matched records. Keep earlier registrations visible as such. Count unresolved cases, give their age since closure and assign a person and review date. Read the register and action history again at the agreed follow-up cutoff. These measures tell the lead which gaps are aging and which records need another check. [Example time ledger](../examples/complaints_pilot/onboarding.csv) · [Example channel inventory](../examples/complaints_pilot/channels.csv)
+
 #### Run the local rehearsal
 
 ```sh
@@ -238,6 +253,6 @@ python3 -m examples.complaints_pilot --out runs/complaints-pilot
 python3 -m examples.complaints_pilot.intercom
 ```
 
-The first command runs two invented weeks using the existing weekly draw and a saved SQL query that checks for complaint or investigation language and excludes existing register entries and owner actions at the cutoff. A signed weekly report and one blinded packet appear under each dated directory. Open the report to inspect the register and owner evidence. Terminal JSON records each frozen shortlist, its commitment, unique and overlapping owner-accepted episodes, elapsed minutes and every staff-time component. The sample can vary with the team's sampling key. Keep the JSON in the private pilot record if you need to reproduce the comparison.
+The first command runs two invented weeks with a capable saved SQL query and Telryn's weekly sample. Both see the same cutoff-limited register, owner actions, repeated contacts, consumer escalation, hardship and post-refund evidence. Four examples exercise complaints phrased without “complaint”. The deduplicated union receives two blind grades. Each dated directory contains one signed report and one grading packet. Terminal JSON records the actual frozen selections, staff time and owner outcomes. Preserve the JSON and team trust store to replay the assignments.
 
-In the fixture, C102 and C103 both meet the rubric. The owner accepts each after cutoff and completes the C102 action. An acceptance without a completion time stays open. C104 has a late register entry and prior handling. C105 required registration and was entered on time. The native search excludes both using the cutoff ledger. In week two a request for action on C202 still lacks owner acceptance. These are deliberately different outcomes for the scorer. The register, grades, times and assistance minutes are synthetic. A SQL search stands in for the native analyst; the rehearsal provides no evidence of customer speed, demand or payment. [Rehearsal inputs](../examples/complaints_pilot/README.md)
+On the published first draw SQL found five accepted episodes in 125 stipulated staff minutes. Telryn found those five and one other in 131 minutes. Across all 1,350 permitted two-week selections on the fixture, SQL matches or beats Telryn on episode count 96% of the time. That calculation uses the staged acceptances only after the two shortlists are frozen. It describes sensitivity to sampling on this fixture. A field comparison must still establish customer effort, earlier action and willingness to pay. [Worked case, method and results](../examples/complaints_pilot/README.md)

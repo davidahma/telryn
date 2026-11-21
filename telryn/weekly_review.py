@@ -32,7 +32,10 @@ def _now() -> str:
 
 
 def _labels(grade: dict) -> tuple:
-    return grade["serious"], grade["disposition"]
+    return tuple(
+        grade.get(key)
+        for key in ("serious", "disposition", "category", "vulnerability", "redress")
+    )
 
 
 def _check_grade(grade: dict) -> None:
@@ -56,7 +59,11 @@ def _check_grade(grade: dict) -> None:
 
 
 def record_primary(state: dict, case: str, grade: dict, reviewer: str) -> bool:
+    from . import control
+
     _check_grade(grade)
+    if "control" in state:
+        control.check_grade(state["control"], grade)
     ledger = state.setdefault("case_reviews", {})
     details = ledger.get(case)
     current = details["primary"] if details else None
@@ -77,6 +84,10 @@ def record_primary(state: dict, case: str, grade: dict, reviewer: str) -> bool:
         )
         if (
             details["checks"]
+            or (
+                "control" in state
+                and control.downgrade(state["control"], current, grade)
+            )
             or not (resolved_grade or resolved_handling)
             or grade["minutes"] < current["minutes"]
         ):
@@ -94,7 +105,11 @@ def record_primary(state: dict, case: str, grade: dict, reviewer: str) -> bool:
 
 
 def record_second(state: dict, case: str, grade: dict, reviewer: str) -> bool:
+    from . import control
+
     _check_grade(grade)
+    if "control" in state:
+        control.check_grade(state["control"], grade)
     details = state.get("case_reviews", {}).get(case)
     if not details:
         raise InputError(f"case {case} needs a first grade before a second review")
@@ -128,6 +143,10 @@ def record_second(state: dict, case: str, grade: dict, reviewer: str) -> bool:
         "at": _now(),
         "disputed": _labels(primary) != _labels(grade),
     }
+    if "control" in state:
+        check["downgrade_requested"] = control.downgrade(
+            state["control"], primary, grade
+        )
     check["id"] = fingerprint(
         [state["publication_id"], case, len(details["checks"]), check]
     )
@@ -140,6 +159,24 @@ def record_second(state: dict, case: str, grade: dict, reviewer: str) -> bool:
             "owner": "",
             "action": "",
         }
+        if "control" in state:
+            if (
+                primary["serious"] is grade["serious"]
+                and primary["disposition"] == grade["disposition"]
+            ):
+                effective.update(
+                    {
+                        key: primary[key]
+                        for key in ("serious", "disposition", "owner", "action")
+                    }
+                )
+            for key in control.DIMS:
+                effective[key] = (
+                    primary[key] if primary[key] == grade[key] else "unknown"
+                )
+            effective["classification_reason"] = (
+                "Independent grades differ. See both signed votes."
+            )
     state["grades"][case] = {
         **effective,
         "minutes": primary["minutes"] + grade["minutes"],

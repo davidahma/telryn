@@ -311,3 +311,5 @@ Each ID must match a confirmed serious case losing review in the saved Telryn
 report. This finding can qualify on a matched comparison even when the two
 decisions had different support. The command prints an assessment and leaves
 the existing report and grading packet intact. See the [measurement protocol](evaluation.md#record-the-outcome-of-a-matched-benchmark).
+
+A complaints report built from the combined shortlists of two discovery methods can support a head-to-head comparison. A proposed routing change needs an audit probability sample from the weekly queue. Telryn checks the signed report’s population basis before issuing a candidate.

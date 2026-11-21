@@ -26,6 +26,7 @@ FILES = {
     "reviewed": "reviewed.csv",
     "receipt": "receipt.json",
     "coverage": "coverage.json",
+    "control": "control.json",
     "grades": "return.csv",
 }
 PLAN_FILES = {
@@ -33,6 +34,7 @@ PLAN_FILES = {
     "reviewed": "reviewed",
     "receipt": "screen_receipt",
     "coverage": "coverage_receipt",
+    "control": "control",
 }
 
 
@@ -99,6 +101,7 @@ def _plan(fields):
     allowed = required | {
         "receipt",
         "coverage",
+        "control",
         "group_by",
         "flagged_sample",
         "unflagged_sample",
@@ -123,7 +126,7 @@ def _plan(fields):
             lines.append("group_by = " + json.dumps(groups))
         for key, config_key in PLAN_FILES.items():
             value = fields.get(key, "")
-            if not value and key in ("receipt", "coverage"):
+            if not value and key in ("receipt", "coverage", "control"):
                 continue
             (base / FILES[key]).write_text(value, encoding="utf-8", newline="")
             lines.append(f'{config_key} = "{FILES[key]}"')

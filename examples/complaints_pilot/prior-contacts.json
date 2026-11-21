@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "contacts": [
+    {
+      "case_id": "FIN-42",
+      "revision": "v1",
+      "evidence_ref": "conversations/FIN-42",
+      "channel": "Fin",
+      "subject_ref": "S-Mira",
+      "matter_ref": "debit-42",
+      "contact_at": "2026-08-04T10:00:00Z",
+      "match_key": "support/FIN-42",
+      "passages": [
+        {
+          "at": "2026-08-04T10:00:00Z",
+          "text": "You have charged me twice. Even with a refund I want to know how this happened."
+        },
+        {
+          "at": "2026-08-04T10:00:00Z",
+          "text": "Fin: I have refunded the second charge. This chat is closed."
+        }
+      ],
+      "events": [
+        {
+          "event": "dissatisfaction",
+          "passage": 1,
+          "quote": "Even with a refund I want to know how this happened."
+        }
+      ]
+    },
+    {
+      "case_id": "CALL-42",
+      "revision": "v1",
+      "evidence_ref": "conversations/CALL-42",
+      "channel": "Phone",
+      "subject_ref": "S-Mira",
+      "matter_ref": "debit-42",
+      "contact_at": "2026-08-18T10:00:00Z",
+      "match_key": "support/CALL-42",
+      "passages": [
+        {
+          "at": "2026-08-18T10:00:00Z",
+          "text": "I called about the duplicate debit. I still haven't had an answer."
+        },
+        {
+          "at": "2026-08-18T10:00:00Z",
+          "text": "Operator note: classified as a query. Closed."
+        }
+      ],
+      "events": []
+    }
+  ]
+}
