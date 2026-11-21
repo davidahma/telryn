@@ -10,7 +10,7 @@ table{border-collapse:collapse;width:100%;margin:.75rem 0}td,th{border-bottom:1p
 summary{font-weight:600;cursor:pointer}details[open] summary{margin-bottom:1rem}.pair{display:grid;grid-template-columns:1fr 1fr;gap:1rem}button,.link{display:inline-block;font:inherit;font-weight:650;padding:.65rem 1rem;border-radius:.25rem;border:1px solid #175146;color:white;background:#175146;cursor:pointer;text-decoration:none}button:disabled{opacity:.6}a{color:#15514a}.links{display:flex;flex-wrap:wrap;align-items:center;gap:1.4rem;margin:1rem 0 1.5rem}#message{font-weight:600;margin-top:1rem}small{font-weight:400}#current{margin-top:2rem}code{overflow-wrap:anywhere}@media(max-width:480px){.pair{grid-template-columns:1fr;gap:0}main{padding-top:1rem}}
 </style></head>
 <body><main><header><b>Telryn</b><span>Support QA</span></header>
-<h1>Weekly support audit</h1><p>Plan a sample of completed conversations that ordinary QA left unreviewed. Give reviewers the frozen cases and track what they find.</p>
+<h1>Weekly support audit</h1><p>Sample closed conversations for blind review. Add a QA scorecard to audit passes and missed complaint deadlines.</p>
 <details id="history" hidden><summary>Open a saved audit</summary><ul></ul>
 <p id="recovery" class="note" hidden>To recover an unavailable audit, restore its latest signed report and the matching team trust store, then reload the desk.</p></details>
 <form id="intake">
@@ -18,6 +18,11 @@ summary{font-weight:600;cursor:pointer}details[open] summary{margin-bottom:1rem}
 <label>Week starting (UTC)<input name="week" type="date" required></label>
 <label>Eligible conversations <input name="population" type="file" accept=".csv" required><small>CSV with case_id, revision, evidence_ref and screen_flag. It may also contain channel, agent_type and product.</small></label>
 <label>Ordinary human reviews <input name="reviewed" type="file" accept=".csv" required><small>CSV with one case_id per reviewed conversation.</small></label>
+<details><summary>Audit an external QA scorecard</summary>
+<label>QA decisions <input name="scores" type="file" accept=".csv"><small>Supply the frozen score export and a source coverage receipt with closure timestamps.</small></label>
+<div class="pair"><label>Scorecard name<input name="scorecard"></label><label>Scorecard version<input name="score_version"></label></div>
+<label>Score cutoff with UTC offset<input name="score_cutoff" placeholder="2026-10-12T08:00:00Z"></label>
+<label>Scored population<select name="score_scope"><option value="all_scored">All scored conversations, including human-reviewed cases</option><option value="unreviewed_scored">Scored conversations outside ordinary human QA</option></select></label></details>
 <label>Policy and rubric pack (optional)<input name="policy_pack" type="file" accept=".json"><small>A versioned pack supplies the reviewer question, category order and clocks. Include the control profile for this queue.</small></label>
 <label>Complaint control profile <input name="control" type="file" accept=".json"><small>For a complaint audit, attach the firm’s taxonomy, channel inventory, owners and review dates.</small></label>
 <details><summary>Coverage and screen receipts</summary>

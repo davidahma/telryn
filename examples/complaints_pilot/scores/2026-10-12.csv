@@ -1,0 +1,9 @@
+case_id,revision,scorecard,scorecard_version,scored_at,decision,complaint_prediction,score_ref
+C201,v1,payments-support,1.0,2026-10-13T14:15:00Z,pass,yes,synthetic-qa/S201
+C202,v1,payments-support,1.0,2026-10-13T14:15:00Z,fail,yes,synthetic-qa/S202
+C203,v1,payments-support,1.0,2026-10-13T14:15:00Z,fail,yes,synthetic-qa/S203
+C204,v1,payments-support,1.0,2026-10-13T14:15:00Z,pass,yes,synthetic-qa/S204
+C205,v1,payments-support,1.0,2026-10-13T14:15:00Z,pass,unknown,synthetic-qa/S205
+C206,v1,payments-support,1.0,2026-10-13T14:15:00Z,pass,no,synthetic-qa/S206
+C207,v1,payments-support,1.0,2026-10-13T14:15:00Z,pass,no,synthetic-qa/S207
+C208,v1,payments-support,1.0,2026-10-13T14:15:00Z,fail,yes,synthetic-qa/S208

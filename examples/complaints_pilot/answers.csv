@@ -1,4 +1,5 @@
 case_id,serious,disposition,owner,action,primary_minutes,second_minutes,category,vulnerability,redress,classification_reason
+C101,yes,unknown,,,4,3,Service complaint,unknown,unknown,The customer explicitly asked to complain about a card charge.
 C102,yes,new,Complaints lead,Request owner decision,5,3,Service complaint,unknown,unknown,The customer explicitly asked Fin to open a complaint about a duplicate charge.
 C103,yes,new,Complaints lead,Request owner decision,6,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
 C104,yes,already_known,,,5,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
@@ -8,6 +9,7 @@ C107,insufficient,unknown,,,4,3,unknown,unknown,unknown,The referenced evidence 
 C108,yes,new,Case manager,Review dated source records,5,3,Priority complaint,unknown,completed,Customer requested a response to harm under the example policy.
 C109,yes,new,Case manager,Review dated source records,5,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
 C110,no,none,,,3,3,none,unknown,unknown,The customer sought information or confirmed resolution.
+C201,yes,unknown,,,4,3,Service complaint,unknown,unknown,The customer requested an investigation into an issue already raised.
 C202,yes,new,Complaints lead,Request owner decision,6,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
 C203,yes,new,Complaints lead,Request owner decision,6,3,Service complaint,unknown,unknown,Customer requested a response to harm under the example policy.
 C204,yes,new,Complaints lead,Request owner decision,5,3,Service complaint,unknown,unknown,The customer explicitly asked Fin to register a service complaint.

@@ -5,10 +5,12 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from playwright.sync_api import expect, sync_playwright
+from examples.complaints_pilot import __main__ as pilot
 
 
 def write_return(path, rows):
@@ -16,6 +18,65 @@ def write_return(path, rows):
         writer = csv.DictWriter(file, rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
+
+
+def scorecard_intake(page, root):
+    week = "2026-10-05"
+    cases = [
+        c
+        for c in pilot.read_csv(pilot.FIXTURE / "conversations.csv")
+        if c["week"] == week
+    ]
+    protocol = tomllib.loads((pilot.FIXTURE / "protocol.toml").read_text())
+    inputs = root / "score-input"
+    config = {
+        "file": "scores.csv",
+        "scorecard": "payments-support",
+        "version": "1.0",
+        "cutoff": "2026-10-12T08:00:00Z",
+        "scope": "all_scored",
+    }
+    pilot.pilot_plan(inputs, week, cases, protocol, score_audit=config)
+    form = page.locator("#intake")
+    form.get_by_text("Audit an external QA scorecard", exact=True).click()
+    for name, value in {
+        "week": week,
+        "rubric": protocol["policy"],
+        "rubric_question": protocol["question"],
+        "screen_version": "none",
+        "scorecard": config["scorecard"],
+        "score_version": config["version"],
+        "score_cutoff": config["cutoff"],
+        "minutes": "80",
+        "minutes_per_grade": "4",
+        "expected_rate": "10",
+    }.items():
+        form.locator(f"[name={name}]").fill(value)
+    for name, path in {
+        "population": inputs / "population.csv",
+        "reviewed": inputs / "ordinary.csv",
+        "coverage": inputs / "population.csv.coverage.json",
+        "scores": pilot.FIXTURE / "scores" / f"{week}.csv",
+    }.items():
+        form.locator(f"[name={name}]").set_input_files(path)
+    for scope, count in (("unreviewed_scored", 9), ("all_scored", 10)):
+        form.locator("[name=score_scope]").select_option(scope)
+        form.locator("#preview").click()
+        expect(page.locator("#forecast")).to_contain_text(f"{count} cases fit")
+    form.locator("#create").click()
+    expect(page.locator("#message")).to_contain_text("Audit ready")
+    with page.expect_download() as download:
+        page.locator("#packet").click()
+    packet = root / "scored-packet.csv"
+    download.value.save_as(packet)
+    rows = pilot.read_csv(packet)
+    assert {r["case_id"] for r in rows} == {c["case_id"] for c in cases}
+    assert all(r["serious"] == "" for r in rows)
+    assert not {"score_ref", "decision", "complaint_prediction"}.intersection(rows[0])
+    with page.expect_popup() as report:
+        page.locator("#report").click()
+    expect(report.value.locator("#score-audit")).to_contain_text("payments-support")
+    report.value.close()
 
 
 def complaint_control_flow(page, root):
@@ -321,6 +382,8 @@ def run(root: Path):
             expect(page.locator("#current")).to_be_hidden()
             page.unroute("**/adjudicate", navigate_during_save)
             complaint_control_flow(page, root)
+            page.goto(line.split(": ", 1)[1].strip())
+            scorecard_intake(page, root)
             browser.close()
     finally:
         server.terminate()

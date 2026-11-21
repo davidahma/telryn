@@ -29,6 +29,7 @@ FILES = {
     "coverage": "coverage.json",
     "control": "control.json",
     "policy_pack": "pack.json",
+    "scores": "scores.csv",
     "grades": "return.csv",
 }
 PLAN_FILES = {
@@ -109,6 +110,8 @@ def _plan(fields):
             "flagged_sample",
             "unflagged_sample",
             "planning",
+            "scores",
+            "score_audit",
         }
     )
     if not required <= fields.keys() <= allowed:
@@ -168,6 +171,29 @@ def _plan(fields):
         else:
             for key in ("flagged_sample", "unflagged_sample"):
                 lines.append(f"{key} = {integer(fields.get(key), key)}")
+        if "scores" in fields or "score_audit" in fields:
+            config = mapping(fields.get("score_audit"), "score audit settings")
+            if set(config) != {
+                "scorecard",
+                "version",
+                "cutoff",
+                "scope",
+            } or not fields.get("scores"):
+                raise InputError(
+                    "choose the score CSV and enter the scorecard, version, cutoff and scope"
+                )
+            lines.extend(("[score_audit]", 'file = "scores.csv"'))
+            for name, value in config.items():
+                if (
+                    not isinstance(value, str)
+                    or not value.strip()
+                    or not value.isprintable()
+                ):
+                    raise InputError(f"enter a single line for score audit {name}")
+                lines.append(f"{name} = {json.dumps(value, ensure_ascii=False)}")
+            (base / FILES["scores"]).write_text(
+                fields["scores"], encoding="utf-8", newline=""
+            )
         path = base / "week.toml"
         path.write_text("\n".join(lines), encoding="utf-8")
         yield path

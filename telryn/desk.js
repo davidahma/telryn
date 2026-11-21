@@ -41,6 +41,10 @@ function upload(form) {
       rubric_question: source.get("rubric_question"), screen_version: source.get("screen_version"),
       group_by: source.getAll("group_by")
     });
+    if (source.get("scores")?.name || source.get("scorecard") || source.get("score_version") || source.get("score_cutoff")) {
+      settings.score_audit = {scorecard: source.get("scorecard"), version: source.get("score_version"),
+        cutoff: source.get("score_cutoff"), scope: source.get("score_scope")};
+    }
     if (byId("mode").value === "budget") {
       settings.planning = {
         minutes: Number(source.get("minutes")), minutes_per_grade: Number(source.get("minutes_per_grade"))

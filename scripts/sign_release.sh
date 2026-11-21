@@ -21,7 +21,7 @@ source_name="telryn-$version.tar.gz"
 archive_name="telryn-$version.oci.tar"
 gh release download "$TAG" --dir "$out" -p "$source_name"
 python "$tools_dir/release_artifacts.py" source "$out/$source_name" "$TAG" "$COMMIT"
-# Produce both HTML assets from this checkout. Only the reports leave this runner;
+# Produce synthetic and public-data HTML assets from this checkout. Only the reports leave this runner;
 # the private demo trust store and grading packets stay in the temporary workspace.
 export TELRYN_TRUST_DIR="$work/demo-trust"
 python -m examples.public_demo --census --out "$work/ubuntu" |
@@ -35,6 +35,20 @@ cp "$work/ubuntu/report.html" "$out/ubuntu-support-audit.html"
 cp "$work/complaints/2026-10-05/report.html" "$out/synthetic-complaints-audit.html"
 grep -Fq 'C108' "$out/synthetic-complaints-audit.html"
 grep -Fq 'Even with a refund I want to know how this happened.' "$out/synthetic-complaints-audit.html"
+reports=(ubuntu-support-audit.html synthetic-complaints-audit.html)
+if [[ -f examples/complaints_pilot/qa_passes.py ]]; then
+  export TELRYN_DEMO_TRUST_DIR="$work/score-rehearsal-trust"
+  python -m telryn demo --qa-passes --out "$work/scored" --format json > "$work/scored.json"
+  jq -e '.evidence == "synthetic" and (.weeks | length) == 2' "$work/scored.json" > /dev/null
+  python -m telryn bank-report verify "$work/scored/bank" --sha256 "$(jq -r .bank_report_sha256 "$work/scored.json")" \
+    --source-report "$work/scored/2026-10-05/report.html" --case C102 \
+    --register "$work/scored/source-records/2026-10-05/register.csv" \
+    --actions "$work/scored/source-records/2026-10-05/owner-events.csv" --scores "$work/scored/source-records/2026-10-05/scores.csv" |
+    jq -e '.case.qa.decision == "pass" and .case.qa.deadline_miss == true' > /dev/null
+  cp "$work/scored/2026-10-05/report.html" "$out/synthetic-qa-pass-audit.html"
+  cp "$work/scored/bank/report.html" "$out/synthetic-bank-statement.html"
+  reports+=(synthetic-qa-pass-audit.html synthetic-bank-statement.html)
+fi
 echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 docker buildx build --platform linux/amd64,linux/arm64 --provenance=false --sbom=false \
   --build-arg "REVISION=$COMMIT" -t "$image:$TAG" \
@@ -65,13 +79,13 @@ cp SECURITY.md docs/container.md "$out/image-digests.json" "$out"/telryn-linux-*
 tar -C "$work" -czf "$out/telryn-security-review.tar.gz" telryn-security-review
 (
   cd "$out"
-  sha256sum "$source_name" ubuntu-support-audit.html synthetic-complaints-audit.html "$archive_name" \
+  sha256sum "$source_name" "${reports[@]}" "$archive_name" \
     telryn-linux-amd64.spdx.json telryn-linux-arm64.spdx.json image-digests.json telryn-security-review.tar.gz > SHA256SUMS.txt
   sha256sum -c SHA256SUMS.txt
   cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS.txt
   cosign verify-blob "${authority[@]}" --bundle SHA256SUMS.sigstore.json SHA256SUMS.txt
   gh release view "$TAG" --json isDraft,targetCommitish | jq -e --arg sha "$COMMIT" '.isDraft and .targetCommitish == $sha'
-  gh release upload "$TAG" --clobber "$archive_name" ubuntu-support-audit.html synthetic-complaints-audit.html \
+  gh release upload "$TAG" --clobber "$archive_name" "${reports[@]}" \
     telryn-linux-amd64.spdx.json telryn-linux-arm64.spdx.json \
     image-digests.json telryn-security-review.tar.gz SHA256SUMS.txt SHA256SUMS.sigstore.json
 )

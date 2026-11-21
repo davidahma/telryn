@@ -225,12 +225,14 @@ def summary(state):
         )
     return {
         "scope": cfg["scope"],
-        "population_basis": cfg.get("population_basis", "queue"),
+        "population_basis": state.get("score_audit", {}).get(
+            "scope", cfg.get("population_basis", "queue")
+        ),
         "cutoff": ledger.get("cutoff"),
         "as_of": ledger.get("as_of"),
         "assigned": len(state["cases"]),
         "graded": sum(g["serious"] is not None for g in grades.values()),
-        "queue": state["population_count"] - state["reviewed_count"],
+        "queue": sum(cell["population"] for cell in state["strata"].values()),
         **registration_counts,
         "unregistered_conversations": {**bounds, "strata": groups},
         "classification_unresolved": [
@@ -255,11 +257,12 @@ def summary(state):
 
 
 def statement_lines(s):
-    universe = (
-        "conversations in the combined shortlists"
-        if s["population_basis"] == "shortlist_union"
-        else "conversations outside ordinary QA"
-    )
+    universe = {
+        "shortlist_union": "conversations in the combined shortlists",
+        "all_scored": "scored conversations including prior human reviews",
+        "unreviewed_scored": "scored conversations outside ordinary QA",
+        "queue": "conversations outside ordinary QA",
+    }[s["population_basis"]]
     lines = [
         f"Reviewers graded {s['graded']:,} of {s['queue']:,} {universe} ({s['assigned']:,} selected)."
     ]

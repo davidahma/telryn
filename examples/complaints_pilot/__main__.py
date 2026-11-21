@@ -34,7 +34,7 @@ def write_csv(path, columns, rows):
         writer.writerows(rows)
 
 
-def pilot_plan(work, week, cases, protocol, *, commitment=None):
+def pilot_plan(work, week, cases, protocol, *, commitment=None, score_audit=None):
     work.mkdir()
     monday = datetime.fromisoformat(week).replace(tzinfo=timezone.utc)
     scope = (
@@ -43,12 +43,15 @@ def pilot_plan(work, week, cases, protocol, *, commitment=None):
         if commitment
         else "All closed conversations in the synthetic payments support queue."
     )
+    if score_audit:
+        scope = "Synthetic payments queue. Census of scored closures, including previously reviewed cases."
+    census = bool(commitment or score_audit)
     rows = [
         (
             case["case_id"],
             "v1",
             "conversations/" + case["case_id"],
-            "false" if commitment else case["screen_flag"],
+            "false" if census else case["screen_flag"],
         )
         for case in cases
     ]
@@ -74,24 +77,24 @@ def pilot_plan(work, week, cases, protocol, *, commitment=None):
         finding_label="conversations requiring complaint registration",
         population="population.csv",
         reviewed="ordinary.csv",
-        screen_version="none" if commitment else "synthetic-complaints-screen-v2",
-        flagged_sample="100%" if commitment else protocol["flagged_sample"],
-        unflagged_sample="100%" if commitment else protocol["unflagged_sample"],
+        screen_version="none" if census else "synthetic-complaints-screen-v2",
+        flagged_sample="100%" if census else protocol["flagged_sample"],
+        unflagged_sample="100%" if census else protocol["unflagged_sample"],
     )
-    if commitment:
+    if census:
         review_date = (monday + timedelta(days=11)).date().isoformat()
         onboarding = read_csv(FIXTURE / "onboarding.csv")
         cfg = {
             "schema": 1,
             "scope": protocol["queue"],
-            "population_basis": "shortlist_union",
+            "population_basis": "shortlist_union" if commitment else "queue",
             "synthetic": True,
             "categories": ["Service complaint", "Priority complaint"],
             "gap_owner": "Complaints case manager",
             "gap_review_date": review_date,
             "onboarding_minutes": (
                 sum(int(r["telryn"]) for r in onboarding)
-                if week == protocol["weeks"][0]
+                if commitment and week == protocol["weeks"][0]
                 else 0
             ),
             "channels": [
@@ -102,7 +105,12 @@ def pilot_plan(work, week, cases, protocol, *, commitment=None):
         (work / "control.json").write_text(canonical(cfg))
         settings["control"] = "control.json"
     path = work / "plan.toml"
-    path.write_text("".join(f"{k} = {json.dumps(v)}\n" for k, v in settings.items()))
+    plan = "".join(f"{k} = {json.dumps(v)}\n" for k, v in settings.items())
+    if score_audit:
+        plan += "\n[score_audit]\n" + "".join(
+            f"{k} = {json.dumps(v)}\n" for k, v in score_audit.items()
+        )
+    path.write_text(plan)
     return path
 
 
