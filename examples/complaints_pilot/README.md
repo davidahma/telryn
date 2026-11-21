@@ -1,6 +1,25 @@
-# Rehearse a two-week complaints check
+# Audit two weeks of QA passes
 
-Mira asks a payments bot why it charged her twice. Fin refunds the debit and closes the chat. Two weeks later she calls. The agent records a query. On 6 October she calls again. Could the complaints lead show a reviewer when the clock started, whether a complaint was registered and who still needs to act?
+A QA tool can recognize a complaint and still pass a conversation whose registration deadline was missed. This rehearsal lets a complaints lead check both judgments against the customer’s words, the firm’s example policy and the dated register.
+
+```sh
+telryn demo --qa-passes --out runs/qa-passes
+```
+
+The two signed reports sit in the dated folders under `runs/qa-passes`. Each week has one blinded grading packet. The graders see the case reference and the policy question. In **Independent QA score audit**, follow **Open case evidence for C102** in week one and **Open case evidence for C204** in week two. Both links open the cited passage, human grade, register evidence and work history. Use the verification command printed by the CLI to check a report against its rehearsal trust store. Add `--format json` to the issuing command to read the same worked cases in a script.
+
+| Worked case | Frozen QA decision | Independent review | Dated owner action |
+| --- | --- | --- | --- |
+| **C102**, week of 5 October | S102 passed the interaction at 14:15 UTC on 6 October and predicted **no complaint**. | At 13:42 the customer had asked Fin to open a complaint about the duplicate charge. Registration was due 7 October at 17:00. The register still had no entry at the 12 October 08:00 cutoff. | The case manager accepted at 11:00 (A12). Registration (R12) and completion (A13) were recorded at 12:00. |
+| **C204**, week of 12 October | S204 passed the interaction at 14:15 UTC on 13 October and predicted **complaint**. | The customer had asked to make a service complaint at 13:18. The reviewers agreed. Registration was due 14 October at 17:00 and still missing at the 19 October 08:00 cutoff. | The case manager accepted at 12:00 (A24). Registration (R24) and completion (A25) were recorded at 09:00 on 20 October. |
+
+The staged scorecard covered all ten exported closures in week one and eight of nine in week two. C209 had no score. This rehearsal grades the entire scored population, including C101 and C201, which ordinary human QA had already reviewed. In week one the reviewers disagreed with three of the nine definite vendor classifications. Separately, three of seven QA passes had confirmed missed deadlines, and an unavailable letter left one pass unresolved. In week two the reviewers disagreed with one of seven definite vendor classifications. Three of five passes had confirmed missed deadlines and one remained unresolved. All dates, scores, decisions and work events are synthetic. [Week-one scores](scores/2026-10-05.csv) · [Week-two scores](scores/2026-10-12.csv) · [Complaint grades](answers.csv) · [Register](register.csv) · [Work history](owner-events.csv)
+
+Open `bank/report.html` for the week-one bank specimen. It summarizes the signed audit for the recipient. The lead retains `source-records/<week>/scores.csv`, `register.csv` and `owner-events.csv` privately alongside the original reports for a case review.
+
+## Compare the saved SQL search
+
+The separate selection rehearsal compares a saved SQL search with Telryn’s weekly sample on the same invented queue. It excludes conversations already reviewed by ordinary QA. Mira asks a payments bot why it charged her twice. Fin refunds the debit and closes the chat. Two weeks later she calls. The agent records a query. On 6 October she calls again. Could the complaints lead show a reviewer when the clock started, whether a complaint was registered and who still needs to act?
 
 With the PyPI package installed, run the rehearsal in an empty working directory. The command prints a summary for your draw. Each dated output folder contains a signed local report and one blinded grading packet. The top-level `comparison.json` holds both weeks’ selections, effort and owner-accepted episodes.
 

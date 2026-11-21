@@ -160,7 +160,7 @@ Run the guide's example commands from here. For the policy pack walkthrough, `ex
 
 ## Schedule a weekly run
 
-On Linux or macOS install the CLI with `pipx install telryn` using CPython 3.12–3.15 with SQLite. Run `command -v telryn` as the account that will own the audits. Record that absolute executable path in the scheduler. To pin an approved version, use `pipx install 'telryn==0.9.4'` in a fresh environment. Use `pipx upgrade telryn` when the team approves a newer release.
+On Linux or macOS install the CLI with `pipx install telryn` using CPython 3.12–3.15 with SQLite. Run `command -v telryn` as the account that will own the audits. Record that absolute executable path in the scheduler. To pin an approved version, use `pipx install 'telryn==0.10.0'` in a fresh environment. Use `pipx upgrade telryn` when the team approves a newer release.
 
 In this cron example the export job delivers a directory every Monday, named by **delivery date in UTC**. Each directory contains a plan for the completed audit week, its frozen population and its review ledger. Use paths relative to the plan for those inputs. Set up the inbox and output parent under the audit account, then save this script at `/srv/telryn/run-weekly.sh`. Replace the executable and storage paths with the ones on your host.
 
@@ -184,3 +184,5 @@ Schedule it after the export arrives, for example with this entry in the audit a
 If Monday’s job misses an export, wait for the full frozen directory and rerun with its original Monday date, for example `/bin/sh /srv/telryn/run-weekly.sh 2026-11-09`. This selects the 9 November delivery, including on a later day. Its plan must start on 2 November. Telryn checks the seven-day period before committing the draw. Deliver complete inputs together by renaming the prepared directory into the inbox on the same filesystem.
 
 Each delivery has its own output directory. A repeat against an existing report fails and preserves the issued sample. To verify that report or import grades, pass the existing HTML to `telryn weekly` with the same trust directory. Monitor the job’s exit status and back up the trust store with the reports.
+
+To sample the cases a vendor QA tool passed, open **Audit an external QA scorecard** in the desk or add the score audit table to the weekly TOML plan. Choose the scope explicitly. Source coverage must include each conversation’s closure timestamp. Attach the register and owner ledger with the weekly CLI after grading. [Score CSV and denominators](qa-score-audit.md)

@@ -143,6 +143,44 @@ def main(version):
             w["commitment"] for w in comparison["weeks"]
         ]
         assert json.loads(run("weekly", report, "--format", "json")) == state
+        scored = json.loads(
+            run("demo", "--qa-passes", "--out", "score-audit", "--format", "json")
+        )
+        assert [
+            week["score"]["classification_disagreement"] for week in scored["weeks"]
+        ] == [True, False]
+        assert all(week["score"]["deadline_miss"] for week in scored["weeks"])
+        originals = work / "score-audit/source-records/2026-10-05"
+        proof = json.loads(
+            run(
+                "bank-report",
+                "verify",
+                scored["bank_report"],
+                "--sha256",
+                scored["bank_report_sha256"],
+                "--source-report",
+                scored["weeks"][0]["report"],
+                "--case",
+                "C102",
+                "--scores",
+                originals / "scores.csv",
+                "--register",
+                originals / "register.csv",
+                "--actions",
+                originals / "owner-events.csv",
+                trust=work / "recipient",
+            )
+        )
+        assert (
+            proof["case"]["qa"]["decision"] == "pass"
+            and proof["case"]["complaint"]["owner_as_of"] == "completed"
+        )
+        assert not (work / "recipient").exists()
+        accommodation = json.loads(
+            run("outcome", "--example", "accommodation", "--format", "json")
+        )
+        assert accommodation["milestones"]["delivery"]["at_cutoff"] == "missing"
+        assert accommodation["milestones"]["delivery"]["at_follow_up"] == "late"
         run("qualify")
         with subprocess.Popen(
             [binary, "desk", "--no-browser", "--out", "desk"],

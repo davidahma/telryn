@@ -1,0 +1,2 @@
+request_id,case_id,accommodation,event_id,status,actor_type,actor,recorded_at,evidence_ref
+ADJ-17,AC-17,large-print-statement,REG-17,recorded,agent,Statement assistant,2026-10-05T09:20:00Z,adjustments/REG-17/v1

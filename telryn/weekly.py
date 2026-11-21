@@ -266,10 +266,28 @@ def load_frame(plan_path: Path) -> Frame:
     if not reviewed.keys() <= population.keys():
         raise InputError("ordinary reviewed IDs must belong to the weekly population")
 
+    eligible = population.keys() - reviewed.keys()
+    if "score_audit" in plan:
+        from . import score_audit
+
+        if meta.get("control", {}).get("population_basis") == "shortlist_union":
+            raise InputError(
+                "a QA score audit needs the source queue, not a union of shortlists"
+            )
+        score = score_audit.load(
+            plan["score_audit"],
+            plan_path.parent,
+            population,
+            reviewed,
+            meta.get("coverage", {}),
+            dims,
+        )
+        meta["score_audit"] = score
+        eligible = {i for i, row in population.items() if "qa_score" in row}
     pools = {} if dims else {s: [] for s in STRATA}
     cells = {} if dims else {s: {} for s in STRATA}
     for ident, row in population.items():
-        if ident in reviewed:
+        if ident not in eligible:
             continue
         cell = _stratum(row, dims)
         pools.setdefault(cell, []).append(ident)
@@ -323,7 +341,13 @@ def prepare(plan_path: Path, *, delivery_date: str | None = None) -> dict:
         if frame.dimensions or "planning" in plan
         else {s: plan[f"{s}_sample"] for s in STRATA}
     )
-    frame_id = fingerprint([sorted(population), sorted(reviewed)])
+    if "score_audit" in meta:
+        eligible_ids = sorted(
+            case for members in frame.pools.values() for case in members
+        )
+        frame_id = fingerprint(["scored-conversations-v1", eligible_ids])
+    else:
+        frame_id = fingerprint([sorted(population), sorted(reviewed)])
     design_id = fingerprint(
         [
             frame.week,
@@ -336,6 +360,7 @@ def prepare(plan_path: Path, *, delivery_date: str | None = None) -> dict:
             plan.get("planning"),
             *([meta["control"]] if "control" in meta else []),
             *([fingerprint(meta["policy_pack"])] if "policy_pack" in meta else []),
+            *([meta["score_audit"], sorted(reviewed)] if "score_audit" in meta else []),
             sample_targets,
             targets,
             sorted(population.values(), key=lambda row: row["case_id"]),
@@ -439,13 +464,19 @@ def validate_state(state: dict) -> tuple[dict, dict]:
         raise InputError("weekly audit has invalid strata")
     cases = {}
     sample_sizes: Counter = Counter()
+    audit = state.get("score_audit")
+    include_reviewed = audit is not None and audit["scope"] == "all_scored"
     for case in sequence(state.get("cases"), "weekly sample"):
         mapping(case, "weekly sample case")
         for key in ("case_id", "revision", "evidence_ref"):
             _field(case.get(key), key)
         case_id = case["case_id"]
         hashed = fingerprint(case_id)
-        if case_id in cases or hashed not in population or hashed in reviewed:
+        if (
+            case_id in cases
+            or hashed not in population
+            or (hashed in reviewed and not include_reviewed)
+        ):
             raise InputError(
                 "weekly case is duplicate, reviewed, or outside the population"
             )
@@ -488,7 +519,12 @@ def validate_state(state: dict) -> tuple[dict, dict]:
                     "weekly sample does not match its declared sampling target"
                 )
         total += size
-    if total != len(population) - len(reviewed):
+    expected = (
+        audit["coverage"]["eligible_scored"]
+        if audit is not None
+        else len(population) - len(reviewed)
+    )
+    if total != expected:
         raise InputError("weekly strata do not reconcile with ordinary reviews")
     if state["screen_version"] == "none" and any(
         cell_flag(k, i) and i["population"] for k, i in strata.items()
@@ -778,7 +814,13 @@ def summarize(state: dict) -> dict:
     graded = determinate.total()
     from . import control
 
+    score_result = {}
+    if "score_audit" in state:
+        from . import score_audit
+
+        score_result["score_audit"] = score_audit.summary(state)
     return {
+        **score_result,
         **({"control_statement": control.summary(state)} if "control" in state else {}),
         "population": state["population_count"],
         "reviewed": state["reviewed_count"],

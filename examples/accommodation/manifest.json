@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "outcome_type": "accommodation",
+  "evidence": "synthetic",
+  "scope": "Example lender / statement delivery",
+  "policy_ref": "accessible-statements@1",
+  "cutoff": "2026-10-09T17:00:00Z",
+  "as_of": "2026-10-12T12:00:00Z",
+  "conversation": "chat.json",
+  "review": {
+    "case_id": "AC-17",
+    "revision": "v2",
+    "source_ref": "chat/AC-17",
+    "reviewer": "Fictional QA lead",
+    "required": true,
+    "request_id": "ADJ-17",
+    "accommodation": "large-print-statement",
+    "request_passage": 1,
+    "agreement_passage": 2,
+    "deadline": "2026-10-09T17:00:00Z"
+  },
+  "register": {
+    "file": "register.csv",
+    "source_ref": "adjustments/export-12-oct-r1",
+    "complete_through": "2026-10-12T12:00:00Z"
+  },
+  "delivery": {
+    "file": "delivery.csv",
+    "source_ref": "delivery-receipts/export-12-oct-r2",
+    "complete_through": "2026-10-12T12:00:00Z"
+  }
+}

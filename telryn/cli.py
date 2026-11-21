@@ -14,9 +14,11 @@ from pathlib import Path
 from . import (
     __version__,
     audit_trust,
+    bank_report,
     benchmark,
     intake,
     integrations,
+    outcomes,
     packs,
     planning,
     policy,
@@ -112,6 +114,8 @@ def _parser() -> argparse.ArgumentParser:
     planning.register_arguments(commands)
     policy.register_arguments(commands)
     audit_trust.register_arguments(commands)
+    bank_report.register_arguments(commands)
+    outcomes.register_arguments(commands)
     seed.register_arguments(commands)
     screen.register_arguments(commands)
     desk = commands.add_parser(
@@ -133,14 +137,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     integrations.register_arguments(commands)
     demo = commands.add_parser("demo", help="run a synthetic audit")
-    demo.add_argument(
+    kind = demo.add_mutually_exclusive_group()
+    kind.add_argument(
         "--complaints", action="store_true", help="rehearse two weeks of complaints QA"
+    )
+    kind.add_argument(
+        "--qa-passes",
+        action="store_true",
+        help="audit two weeks of synthetic vendor QA decisions",
     )
     demo.add_argument(
         "--format",
         choices=("text", "json"),
         default="text",
-        help="with --complaints, print the summary or the full comparison JSON",
+        help="with --complaints or --qa-passes, print the summary or the full rehearsal JSON",
     )
     demo.add_argument(
         "--out",
@@ -415,6 +425,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "weekly":
             return weekly_audit(args)
+        if args.command == "bank-report":
+            return bank_report.execute(args)
+        if args.command == "outcome":
+            return outcomes.execute(args)
         if args.command == "integrations":
             return integrations.execute(args)
         if args.command == "seed":
@@ -430,6 +444,38 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "trust":
             return audit_trust.execute(args)
         if args.command == "demo":
+            if args.qa_passes:
+                if BUNDLED.is_dir():
+                    from ._bundled.examples.complaints_pilot.qa_passes import run
+                else:
+                    from examples.complaints_pilot.qa_passes import run
+                with audit_trust.rehearse() as store:
+                    result = run(args.out or Path("runs/qa-passes"))
+                if args.format == "json":
+                    print(canonical(result))
+                else:
+                    print("Two-week synthetic audit of vendor QA decisions")
+                    for week in result["weeks"]:
+                        finding = week["finding"]
+                        print(
+                            terminal_text(
+                                f"{week['week']} · {week['worked_case']} · QA {week['score']['decision']}"
+                                f" · register at cutoff {finding['registration_at_cutoff']}"
+                                f" · owner at follow-up {finding['owner_as_of']}"
+                            )
+                        )
+                        print(terminal_text(week["report"]))
+                    print("Bank statement:", terminal_text(result["bank_report"]))
+                    print("Bank statement SHA-256:", result["bank_report_sha256"])
+                    first = shlex.quote(
+                        str(Path(result["weeks"][0]["report"]).absolute())
+                    )
+                    print(
+                        terminal_text(
+                            f"TELRYN_TRUST_DIR={shlex.quote(str(store))} telryn weekly {first} --format json"
+                        )
+                    )
+                return 0
             if args.complaints:
                 if BUNDLED.is_dir():
                     from ._bundled.examples.complaints_pilot.__main__ import run
@@ -476,7 +522,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 0
             if args.format == "json":
-                raise InputError("demo --format json requires --complaints")
+                raise InputError(
+                    "demo --format json requires --complaints or --qa-passes"
+                )
             return _demo(args.out)
         if args.command == "preflight":
             return preflight(args)

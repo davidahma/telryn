@@ -330,7 +330,7 @@ def decision_lines(plan):
         return lines
     if detection["status"] == "threshold_exceeds_population":
         return lines + [
-            f"The decision threshold of {detection['cases']:,} cases exceeds the {detection['population']:,} conversations outside ordinary QA."
+            f"The decision threshold of {detection['cases']:,} cases exceeds the {detection['population']:,} conversations in the planned sampling frame."
         ]
     probability = detection["minimum_probability"]
     if not detection["certain"] and probability > 0.999:

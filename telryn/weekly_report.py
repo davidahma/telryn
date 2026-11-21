@@ -12,7 +12,7 @@ import tempfile
 from html import escape
 from pathlib import Path
 
-from . import audit_trust, complaints, control, weekly_review
+from . import audit_trust, complaints, control, score_audit, weekly_review
 from .weekly_review import review_status
 from .artifacts import new_directory, sync_directory
 from .contracts import InputError, canonical, fingerprint, versioned
@@ -95,16 +95,21 @@ def _packet(state: dict) -> dict:
 
 
 def _estimate(result: dict, label: str = "serious failures") -> str:
+    universe = (
+        "in the scored audit frame"
+        if "score_audit" in result
+        else "outside ordinary QA"
+    )
     if (
         result.get("range_kind") == "incomplete"
         and result.get("estimate_range") is not None
     ):
         lo, hi = result["estimate_range"]
-        return f"Estimated {label} outside ordinary QA · {lo:,.1f} to {hi:,.1f}"
+        return f"Estimated {label} {universe} · {lo:,.1f} to {hi:,.1f}"
     if result["estimate"] is None:
         return "Weekly estimate unavailable"
     count = f"{result['estimate']:,.1f}".removesuffix(".0")
-    return f"Estimated {label} outside ordinary QA · {count}"
+    return f"Estimated {label} {universe} · {count}"
 
 
 def _uncertainty(result: dict, label: str = "serious failures") -> str:
@@ -114,7 +119,10 @@ def _uncertainty(result: dict, label: str = "serious failures") -> str:
     if result.get("range_kind") == "incomplete":
         return f"Unknown grades could change the result. Including sampling uncertainty, the 95% range is {lower:,} to {upper:,} {label}."
 
-    if result["graded"] == result["unreviewed"]:
+    if audit := result.get("score_audit"):
+        if result["graded"] == audit["coverage"]["eligible_scored"]:
+            return f"All {result['graded']:,} scored conversations in scope have a determinate grade."
+    elif result["graded"] == result["unreviewed"]:
         return f"All {result['unreviewed']:,} conversations outside ordinary QA have a determinate grade."
     return f"The 95% sampling interval is {lower:,} to {upper:,} {label}."
 
@@ -147,7 +155,10 @@ def _screen_bounds(metric: dict) -> str:
     return bounds
 
 
-def _screen_table(metrics: dict | None) -> str:
+def _screen_table(
+    metrics: dict | None,
+    population_label="this week's conversations outside ordinary QA",
+) -> str:
     if metrics is None:
         return "<p>This audit used no screen.</p>"
     rows = []
@@ -168,7 +179,7 @@ def _screen_table(metrics: dict | None) -> str:
         '<div class="table" tabindex="0"><table><thead><tr><th>Measure</th><th>Weighted estimate</th>'
         "<th>95% range</th><th>Denominator (cases)</th></tr></thead><tbody>"
         + "".join(rows)
-        + "</tbody></table></div><p>These ranges describe this week's conversations outside ordinary QA. "
+        + f"</tbody></table></div><p>These ranges describe {population_label}. "
         "Recall uses the estimated number of positive cases as its denominator. "
         "Unknown grades and unsampled groups can widen the ranges.</p>"
     )
@@ -176,6 +187,11 @@ def _screen_table(metrics: dict | None) -> str:
 
 def _digest_lines(state: dict, result: dict) -> list[str]:
     # Only controlled labels may leave the private report through the aggregate email.
+    if audit := result.get("score_audit"):
+        return [
+            f"Telryn weekly QA score audit · {state['week']}",
+            *score_audit.sections(audit),
+        ]
     if statement := result.get("control_statement"):
         channels = state["control"]["channels"]
         excluded = sum(c["coverage"] != "covered" for c in channels)
@@ -331,6 +347,8 @@ def _coverage_lines(state: dict) -> list[str]:
 
 
 def _report_schema(state):
+    if "score_audit" in state:
+        return 6
     records = state.get("complaint_records", {})
     snapshot = records.get("snapshot", {})
     if any("source_citation" in case for case in snapshot.get("cases", {}).values()):
@@ -361,6 +379,21 @@ def _render(state: dict, auth: dict) -> str:
     grade_help = ""
     if "control" in state:
         grade_help = "<p>Use the firm’s ordered category list in <code>category_options</code>. Give a classification reason, a vulnerability answer (yes, no or unknown) and redress status (none, pending, offered, completed or unknown). A lower category requires independent review and a recorded decision.</p>"
+    score_section = ""
+    frame_header = "Outside ordinary QA"
+    population_label = "this week's conversations outside ordinary QA"
+    reach = (
+        f"Ordinary QA reviewed {result['reviewed']:,} of {result['population']:,} eligible conversations. "
+        f"This audit covers the other {result['unreviewed']:,}, including cases another control already knew about."
+    )
+    if audit := result.get("score_audit"):
+        lead = "<h1>Which QA passes missed a complaint registration deadline?</h1>"
+        score_section = score_audit.html(
+            audit, has_records="complaint_records" in state
+        )
+        frame_header = "Scored cases in scope"
+        population_label = "the scored conversations in scope"
+        reach = score_audit.sections(audit)[0]
     registration = complaints.html(state)
     if "control" in state and not registration:
         registration = "<section><h2>Registration evidence pending</h2><p>Attach a dated register and work record with the weekly command and <code>--complaint-records</code>.</p></section>"
@@ -453,8 +486,7 @@ def _render(state: dict, auth: dict) -> str:
         "</head><body><main><header>"
         f'<p class="eyebrow">Weekly support QA · {escape(state["week"])}</p>{lead}'
         f"<p><strong>{escape(_uncertainty(result, label))}</strong></p><p>{escape(state['rubric_question'])}</p>"
-        f"<p>Ordinary QA reviewed {result['reviewed']:,} of {result['population']:,} eligible conversations. "
-        f"This audit covers the other {result['unreviewed']:,}, including cases another control already knew about.</p>{scope}</header>"
+        f"<p>{escape(reach)}</p>{scope}</header>{score_section}"
         f'<div id="control-register">{registration}</div>{control_detail}'
         f'<section><h2>Confirmed cases</h2><div class="grid">{cover}</div>'
         f"<p>{_new_finding_line(result)}</p>{follow_up}</section>"
@@ -477,12 +509,12 @@ def _render(state: dict, auth: dict) -> str:
             f"<p>{escape(line)}</p>"
             for line in decision_lines(state.get("planning", {}))
         )
-        + '<div class="table" tabindex="0"><table><thead><tr><th>Sampling group</th><th>Outside ordinary QA</th>'
+        + f'<div class="table" tabindex="0"><table><thead><tr><th>Sampling group</th><th>{frame_header}</th>'
         "<th>Assigned</th><th>Selection probability</th><th>Confirmed findings</th>"
         "<th>Awaiting a definite grade</th><th>95% range in group</th></tr></thead><tbody>"
         + "".join(sample_rows)
         + "</tbody></table></div>"
-        f"<h3>Screen version · {escape(state['screen_version'])}</h3>{_screen_table(result['screen_metrics'])}</section>"
+        f"<h3>Screen version · {escape(state['screen_version'])}</h3>{_screen_table(result['screen_metrics'], population_label)}</section>"
         f"{_review_section(state)}"
         f"<section><h2>Random sample (verifiable)</h2><p>Draw <code>{state['draw_commitment']['draw_id']}</code> "
         f"was recorded in the team's draw registry before assignment. Use <code>telryn trust draws</code> to compare designs for this week.</p></section>"
@@ -535,6 +567,7 @@ def _verify_signed(raw, db, key):
         3,
         4,
         5,
+        6,
     ):
         raise InputError("unrecognized signed weekly report version")
     state = versioned(envelope.get("state"), "weekly evidence")
@@ -578,6 +611,7 @@ def _legacy(raw):
         "draw_commitment" in state
         or "publication_id" in state
         or "policy_pack" in state
+        or "score_audit" in state
         or "control" in state
         or "complaint_records" in state
         or fingerprint(state) != envelope.get("checksum")

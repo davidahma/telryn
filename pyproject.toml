@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "telryn"
 dynamic = ["version"]
-description = "Audit how lenders and payments teams handle complaints across human and AI support."
+description = "Find complaints human and AI support missed by auditing QA passes against policy deadlines, register entries and owner actions."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"

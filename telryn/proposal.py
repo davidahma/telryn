@@ -131,6 +131,10 @@ def _search(state: dict, max_reserved: int) -> dict:
 
 def propose(report: Path, out: Path, max_reserved: int = 1) -> dict:
     state, revision, signature = verified_snapshot(report)
+    if "score_audit" in state:
+        raise InputError(
+            "routing proposals require a draw of the ordinary unreviewed queue, not a score audit"
+        )
     if state.get("control", {}).get("population_basis") == "shortlist_union":
         raise InputError(
             "routing proposals need a probability sample of the weekly queue; "

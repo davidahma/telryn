@@ -9,6 +9,7 @@ from pathlib import Path
 
 from . import episodes
 from .contracts import InputError, fingerprint, integer, read_json, sequence, timestamp
+from .outcomes import deadline_status
 from .weekly_review import effective_grades
 
 REGISTER = ("match_key", "entry_id", "recorded_at", "evidence_ref")
@@ -150,6 +151,16 @@ def _extends(previous, current, fields, previous_keys):
         )
 
 
+def ledger_keys(doc, sampled_ids):
+    keys = {item["match_key"] for item in doc["cases"].values()} - {None}
+    action_ids = set(sampled_ids)
+    if "episodes" in doc:
+        for binding in episodes.bindings(doc, _time(doc["as_of"])).values():
+            keys.update(binding["keys"])
+            action_ids.update(binding["members"])
+    return keys, action_ids
+
+
 def attach(state, path: Path, audit_id: str):
     if path.stat().st_size > LIMIT:
         raise InputError("complaint manifest exceeds 32 MiB")
@@ -188,6 +199,8 @@ def attach(state, path: Path, audit_id: str):
             "complaint register scope differs from the signed control scope"
         )
     cutoff = _time(doc["cutoff"])
+    if "score_audit" in state and cutoff != _time(state["score_audit"]["cutoff"]):
+        raise InputError("complaint records must use the frozen score audit cutoff")
     if _time(doc["as_of"]) < cutoff or cutoff < _time(state["week"] + "T00:00:00Z"):
         raise InputError(
             "complaint cutoff must fall after the week starts and before or at as_of"
@@ -230,8 +243,6 @@ def attach(state, path: Path, audit_id: str):
             )
         rows[case] = item
     doc["cases"] = rows
-    keys = {item["match_key"] for item in rows.values()} - {None}
-    action_ids = set(sampled)
     if contacts_file is not None:
         doc["episodes"] = episodes.load(
             path.parent / _text(contacts_file, "episode evidence file"),
@@ -252,9 +263,7 @@ def attach(state, path: Path, audit_id: str):
                 )
             if citation and _time(citation["at"]) < opened:
                 raise InputError("source citation predates the linked contact opening")
-        for binding in episodes.bindings(doc, _time(doc["as_of"])).values():
-            keys.update(binding["keys"])
-            action_ids.update(binding["members"])
+    keys, action_ids = ledger_keys(doc, sampled)
     doc["register"] = _ledger(
         path.parent, doc["register"], REGISTER, keys, doc["as_of"]
     )
@@ -377,23 +386,6 @@ def _owner(rows, source, at, contact_starts):
     return status
 
 
-def _at_cutoff(grade, match, deadline, at, rows, source):
-    if grade is False:
-        return "outside_rubric"
-    if grade is None or deadline is None:
-        return "unresolved"
-    due = _time(deadline)
-    if not match or len(rows) > 1:
-        return "unresolved"
-    if rows:
-        if _time(rows[0]["recorded_at"]) <= due:
-            return "on_time"
-        return "late" if _complete(source, due) else "unresolved"
-    if due > at:
-        return "not_due"
-    return "missing" if _complete(source, at) else "unresolved"
-
-
 def reconcile(state):
     evidence = state["complaint_records"]
     doc = evidence["snapshot"]
@@ -486,9 +478,31 @@ def reconcile(state):
         elif not exact and match == "exact_key":
             match = "entry_predates_trigger"
         grade = grades.get(cid, {}).get("serious")
-        at_cutoff = _at_cutoff(
-            grade, prior_exact, earlier_due, cutoff, visible, doc["register"]
+        at_cutoff = deadline_status(
+            grade,
+            prior_exact,
+            earlier_due,
+            cutoff,
+            [r["recorded_at"] for r in visible],
+            doc["register"]["complete_through"],
         )
+        # The register can cover the deadline even when it cannot prove absence
+        # all the way through cutoff. Only use the mapping and clock known at cutoff.
+        if "score_audit" in state:
+            deadline_miss = None
+            if grade is False or at_cutoff in ("on_time", "not_due"):
+                deadline_miss = False
+            elif at_cutoff in ("missing", "late"):
+                deadline_miss = True
+            elif (
+                grade is True
+                and prior_exact
+                and earlier_due
+                and not visible
+                and _time(earlier_due) <= cutoff
+                and _complete(doc["register"], _time(earlier_due))
+            ):
+                deadline_miss = True
         current = "unresolved"
         if exact and len(entries) == 1:
             current = "registered"
@@ -554,6 +568,7 @@ def reconcile(state):
                 "match_key": key,
                 "match_status": match,
                 "registration_at_cutoff": at_cutoff,
+                **({"deadline_miss": deadline_miss} if "score_audit" in state else {}),
                 "registration_as_of": current,
                 "registration_overdue_as_of": overdue_now,
                 "owner_at_cutoff": _owner(
@@ -593,6 +608,7 @@ def reconcile(state):
             }
         )
     return {
+        "outcome_type": "complaint_registration",
         "receipt": evidence["receipt"],
         "previous_receipts": evidence["history"],
         **{k: doc[k] for k in ("scope", "rubric", "cutoff", "as_of")},
@@ -638,8 +654,13 @@ def html(state):
         parts.append(
             f"<details><summary>{escape(case['case_id'])} · {title} · {follow_up}</summary>"
         )
+        anchor = (
+            f' id="complaint-{fingerprint(case["case_id"])}"'
+            if "score_audit" in state
+            else ""
+        )
+        parts.append(f"<p{anchor}>Conversation · {escape(case['evidence_ref'])}</p>")
         details = (
-            ("Conversation", case["evidence_ref"]),
             ("Revision", case["revision"]),
             ("Closure at recorded source cutoff", case["completed_at"]),
             ("Policy", case["policy_ref"]),
