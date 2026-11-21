@@ -134,7 +134,7 @@ jobs:
           printf '%s  %s\n' "$WHEEL" "$wheel" "$SDIST" "$sdist" | sha256sum --check --strict -
           record="$RUNNER_TEMP/pypi-existing.json"
           status=$(curl -sSL --retry 4 --retry-all-errors -o "$record" -w '%{http_code}' \
-            "https://pypi.org/pypi/telryn/$VERSION/json")
+            "https://pypi.org/pypi/telryn/$VERSION/json?preflight=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT")
           case "$status" in
             404) ;; # First upload for this version.
             200)
@@ -190,14 +190,33 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
-          curl -fsSL --retry 8 --retry-all-errors --retry-delay 5 "https://pypi.org/pypi/telryn/$VERSION/json" > package.json
-          jq -e --arg w "$WHEEL" --arg s "$SDIST" '
-            (.urls | length) == 2 and all(.urls[]; .yanked == false) and
-            any(.urls[]; .packagetype == "bdist_wheel" and .digests.sha256 == $w) and
-            any(.urls[]; .packagetype == "sdist" and .digests.sha256 == $s)' package.json
+          # A CDN edge can briefly serve a 404 or a partial list after both uploads.
+          for attempt in {1..25}; do
+            status=$(curl -sSL --max-time 15 --retry 2 -o package.json -w '%{http_code}' \
+              "https://pypi.org/pypi/telryn/$VERSION/json?verify=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$attempt")
+            case "$status" in
+              200)
+                jq -e --arg w "$WHEEL" --arg s "$SDIST" --arg v "$VERSION" '
+                  .urls | type == "array" and (length <= 2) and
+                  (length == (unique_by(.filename) | length)) and all(.[];
+                    (.yanked == false) and
+                    ((.filename == ("telryn-" + $v + "-py3-none-any.whl") and .digests.sha256 == $w) or
+                     (.filename == ("telryn-" + $v + ".tar.gz") and .digests.sha256 == $s)))' package.json
+                if jq -e '.urls | length == 2' package.json > /dev/null; then break; fi
+                ;;
+              404) ;;
+              *) echo "Public PyPI verification returned HTTP $status" >&2; exit 1 ;;
+            esac
+            if (( attempt == 25 )); then echo "Both files have not reached this PyPI edge" >&2; exit 1; fi
+            sleep 5
+          done
           python -m pip install pypi-attestations==0.0.31
           python -I "$GITHUB_WORKSPACE/release-tools/scripts/verify_pypi.py" "$RUNNER_TEMP/tested-distributions" "$VERSION"
           export PIPX_HOME="$RUNNER_TEMP/pipx" PIPX_BIN_DIR="$RUNNER_TEMP/bin"
-          pipx install --python "$(command -v python)" --index-url https://pypi.org/simple "telryn==$VERSION"
+          for attempt in {1..12}; do
+            if PIP_NO_CACHE_DIR=1 pipx install --python "$(command -v python)" --index-url https://pypi.org/simple "telryn==$VERSION"; then break; fi
+            if (( attempt == 12 )); then echo "Fresh pipx install failed" >&2; exit 1; fi
+            sleep 5
+          done
           test "$("$PIPX_BIN_DIR/telryn" --version)" = "$VERSION"
           "$PIPX_HOME/venvs/telryn/bin/python" -I "$GITHUB_WORKSPACE/scripts/verify_installed.py" "$VERSION"
