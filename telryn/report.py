@@ -338,7 +338,7 @@ def render_report(state: dict) -> str:
     adjudication_html = ""
     if disputed:
         commands = "".join(
-            f"<li>{escape(info['request'])}<br><code>python3 -m telryn refresh REPORT "
+            f"<li>{escape(info['request'])}<br><code>telryn refresh REPORT "
             f"--adjudicate {escape(row)} GRADE REASON --review-set {info['review_set']}</code></li>"
             for row, info in disputed.items()
         )
@@ -415,7 +415,7 @@ def render_report(state: dict) -> str:
         f"{result['pending_cross_checks']} pending cross-checks</p>"
         + (f"<ul>{list_items(packet_notes)}</ul>" if packet_notes else "")
         + "<p>Share the grading CSV with the reviewer. Keep this report with the decision owner. To record a return, "
-        "run <code>python3 -m telryn refresh REPORT --grades RETURNED.csv</code>.</p>"
+        "run <code>telryn refresh REPORT --grades RETURNED.csv</code>.</p>"
         + adjudication_html
         + f"<ul>{list_items(effort_entries)}</ul>"
         '<p class="muted">Grading, cross-checks and adjudication are separate from estimated shift workload.</p>'

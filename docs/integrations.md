@@ -7,7 +7,7 @@ A weekly cohort contains each visible conversation that reached resolution or cl
 Use a credential scoped to the queue the report should cover. The first date is inclusive and the second exclusive. Supply an independent count for the same definition when available.
 
 ```sh
-python3 -m telryn integrations pull zendesk \
+telryn integrations pull zendesk \
   --since 2026-11-02 --until 2026-11-09 \
   --expected-count 412 --out population.csv
 ```
@@ -44,7 +44,7 @@ c04,r9,archive/c04/r9,false,unknown,null,email
 ```
 
 ```sh
-python3 -m telryn integrations cohort lifecycle.csv \
+telryn integrations cohort lifecycle.csv \
   --since 2026-11-02 --until 2026-11-09 --scope "UK support warehouse" --out population.csv
 ```
 
@@ -55,7 +55,7 @@ If an interrupted export leaves just the coverage receipt, repeat the original e
 The ordinary review list must use the same namespaced IDs as the population. If your baseline is a recorded weekly assignment sample, supply the assignment records from that cutoff. If your baseline is **completed human reviews** from one Zendesk QA scorecard and workspace, the following command creates the matching `reviewed.csv`. Set `TELRYN_ZENDESK_QA_TOKEN` to the QA connection token and `TELRYN_ZENDESK_QA_SUBDOMAIN` to the same tenant used for the population.
 
 ```sh
-python3 -m telryn integrations reviewed-zendesk population.csv \
+telryn integrations reviewed-zendesk population.csv \
   --workspace 11759 --scorecard standard-human-v2 \
   --since 2026-11-02 --until 2026-11-10 --out reviewed.csv
 ```
@@ -67,7 +67,7 @@ The dates here bound review creation, so the end date can extend past the conver
 `import-agent` accepts existing CSV exports for Fin, Decagon, and Sierra. Choose one closed-conversation cohort upstream. Map the stable ID, the evidence revision, and a reference your grader can resolve. If supplied, the screen column must contain a decision for every row.
 
 ```sh
-python3 -m telryn integrations import-agent sierra closed-sierra.csv \
+telryn integrations import-agent sierra closed-sierra.csv \
   --workspace uk-support --id-column conversation_id \
   --revision-column export_revision --evidence-column archive_ref \
   --flag-column escalation_risk --out population.csv
@@ -80,8 +80,8 @@ Record the export's date range, row count, and source version. The mapper copies
 Use a tag unique to the audit week. The handoff reads the sampled case IDs and revisions from the frozen weekly report. Every sampled group receives the same tag. Preview lists the count and tenant without making an HTTP request.
 
 ```sh
-python3 -m telryn integrations handoff zendesk runs/weekly/report.html --tag telryn_2026w45
-python3 -m telryn integrations handoff zendesk runs/weekly/report.html --tag telryn_2026w45 --apply
+telryn integrations handoff zendesk runs/weekly/report.html --tag telryn_2026w45
+telryn integrations handoff zendesk runs/weekly/report.html --tag telryn_2026w45 --apply
 ```
 
 - **Zendesk QA**. Allow closed tickets to be modified and use a credential authorized to update them. Telryn adds the tag through Zendesk Support's bulk ticket API and reads the resulting tag back from every updated ticket. After your QA connection syncs, use its source-tag filters or ticket ID search to select the cohort and assign reviewers. Check the selected count against Telryn's sample. [Modify closed tickets](https://support.zendesk.com/hc/en-us/articles/7335734335258-Modifying-closed-tickets) · [Zendesk QA conversation view](https://support.zendesk.com/hc/en-us/articles/7043661945370-Using-the-Conversations-view)
@@ -89,7 +89,7 @@ python3 -m telryn integrations handoff zendesk runs/weekly/report.html --tag tel
 - **MaestroQA**. Generate a single-column CSV of native ticket IDs. In MaestroQA's Tickets view, upload the list, choose **Create/Add to Assignment**, select **Agent QA**, and set the graders and due date. Tickets must already exist in the connected workspace. [MaestroQA assignment instructions](https://help.maestroqa.com/en/articles/4249565-manually-creating-assignments)
 
 ```sh
-python3 -m telryn integrations maestroqa runs/weekly/report.html \
+telryn integrations maestroqa runs/weekly/report.html \
   --source zendesk --workspace acme --out maestro-ticket-ids.csv
 ```
 
@@ -97,7 +97,7 @@ Telryn rejects a mismatched tenant or a changed, untagged revision before attemp
 
 ## Validation
 
-Run `python3 -m unittest tests.test_integrations tests.test_integrations_sierra tests.test_integrations_coverage tests.test_transcripts` for the vendor contracts. Tests exercise the CLI, HTTP request encoding and response parsing, cursor handling, per-record results, tenant checks, and the path from a source pull to a weekly report and review handoff with fixture responses. Those checks run offline. Access scopes, QA subscription features, sync schedules, and downstream assignment rules require confirmation in your tenant.
+From the [source checkout](weekly-qa.md#use-the-example-input-files), run `python3 -m unittest tests.test_integrations tests.test_integrations_sierra tests.test_integrations_coverage tests.test_transcripts` for the vendor contracts. Tests exercise the CLI, HTTP request encoding and response parsing, cursor handling, per-record results, tenant checks, and the path from a source pull to a weekly report and review handoff with fixture responses. Those checks run offline. Access scopes, QA subscription features, sync schedules, and downstream assignment rules require confirmation in your tenant.
 
 ## Check Intercom scorecard evidence for a complaints pilot
 

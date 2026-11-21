@@ -21,7 +21,7 @@ For Sierra deliveries containing full lifecycle history, map one row per convers
 Install AWS CLI v2 and configure the usual AWS credentials and region. Scope `s3:GetObjectVersion` to the approved delivery. A customer-managed KMS key can also require `kms:Decrypt`. The command uses the same version ID and expected bucket owner for the metadata check and the download. It rejects a null version, additional CSV columns, duplicate conversation IDs, an unexpected count, or a mismatched optional SHA-256. A single file can contain up to 64 MiB of metadata. [S3 GetObject](https://docs.aws.amazon.com/cli/latest/reference/s3api/get-object.html) · [S3 HeadObject](https://docs.aws.amazon.com/cli/latest/reference/s3api/head-object.html)
 
 ```sh
-python3 -m telryn integrations pull-sierra \
+telryn integrations pull-sierra \
   --workspace fintech-uk \
   --bucket company-qa-deliveries --bucket-owner 123456789012 \
   --key sierra/2026-11-16/closed.csv --version-id "$SIERRA_OBJECT_VERSION" \

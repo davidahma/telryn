@@ -1,17 +1,55 @@
 """Verify the synthetic comparison through the ordinary signed weekly report."""
 
+import io
+import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from examples.complaints_pilot import __main__ as pilot
 from examples.complaints_pilot import signals
-from telryn import weekly_report
-from telryn.contracts import fingerprint
+from telryn import audit_trust, weekly_report
+from telryn.__main__ import main
+from telryn.contracts import InputError, fingerprint
 from tests.audit_support import isolate_trust
 
 
 class ComplaintsPilot(unittest.TestCase):
+    def test_cli_rehearsal_defaults_to_a_separate_store_and_restores_context(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            team = root / "actual-team"
+            demo = root / ".local/state/telryn/rehearsal"
+            report = root / "trial/2026-10-05/report.html"
+            with patch.dict(
+                os.environ,
+                {
+                    "HOME": tmp,
+                    "TELRYN_TRUST_DIR": str(team),
+                    "TELRYN_DEMO_TRUST_DIR": "",
+                },
+            ):
+                with redirect_stdout(io.StringIO()) as stdout:
+                    self.assertEqual(
+                        main(["demo", "--complaints", "--out", str(root / "trial")]), 0
+                    )
+                self.assertIn(str(demo), stdout.getvalue())
+                self.assertFalse(team.exists())
+                self.assertEqual(audit_trust.directory(), team)
+                with patch.dict(os.environ, {"TELRYN_TRUST_DIR": str(demo)}):
+                    self.assertTrue(weekly_report.read_state(report)["grades"])
+                with self.assertRaisesRegex(RuntimeError, "interrupted"):
+                    with audit_trust.rehearse():
+                        raise RuntimeError("interrupted")
+                self.assertEqual(audit_trust.directory(), team)
+                with patch.dict(os.environ, {"TELRYN_DEMO_TRUST_DIR": str(team)}):
+                    with self.assertRaisesRegex(InputError, "separate"):
+                        with audit_trust.rehearse():
+                            self.fail("rehearsal accepted the team's key and registry")
+                self.assertFalse(team.exists())
+
     def test_blind_union_frozen_before_grades_and_matched_budget(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

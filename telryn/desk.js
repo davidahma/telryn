@@ -277,7 +277,7 @@ setMode();
 loadRubrics().catch(showError);
 historyList().catch(showError);
 function resumeFromLocation() {
-  if (/^#[a-f0-9]{24}$/.test(location.hash)) {
+  if (/^#[a-f0-9]{24}(?:[a-f0-9]{8})?$/.test(location.hash)) {
     selectRun(location.hash.slice(1)).catch(showError);
   } else {
     active = "";

@@ -68,6 +68,20 @@ class WeeklyAuditTests(unittest.TestCase):
             action="Open escalation" if disposition == "new" else "",
         )
 
+    def test_scheduled_delivery_checks_the_audit_period_before_issuing_a_draw(self):
+        for day, error in (
+            ("2026-11-16", "seven days before"),
+            ("2026-11-24", "Monday"),
+            ("20261123", "YYYY-MM-DD"),
+        ):
+            with self.subTest(day=day), self.assertRaisesRegex(InputError, error):
+                prepare(self.plan, delivery_date=day)
+            self.assertFalse((self.root / "trust").exists())
+        scheduled = prepare(self.plan, delivery_date="2026-11-23")
+        self.assertEqual(
+            scheduled["draw_commitment"], prepare(self.plan)["draw_commitment"]
+        )
+
     def test_stratified_probabilities_replay_independent_of_file_order(self):
         original = prepare(self.plan)
         self.write_csv(self.population, CASE_COLUMNS, self.rows[::-1])

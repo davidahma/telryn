@@ -78,7 +78,7 @@ The same precision applies to both endpoints of the grading window. Use
 accessed directly on cutoff rows also block only that shift. Invalid
 selectors still return an execution error. A valid shift with a
 confirmed operational veto can still determine **Hold** when another shift is
-missing. Run `python3 -m telryn qualify --case membership` for an example where
+missing. Run `telryn qualify --case membership` for an example where
 all recorded winners match but the export is incomplete.
 
 ## Grading and recovery
@@ -119,7 +119,7 @@ dispute. Record the adjudication against that set so a stale decision cannot
 silence a newer return:
 
 ```sh
-python3 -m telryn refresh runs/tuesday/report.html --adjudicate ROW_ID outside "Independent review of the same evidence" --review-set REVIEW_SET --minutes 2
+telryn refresh runs/tuesday/report.html --adjudicate ROW_ID outside "Independent review of the same evidence" --review-set REVIEW_SET --minutes 2
 ```
 
 A saved report from v0.3.0 or earlier remains readable. Browsers show the
@@ -146,7 +146,7 @@ shift unreplayable. Loss of a grade can widen the range.
 The saved HTML and a plain `explain` show the verdict from the frozen evidence. When the candidate came from a weekly audit, the JSON result identifies this as `weekly_source.status = "historical_snapshot"`. Use both flags in an automated gate that expects a weekly proposal.
 
 ```sh
-python3 -m telryn explain RUN/report.html --require-shadow --require-weekly-source --format json
+telryn explain RUN/report.html --require-shadow --require-weekly-source --format json
 ```
 
 In the team's trust store, the gate checks the signed comparison evidence against its latest revision and the weekly audit against the revision that generated the candidate. A successful gate returns `weekly_source.status = "current"`. Retain its `comparison_id` and `decision_revision` when starting the trial. New weekly-proposal shadow observations must supply both values. If the held-out grades change before the observation arrives, investigate and qualify a new trial. Preserve the original revision on the recorded observation.
@@ -170,7 +170,7 @@ requires further evidence.
 
 ## Preflight for ordinary CSV exports
 
-Run `python3 -m telryn preflight INTAKE.toml --out CUTOFF.json`. Use the
+Run `telryn preflight INTAKE.toml --out CUTOFF.json`. Use the
 [worked manifest](../examples/support-qa/intake.toml) to map local CSV headers.
 Preflight needs no selector code. It checks structure, source reconciliation,
 cutoff availability, and recorded policy evidence. A ready result still
@@ -268,7 +268,7 @@ flags that a reviewer familiar with its selection rule can infer side.
 
 ## Record a completed shadow trial
 
-Run `python3 -m telryn record-shadow REPORT OBSERVATIONS.json`. The report must
+Run `telryn record-shadow REPORT OBSERVATIONS.json`. The report must
 support a shadow trial when a new observation is recorded. A repeated identical
 import is safe. An existing trial ID with changed contents is rejected.
 
@@ -291,7 +291,7 @@ decision. The import does not schedule reviews or change live routing.
 
 ## Assess a matched pilot record
 
-Run `python3 -m telryn benchmark REPORT PILOT.json --format json`. The
+Run `telryn benchmark REPORT PILOT.json --format json`. The
 [version 1 example](../examples/support-qa/pilot-record.json) uses the saved
 report’s `comparison_id` and `decision_revision`, the UTC calendar `decision_date`, a `comparator` label,
 `evidence` of `synthetic` or `observed`, and a positive

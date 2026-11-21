@@ -1,19 +1,32 @@
 name: Publish Python package
 
 on:
-  release:
-    types: [published]
+  # GitHub loads workflow_run from the default branch. A release event itself
+  # uses the workflow at the tag, which is a different trust boundary.
+  workflow_run:
+    workflows: [Notify published release]
+    types: [completed]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Immutable, signed release tag to publish
+        required: true
+        type: string
 
 permissions: {}
 
 concurrency:
-  group: pypi-${{ github.ref }}
+  group: pypi-${{ inputs.tag || github.event.workflow_run.head_branch }}
   cancel-in-progress: false
 
 jobs:
   build:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'release' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -32,29 +45,52 @@ jobs:
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.13'
+      - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        with:
+          cosign-release: v3.1.4
       - name: Require an immutable release of the CI-qualified main commit
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.event.workflow_run.head_branch }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          tag=$GITHUB_REF_NAME
-          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          test "$(git cat-file -t "refs/tags/$tag")" = tag
-          commit=$(git rev-parse HEAD)
-          test "$(git rev-parse "refs/tags/$tag^{}")" = "$commit"
-          git merge-base --is-ancestor "$commit" origin/main
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          test "$(git cat-file -t "refs/tags/$TAG")" = tag
+          commit=$(git rev-parse "refs/tags/$TAG^{commit}")
+          git merge-base --is-ancestor "$commit" "$GITHUB_SHA"
+          if [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
+            test "$commit" = "$RELEASE_SHA"
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" |
             jq -e --arg sha "$commit" '.immutable and (.draft | not) and .target_commitish == $sha'
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$commit&event=push&branch=main" |
             jq -e --arg sha "$commit" 'any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")'
-          test "v$(python -m telryn --version)" = "$tag"
-          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          source_name="telryn-${TAG#v}.tar.gz"
+          audit_dir="$RUNNER_TEMP/signed-source"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$audit_dir" \
+            -p "$source_name" -p SHA256SUMS.txt -p SHA256SUMS.sigstore.json
+          cosign verify-blob --bundle "$audit_dir/SHA256SUMS.sigstore.json" \
+            --certificate-identity "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/.github/workflows/release-container.yml@refs/heads/main" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com "$audit_dir/SHA256SUMS.txt"
+          signed_hash=$(awk -v file="$source_name" '$2 == file {print $1}' "$audit_dir/SHA256SUMS.txt")
+          test "$signed_hash" = "$(sha256sum "$audit_dir/$source_name" | cut -d' ' -f1)"
+          python -I scripts/release_artifacts.py source "$audit_dir/$source_name" "$TAG" "$commit"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - name: Check out the verified product commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.release.outputs.commit }}
+          path: product
+          persist-credentials: false
       - name: Build and exercise the exact files for publication
+        working-directory: product
         env:
           VERSION: ${{ steps.release.outputs.version }}
         run: |
+          test "$(python -m telryn --version)" = "$VERSION"
           python -m pip install build twine
           bash scripts/check_distributions.sh "$RUNNER_TEMP/dist" "$VERSION"
       - id: hashes
@@ -81,7 +117,47 @@ jobs:
         with:
           name: python-distributions
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+      - name: Upload only missing distributions with the tested hashes
+        id: pending
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          WHEEL: ${{ needs.build.outputs.wheel }}
+          SDIST: ${{ needs.build.outputs.sdist }}
+        run: |
+          set -euo pipefail
+          cd dist
+          wheel="telryn-$VERSION-py3-none-any.whl"
+          sdist="telryn-$VERSION.tar.gz"
+          shopt -s dotglob nullglob
+          files=(*)
+          test "${#files[@]}" -eq 2
+          printf '%s  %s\n' "$WHEEL" "$wheel" "$SDIST" "$sdist" | sha256sum --check --strict -
+          record="$RUNNER_TEMP/pypi-existing.json"
+          status=$(curl -sSL --retry 4 --retry-all-errors -o "$record" -w '%{http_code}' \
+            "https://pypi.org/pypi/telryn/$VERSION/json")
+          case "$status" in
+            404) ;; # First upload for this version.
+            200)
+              jq -e --arg w "$wheel" --arg s "$sdist" --arg wh "$WHEEL" --arg sh "$SDIST" '
+                .urls | type == "array" and all(.[];
+                  (.yanked == false) and
+                  ((.filename == $w and .digests.sha256 == $wh) or
+                   (.filename == $s and .digests.sha256 == $sh)))' "$record"
+              for file in "$wheel" "$sdist"; do
+                if jq -e --arg f "$file" 'any(.urls[]; .filename == $f)' "$record" > /dev/null; then
+                  rm -- "$file"
+                fi
+              done
+              ;;
+            *) echo "PyPI inventory returned HTTP $status" >&2; exit 1 ;;
+          esac
+          if [[ -f "$wheel" || -f "$sdist" ]]; then
+            echo 'upload=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'upload=false' >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.pending.outputs.upload == 'true'
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
 
   verify:
     needs: [build, publish]
@@ -98,18 +174,29 @@ jobs:
         with:
           ref: ${{ needs.build.outputs.commit }}
           persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: release-tools
+          persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.13'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: python-distributions
+          path: ${{ runner.temp }}/tested-distributions/
       - name: Compare public hashes and run the PyPI install
         working-directory: ${{ runner.temp }}
         run: |
           set -euo pipefail
           curl -fsSL --retry 8 --retry-all-errors --retry-delay 5 "https://pypi.org/pypi/telryn/$VERSION/json" > package.json
           jq -e --arg w "$WHEEL" --arg s "$SDIST" '
-            (.urls | length) == 2 and
+            (.urls | length) == 2 and all(.urls[]; .yanked == false) and
             any(.urls[]; .packagetype == "bdist_wheel" and .digests.sha256 == $w) and
             any(.urls[]; .packagetype == "sdist" and .digests.sha256 == $s)' package.json
+          python -m pip install pypi-attestations==0.0.31
+          python -I "$GITHUB_WORKSPACE/release-tools/scripts/verify_pypi.py" "$RUNNER_TEMP/tested-distributions" "$VERSION"
           export PIPX_HOME="$RUNNER_TEMP/pipx" PIPX_BIN_DIR="$RUNNER_TEMP/bin"
           pipx install --python "$(command -v python)" --index-url https://pypi.org/simple "telryn==$VERSION"
           test "$("$PIPX_BIN_DIR/telryn" --version)" = "$VERSION"

@@ -2,13 +2,18 @@
 
 A pack is one JSON file containing the reviewer’s question, an ordered category list, source references and dated clock clauses. The complaints lead selects a version for the queue. The blinded grading packet includes the question, category options, applicability instructions and policy source references. Reviewers can check whether the policy covers a case without seeing its sample group or the register results. The signed report retains the complete pack, its version and its canonical SHA-256 digest. Later changes to the source file leave issued findings reproducible.
 
-## Run the supplied example
+## Inspect the installed packs
 
 ```sh
-python3 -m telryn pack list
-python3 -m telryn pack show firm-example@1.0.0
-python3 -m telryn weekly examples/policy_packs/week.toml --out runs/pack-week
-python3 -m telryn weekly runs/pack-week/report.html --format json
+telryn pack list
+telryn pack show firm-example@1.0.0 > firm-example.json
+```
+
+The JSON is an editable copy for the policy owner. To try the supplied queue, run the following from the [matching source checkout](weekly-qa.md#use-the-example-input-files). For a real queue, pass the path to your own weekly plan.
+
+```sh
+telryn weekly examples/policy_packs/week.toml --out runs/pack-week
+telryn weekly runs/pack-week/report.html --format json
 ```
 
 This run creates a signed report and one grading packet for a synthetic payments queue. The weekly plan selects an exact `policy_pack` and a separate `control` file. The latter supplies the firm's queue, channel coverage, owners, review dates and onboarding time. The pack supplies `rubric`, `rubric_question` and ordered categories. If the plan or control repeats those fields, they must agree. [Example plan](../examples/policy_packs/week.toml) · [Example control profile](../examples/policy_packs/control.json)
@@ -29,12 +34,12 @@ These starter files were checked against the linked sources on 21 November 2026.
 ## Adopt the firm’s own version
 
 ```sh
-python3 -m telryn pack show us-reg-e@1.0.0 > lender-policy.json
+telryn pack show us-reg-e@1.0.0 > lender-policy.json
 ```
 
 1. Give `clock_policy.id` a firm-owned lowercase ID and set `clock_policy.version` to a major.minor.patch version. Edit the applicability note, sources, question and categories. Order categories from lowest to highest priority so Telryn can recognize downgrade requests. Keep the policy owner’s approval and effective dates in your policy repository.
 2. Set the local time zone, holidays and close of business for each clock. The optional `business_weekdays` array uses ISO weekdays, Monday 1 through Sunday 7. The default is Monday to Friday. An institution that performs its relevant business functions on Saturday can include 6. Verify the resulting dates against the approved operational calendar. If the calendar or exception cannot be represented, leave that route for manual review.
-3. Run `python3 -m telryn pack show lender-policy.json` to validate the file. Set `policy_pack = "lender-policy.json"` in the weekly TOML beside it. Use a new version for each change and retain the approved file. When the team issues a report or signs a re-review notice, its private registry binds that pack ID and version to one content digest across audits. Telryn rejects an edited file that reuses a shipped pack’s identity. A local pack requires no plug-in, expression evaluator or network connection.
+3. Run `telryn pack show lender-policy.json` to validate the file. Set `policy_pack = "lender-policy.json"` in the weekly TOML beside it. Use a new version for each change and retain the approved file. When the team issues a report or signs a re-review notice, its private registry binds that pack ID and version to one content digest across audits. Telryn rejects an edited file that reuses a shipped pack’s identity. A local pack requires no plug-in, expression evaluator or network connection.
 
 ## Attach the register and revisit a change
 
@@ -43,7 +48,7 @@ Use the normal complaints manifest and the audit ID from the packet. In a pack-b
 After changing the firm's approved pack, run the following against previously issued reports.
 
 ```sh
-python3 -m telryn policy-review lender-policy-v1.1.0.json runs/
+telryn policy-review lender-policy-v1.1.0.json runs/
 ```
 
 The scan checks reports using the same policy ID. Reusing a bundled identity for an edited pack is rejected at intake and at review. A signed change notice records the revised pack digest, even when only a clock changed. A change to a used clock clause, its calendar or its trigger can mark the affected week. A change to the reviewer question, ranked taxonomy, applicability or source references flags pack-backed grades for review, including reports still awaiting the register. The signed notice preserves the original result and identifies what changed. Reports using packs require v0.9.0 or newer to update. Older ordinary weekly reports retain their documented readers and formats. [Review and replay](trust.md)

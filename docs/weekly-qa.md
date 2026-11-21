@@ -2,6 +2,8 @@
 
 Choose a week, the queue it covers, and a policy that two reviewers can apply to the same evidence. In the fintech starter, the question is whether a reported account compromise was closed without the escalation required by the example team's policy. Have the support lead and policy owner agree on what counts and where to find the evidence. The browser desk also includes editable starter questions for a missed required escalation, a promised refund without the payment record, an unlogged complaint and a missed legal escalation. Each has a matching local screen policy. Give each question its own version. The FCA describes monitoring of support outcomes in its Consumer Duty work. An institution's policy owner determines the applicable requirements. [Fintech example](../examples/fintech/README.md) · [FCA consumer support review](https://www.fca.org.uk/publications/good-and-poor-practice/consumer-support-outcome-good-practices-areas-improvement)
 
+The commands below use the `telryn` executable installed by `pipx install telryn`. Run commands against your own input directory and choose a new output directory for each audit. If you are running only from a source checkout, invoke the same commands there with `python3 -m telryn`.
+
 ## Get the two exports
 
 The population must cover every eligible conversation in the declared cohort. Settle the time basis in advance. Use the week of the resolution or closure event in UTC. A conversation opened a month earlier can belong to this week. Attach the source coverage receipt. It binds the eligible IDs and revisions to the dates and gives counts for open, excluded and unresolved membership within the scanned source scope. Where a source retains only its latest completion, a dated lifecycle ledger gives stronger historical coverage. With a bare CSV, the report can describe only the supplied rows. The ordinary-review list must contain the IDs that actually received routine human QA by the agreed review deadline. A vendor's resolved, escalated, viewed or AI-scored status alone cannot establish that a person graded a case. [Supported sources and assignments](integrations.md)
@@ -17,7 +19,7 @@ When a case completed more than once in the week, grade the first qualifying com
 
 ## Assign and grade the week
 
-Initialize the team key before the first audit with `python3 -m telryn trust init`. Run `python3 -m telryn desk --out runs/desk` for the local browser interface. Choose both CSVs and the rubric. Enter staff minutes, expected minutes per grade and the anticipated finding rate. Preview the allocation and expected width, then commit the sample. You can also set counts directly. Uploads allow 24 MiB per file and 64 MiB per request. The CLI accepts larger exports. In a larger intake or a recurring job, use a TOML file like this. Paths resolve relative to the plan.
+Initialize the team key before the first audit with `telryn trust init`. Run `telryn desk --out runs/desk` for the local browser interface. Choose both CSVs and the rubric. Enter staff minutes, expected minutes per grade and the anticipated finding rate. Preview the allocation and expected width, then commit the sample. You can also set counts directly. Uploads allow 24 MiB per file and 64 MiB per request. The CLI accepts larger exports. In a larger intake or a recurring job, use a TOML file like this. Paths resolve relative to the plan.
 
 ```toml
 schema = 1
@@ -32,9 +34,9 @@ unflagged_sample = 25
 ```
 
 ```sh
-python3 -m telryn weekly week.toml --out runs/2026-11-02
-python3 -m telryn weekly runs/2026-11-02/report.html --grades returned.csv
-python3 -m telryn weekly runs/2026-11-02/report.html --format json
+telryn weekly week.toml --out runs/2026-11-02
+telryn weekly runs/2026-11-02/report.html --grades returned.csv
+telryn weekly runs/2026-11-02/report.html --format json
 ```
 
 The fresh run writes a self-contained `report.html` for the lead and a blind `grades.csv` for reviewers. The packet identifies the rubric, evidence reference and revision. For each case, answer `yes`, `no` or `insufficient` in `serious`. A yes takes `new`, `already_known` or `unknown` in `disposition`. A new case needs an owner and an action or work item. A no takes `none`. An insufficient grade takes `unknown`. Enter the cumulative whole minutes spent on the row. Keep personally identifying details and transcripts in their source system.
@@ -43,7 +45,7 @@ Leave unanswered rows blank in a partial return. More evidence can resolve an in
 
 ### Pick up a partly graded week
 
-Open **Open a saved audit** in the desk. Each verified entry shows the week, rubric, and how many primary grades have come back. Choose **Download unanswered assignments** to send the next reviewer only cases that still lack a first return. The rows keep their original audit IDs, case revisions, cutoffs and blank answer fields. They can be returned through the same grade import. For an independent second review, use **Download full blind packet**.
+To review a scheduled CLI run, start the desk with the parent of the dated output directory, for example `telryn desk --out /srv/telryn/runs`, under the same account and with the same `TELRYN_TRUST_DIR`. Reload the desk after a new delivery. It looks one directory deep and omits hidden and symlinked directories. Open **Open a saved audit** in the desk. Each verified entry shows the week, rubric, and how many primary grades have come back. Choose **Download unanswered assignments** to send the next reviewer only cases that still lack a first return. The rows keep their original audit IDs, case revisions, cutoffs and blank answer fields. They can be returned through the same grade import. For an independent second review, use **Download full blind packet**.
 
 The history counts insufficient returns, open disputes and serious findings with unknown prior handling separately. An insufficient return calls for more evidence. A dispute calls for adjudication. An unknown prior disposition calls for checking the other controls. These cases already have primary grades.
 
@@ -52,7 +54,7 @@ Open the private audit to see **Cases needing follow-up**. For each case, the ta
 The CLI can export the same outstanding rows from a saved report. Use a fresh path for each handoff. A header-only file means every assignment has a primary return.
 
 ```sh
-python3 -m telryn weekly runs/2026-11-02/report.html --outstanding unanswered.csv
+telryn weekly runs/2026-11-02/report.html --outstanding unanswered.csv
 ```
 
 If a saved audit cannot be verified, history lists its directory ID and withholds the report and grading links. Restore the latest signed report and its matching team trust store, then reload the desk. The original rubric and grading progress reappear after verification succeeds. [Trust and recovery](trust.md)
@@ -68,7 +70,7 @@ For a group of size `N` with `n` sampled and `y` positive grades, its estimated 
 To preview an allocation without issuing cases, run:
 
 ```sh
-python3 -m telryn plan-week examples/fintech/week.toml \
+telryn plan-week week.toml \
   --minutes 36 --minutes-per-grade 6 --expected-rate 0.05
 ```
 
@@ -76,10 +78,10 @@ To apply your budget when the sample is drawn, save `minutes`, `minutes_per_grad
 
 ## Screening with a local model
 
-Use a local transcript export and a policy the team approved. With Ollama running locally and the requested tag installed, try the two synthetic transcripts.
+Use a local transcript export and a policy the team approved. From the [matching source checkout](#use-the-example-input-files), with Ollama running locally and the requested tag installed, try the two synthetic transcripts.
 
 ```sh
-python3 -m telryn screen examples/fintech/transcripts.jsonl \
+telryn screen examples/fintech/transcripts.jsonl \
   --model llama3.2:latest --policy account-compromise --workers 2 --out runs/transcript-screen
 ```
 
@@ -88,7 +90,7 @@ The extractor cites the redacted transcript passages supporting a signal. Telryn
 ## Give the lead a weekly digest
 
 ```sh
-python3 -m telryn weekly runs/2026-11-02/report.html --digest
+telryn weekly runs/2026-11-02/report.html --digest
 ```
 
 The digest contains aggregate results. To deliver it through the customer's mail server, configure `TELRYN_SMTP_HOST` and optionally `TELRYN_SMTP_PORT` (default 465). For authentication, set both `TELRYN_SMTP_USERNAME` and `TELRYN_SMTP_PASSWORD`. Use `--email-to` and `--email-from` on the saved report for one TLS delivery. Supply internal addresses authorized for those aggregates. Schedule this invocation with the team's scheduler after the grading deadline. Each invocation sends a message. Check the server's delivery log before retrying an uncertain send. The report, grader identities and work items stay out of the message.
@@ -101,7 +103,7 @@ Once the graders have resolved the findings, run `weekly REPORT --propose DIRECT
 
 Weekly reports issued from v0.5 use a signed version-2 envelope. The CLI verifies the report bytes and revision against the local team's key and registry. The browser desk serves verified report bytes. An HTML file opened directly is a static view. For a v0.4 unsigned report, use `weekly REPORT --legacy` for an explicitly historical reading. Restore original source evidence, the audit directory, and the matching trust store to resume a signed audit. Keep customer exports, checkpoints and sent digests under your organization's retention policy. [Audit trust and corrections](trust.md) · [Historical comparison reports](comparison.md#grading-and-recovery)
 
-An existing signed v0.5 HTML report keeps its original display. Use `python3 -m telryn weekly REPORT --digest` or `--format json` to read the current calculations from its saved grades. The next accepted grade changes the signed revision and refreshes the display.
+An existing signed v0.5 HTML report keeps its original display. Use `telryn weekly REPORT --digest` or `--format json` to read the current calculations from its saved grades. The next accepted grade changes the signed revision and refreshes the display.
 
 ## Check a complaints register after grading
 
@@ -145,9 +147,20 @@ The open-work table gives each unresolved registration or missing grade an owner
 
 Set the optional boolean `synthetic` to `true` in a rehearsal control profile. The signed report and the aggregate email subject identify the simulation.
 
+## Use the example input files
+
+The installed `telryn demo --complaints --out runs/complaints-pilot` uses bundled records and prints the two report paths. To edit a worked plan or run a guide that uses `examples/…`, get the source files for your installed version. Run these commands in the directory where you keep examples.
+
+```sh
+git clone --depth 1 --branch "v$(telryn --version)" https://github.com/davidahma/telryn.git telryn-examples
+cd telryn-examples
+```
+
+Run the guide's example commands from here. For the policy pack walkthrough, `examples/policy_packs/` contains the plan, population, completed-review ledger and control profile. Keep your team's live inputs and outputs in a separate private directory.
+
 ## Schedule a weekly run
 
-On Linux or macOS install the CLI with `pipx install telryn` using CPython 3.12–3.15 with SQLite. Run `command -v telryn` as the account that will own the audits. Record that absolute executable path in the scheduler. To pin an approved version, use `pipx install 'telryn==0.9.2'` in a fresh environment. Use `pipx upgrade telryn` when the team approves a newer release.
+On Linux or macOS install the CLI with `pipx install telryn` using CPython 3.12–3.15 with SQLite. Run `command -v telryn` as the account that will own the audits. Record that absolute executable path in the scheduler. To pin an approved version, use `pipx install 'telryn==0.9.3'` in a fresh environment. Use `pipx upgrade telryn` when the team approves a newer release.
 
 In this cron example the export job delivers a directory every Monday, named by **delivery date in UTC**. Each directory contains a plan for the completed audit week, its frozen population and its review ledger. Use paths relative to the plan for those inputs. Set up the inbox and output parent under the audit account, then save this script at `/srv/telryn/run-weekly.sh`. Replace the executable and storage paths with the ones on your host.
 
@@ -155,16 +168,19 @@ In this cron example the export job delivers a directory every Monday, named by 
 #!/bin/sh
 set -eu
 umask 077
-delivery=$(date -u +%F)
+exec >> /srv/telryn/weekly.log 2>&1
+delivery=${1:-$(date -u +%F)}
 export TELRYN_TRUST_DIR=/srv/telryn/private/team
 exec /home/qa/.local/bin/telryn weekly "/srv/telryn/inbox/$delivery/week.toml" \
-  --out "/srv/telryn/runs/$delivery"
+  --delivery-date "$delivery" --out "/srv/telryn/runs/$delivery"
 ```
 
-Schedule it after the export arrives, for example with this entry in the audit account’s crontab. The trigger time uses the scheduler’s time zone. Give that account permission to read the inputs, create the report and write the trust store and log.
+Schedule it after the export arrives, for example with this entry in the audit account’s crontab. The trigger time uses the scheduler’s time zone. Give that account permission to read the inputs and write the report, trust store and log. Keep the log owner-readable only. The script creates a new log with mode 0600.
 
 ```cron
-15 8 * * 1 /bin/sh /srv/telryn/run-weekly.sh >> /srv/telryn/weekly.log 2>&1
+15 8 * * 1 /bin/sh /srv/telryn/run-weekly.sh
 ```
+
+If Monday’s job misses an export, wait for the full frozen directory and rerun with its original Monday date, for example `/bin/sh /srv/telryn/run-weekly.sh 2026-11-09`. This selects the 9 November delivery, including on a later day. Its plan must start on 2 November. Telryn checks the seven-day period before committing the draw. Deliver complete inputs together by renaming the prepared directory into the inbox on the same filesystem.
 
 Each delivery has its own output directory. A repeat against an existing report fails and preserves the issued sample. To verify that report or import grades, pass the existing HTML to `telryn weekly` with the same trust directory. Monitor the job’s exit status and back up the trust store with the reports.

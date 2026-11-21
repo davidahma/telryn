@@ -13,7 +13,7 @@ from tests.audit_support import isolate_trust
 from telryn.desk import Desk, handler
 from telryn.integrations_coverage import membership
 from telryn.weekly import summarize
-from telryn.weekly_report import read_state
+from telryn.weekly_report import read_state, start
 
 
 class Connection:
@@ -379,6 +379,66 @@ class DeskFlow(unittest.TestCase):
         review = json.loads(self.request("GET", path + "/review")[1])
         self.assertEqual(review["follow_up"], [])
         self.assertEqual(review["progress"]["open_disputes"], 2)
+
+    def test_saved_scheduled_runs_before_start_and_after_refresh(self):
+        plan = Path(__file__).resolve().parents[1] / "examples/fintech/week.toml"
+        root = self.desk.root
+        early = start(plan, root / "private-queue-name")
+        self.desk = Desk(root)
+        self.handle = handler(self.desk, "testtoken")
+        history_path = "/testtoken/audits"
+        (early_item,) = json.loads(self.request("GET", history_path)[1])
+        self.assertTrue(early_item["verified"])
+        self.assertRegex(early_item["id"], "^[a-f0-9]{32}$")
+
+        later = start(plan, root / "2026-11-09")
+        (root / ".telryn-staged").mkdir()
+        (root / ".telryn-staged/report.html").write_bytes(later.read_bytes())
+        (root / "linked-directory").symlink_to(later.parent, target_is_directory=True)
+        (root / "linked-file").mkdir()
+        (root / "linked-file/report.html").symlink_to(later)
+        status, body = self.request("GET", history_path)
+        self.assertIn("200 OK", status)
+        self.assertNotIn(b"private-queue-name", body)
+        self.assertNotIn(b"2026-11-09", body)
+        items = json.loads(body)
+        self.assertEqual(len(items), 2)
+        self.assertTrue(all(item["verified"] for item in items))
+        (late_id,) = [item["id"] for item in items if item["id"] != early_item["id"]]
+        base = "/testtoken/" + late_id
+        packet = self.request("GET", base + "/grades.csv")[1]
+        self.assertEqual(packet, later.with_name("grades.csv").read_bytes())
+        reader = csv.DictReader(io.StringIO(packet.decode("utf-8-sig")))
+        row = next(reader)
+        self.assertNotIn("screen_flag", row)
+        row.update(serious="no", disposition="none", minutes="2")
+        out = io.StringIO()
+        writer = csv.DictWriter(out, reader.fieldnames)
+        writer.writeheader()
+        writer.writerow(row)
+        status, _ = self.request(
+            "POST", base + "/grades", {"grades": out.getvalue(), "reviewer": "primary"}
+        )
+        self.assertIn("200 OK", status)
+        self.assertIn(row["case_id"], read_state(later)["grades"])
+        self.assertEqual(read_state(early)["grades"], {})
+
+        # An unverifiable scheduled report exposes only its opaque recovery ID.
+        with patch.dict("os.environ", {"TELRYN_TRUST_DIR": str(root / "other-store")}):
+            items = json.loads(self.request("GET", history_path)[1])
+            self.assertEqual(
+                items,
+                sorted(
+                    [
+                        {"id": early_item["id"], "verified": False},
+                        {"id": late_id, "verified": False},
+                    ],
+                    key=lambda item: item["id"],
+                    reverse=True,
+                ),
+            )
+            self.assertIn("400", self.request("GET", base + "/report.html")[0])
+            self.assertIn("400", self.request("GET", base + "/grades.csv")[0])
 
     def test_unavailable_history_exposes_only_directory_id_after_restart(self):
         fields = {**self.form, "rubric": "private-rubric"}

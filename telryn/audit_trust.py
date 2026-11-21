@@ -10,19 +10,43 @@ import sqlite3
 import stat
 import tempfile
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 
 from .artifacts import sync_directory
 from .contracts import InputError, canonical, fingerprint
 
 DRAW_DOMAIN = "telryn-weekly-draw-v1"
+_rehearsal_store: ContextVar[Path | None] = ContextVar("rehearsal_store", default=None)
 
 
 def directory() -> Path:
+    if (rehearsal := _rehearsal_store.get()) is not None:
+        return rehearsal
     base = os.environ.get("TELRYN_TRUST_DIR")
     return (
         Path(base).expanduser() if base else Path.home() / ".local/state/telryn/audit"
     )
+
+
+@contextmanager
+def rehearse():
+    """Keep synthetic draws and signatures out of the operator's active ledger."""
+    override = os.environ.get("TELRYN_DEMO_TRUST_DIR")
+    path = (
+        Path(override).expanduser().absolute()
+        if override
+        else Path.home() / ".local/state/telryn/rehearsal"
+    )
+    if path.resolve() == directory().resolve():
+        raise InputError(
+            "choose a rehearsal trust directory separate from the team trust store"
+        )
+    token = _rehearsal_store.set(path)
+    try:
+        yield path
+    finally:
+        _rehearsal_store.reset(token)
 
 
 def _root() -> Path:

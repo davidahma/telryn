@@ -7,14 +7,14 @@ protocol below to measure operator effort.
 ## Reproduce the synthetic decision
 
 Follow the [refund walkthrough](refund-walkthrough.md) for the Telryn path.
-For the SQLite path, share the same export and archive of grades. The worked
+Run the SQLite commands from the [matching source checkout](weekly-qa.md#use-the-example-input-files) with the same export and archive of grades. The worked
 ledger carries five agreed returns, an independent conflicting read of R-091,
 and an adjudication of that dispute against the same evidence revisions.
 
 ```sh
 python3 -m examples.refunds.baseline
 python3 -m examples.refunds.baseline --ledger examples/refunds/review-ledger.json
-python3 -m telryn qualify --case handoff
+telryn qualify --case handoff
 ```
 
 The qualification case checks agreement before returns, after the five returns,
@@ -129,8 +129,8 @@ case, record its ID only after the lead confirms that it lost review under the
 candidate and was missing from the comparator’s findings.
 
 ```sh
-python3 -m telryn explain runs/qa/report.html --format json
-python3 -m telryn benchmark runs/qa/report.html runs/pilot-record.json
+telryn explain runs/qa/report.html --format json
+telryn benchmark runs/qa/report.html runs/pilot-record.json
 ```
 
 Use the report after grading in [the support QA walkthrough](support-qa.md)
@@ -248,11 +248,13 @@ Record first-week onboarding by team in minutes and include it once in each meth
 
 #### Run the local rehearsal
 
+The installed CLI prints both report paths when you run `telryn demo --complaints --out runs/complaints-pilot`. For the full comparison JSON and the Intercom ledger check, run these commands from the [matching source checkout](weekly-qa.md#use-the-example-input-files).
+
 ```sh
-python3 -m examples.complaints_pilot --out runs/complaints-pilot
+python3 -m examples.complaints_pilot --out runs/field-rehearsal > field-rehearsal.json
 python3 -m examples.complaints_pilot.intercom
 ```
 
-The first command runs two invented weeks with a capable saved SQL query and Telryn's weekly sample. Both see the same cutoff-limited register, owner actions, repeated contacts, consumer escalation, hardship and post-refund evidence. Four examples exercise complaints phrased without “complaint”. The deduplicated union receives two blind grades. Each dated directory contains one signed report and one grading packet. Terminal JSON records the actual frozen selections, staff time and owner outcomes. Preserve the JSON and team trust store to replay the assignments.
+The first command runs two invented weeks with a capable saved SQL query and Telryn's weekly sample. Both see the same cutoff-limited register, owner actions, repeated contacts, consumer escalation, hardship and post-refund evidence. Four examples exercise complaints phrased without “complaint”. The deduplicated union receives two blind grades. Each dated directory contains one signed report and one grading packet. `field-rehearsal.json` records the actual frozen selections, staff time and owner outcomes. Preserve the JSON and team trust store to replay the assignments.
 
 On the published first draw SQL found five accepted episodes in 125 stipulated staff minutes. Telryn found those five and one other in 131 minutes. Across all 1,350 permitted two-week selections on the fixture, SQL matches or beats Telryn on episode count 96% of the time. That calculation uses the staged acceptances only after the two shortlists are frozen. It describes sensitivity to sampling on this fixture. A field comparison must still establish customer effort, earlier action and willingness to pay. [Worked case, method and results](../examples/complaints_pilot/README.md)

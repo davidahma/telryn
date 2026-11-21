@@ -1,0 +1,15 @@
+name: Notify published release
+
+on:
+  release:
+    types: [published]
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Notify the publisher on the default branch
+        run: echo "Release published"
