@@ -465,9 +465,9 @@ def _render(state: dict, auth: dict) -> str:
         "<code>disposition</code>. Record an owner and action for each new finding. For other answers, use "
         "<code>none</code> for no and <code>unknown</code> for insufficient. Record total review minutes for the row. "
         "Leave unanswered rows blank. A partial return keeps all other rows open. To resolve an insufficient grade or unknown prior handling, use the same row and include all minutes spent on it.</p>"
-        "<p>Import the return with <code>python3 -m telryn weekly report.html --grades returned.csv</code>. "
+        "<p>Import the return with <code>telryn weekly report.html --grades returned.csv</code>. "
         "For the next primary reviewer, export the unanswered rows with "
-        "<code>python3 -m telryn weekly report.html --outstanding remaining.csv</code>.</p></section>"
+        "<code>telryn weekly report.html --outstanding remaining.csv</code>.</p></section>"
         '<section id="control-sample"><h2>Sampling and screen performance</h2><p>Cases were drawn without replacement within each group. '
         "Population estimates weight each grade by the inverse of its selection probability.</p>"
         + "".join(
@@ -642,24 +642,24 @@ def export_outstanding(report: Path, target: Path) -> dict:
     }
 
 
-def start(plan_path: Path, out_dir: Path) -> Path:
+def start(plan_path: Path, out_dir: Path, *, delivery_date: str | None = None) -> Path:
     if out_dir.exists() or out_dir.is_symlink():
         raise FileExistsError(f"output directory already exists: {out_dir}")
-    state = prepare(plan_path)
+    state = prepare(plan_path, delivery_date=delivery_date)
     state["publication_id"] = secrets.token_hex(16)
     with new_directory(out_dir) as staging:
-        # Publish the packet only after its signature and pack identity commit.
+        # Bind the policy version before exposing the signed report and packet.
         with audit_trust.registry() as (db, key):
             audit_trust.check_draw(db, key, state)
             audit_trust.bind_policy_versions(db, state)
-            data, signature = _signed(state, key, 1, None)
-            db.execute(
-                "INSERT INTO reports VALUES (?,1,?)",
-                (state["publication_id"], signature),
-            )
+            data, _ = _signed(state, key, 1, None)
             (staging / "report.html").write_bytes(data)
             (staging / "grades.csv").write_bytes(_packet_bytes(state))
-    return out_dir / "report.html"
+    report = out_dir / "report.html"
+    # A failed directory publication has no report head. If the process stops
+    # after rename, the first verified read registers the signed initial revision.
+    verified_snapshot(report)
+    return report
 
 
 def _answer(row: dict, state: dict) -> dict | None:

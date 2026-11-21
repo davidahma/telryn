@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -55,7 +56,7 @@ def _result_flags(parser: argparse.ArgumentParser, *, gate: bool = True) -> None
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="python3 -m telryn",
+        prog="telryn",
         description="Audit unreviewed support cases and replay changes to the QA queue.",
     )
     parser.add_argument("--version", action="version", version=__version__)
@@ -65,6 +66,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     week.add_argument(
         "source", type=Path, help="weekly TOML plan or the saved report.html"
+    )
+    week.add_argument(
+        "--delivery-date",
+        metavar="YYYY-MM-DD",
+        help="with --out, require the completed audit week before this UTC Monday",
     )
     action = week.add_mutually_exclusive_group()
     action.add_argument(
@@ -325,6 +331,8 @@ def pilot_benchmark(args: argparse.Namespace) -> int:
 
 
 def weekly_audit(args: argparse.Namespace) -> int:
+    if args.delivery_date is not None and args.out is None:
+        raise InputError("--delivery-date applies only to a new weekly run with --out")
     if (args.email_to is None) != (args.email_from is None):
         raise InputError("email delivery requires both --email-from and --email-to")
     if args.max_reserved is not None and not args.propose:
@@ -332,7 +340,7 @@ def weekly_audit(args: argparse.Namespace) -> int:
     path = args.source
     state = weekly_report.review_action(args)
     if args.out:
-        path = weekly_report.start(path, args.out)
+        path = weekly_report.start(path, args.out, delivery_date=args.delivery_date)
     elif args.outstanding is not None:
         export = weekly_report.export_outstanding(path, args.outstanding)
         print(
@@ -422,9 +430,17 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     from examples.complaints_pilot.__main__ import run
 
-                result = run(args.out or Path("runs/complaints-pilot"))
+                with audit_trust.rehearse() as store:
+                    result = run(args.out or Path("runs/complaints-pilot"))
                 for week in result["weeks"]:
                     print(terminal_text(week["report"]))
+                first = shlex.quote(str(Path(result["weeks"][0]["report"]).absolute()))
+                print("Verify the first week's report with the rehearsal trust store:")
+                print(
+                    terminal_text(
+                        f"TELRYN_TRUST_DIR={shlex.quote(str(store))} telryn weekly {first} --format json"
+                    )
+                )
                 return 0
             return _demo(args.out)
         if args.command == "preflight":

@@ -4,12 +4,14 @@ The QA owner initializes a private trust store before the first weekly draw. Its
 
 ```sh
 export TELRYN_TRUST_DIR=/path/to/private/team-telryn
-python3 -m telryn trust init
-python3 -m telryn trust status
-python3 -m telryn trust draws
+telryn trust init
+telryn trust status
+telryn trust draws
 ```
 
 Record the printed key ID in a separate, access-controlled team record before viewing assignments. Configure the same store for the CLI, browser desk and scheduled jobs. A first audit initializes the store automatically if one has not been provisioned. The default path is `~/.local/state/telryn/audit`. Only the owning OS account can read its key and database. Run the desk as the audit service account and give graders the blinded CSV and authorized evidence references. A human-readable reviewer name records the operator's attribution. The operator authenticates the reviewer in the team's normal QA system.
+
+The installed `telryn demo --complaints` keeps its synthetic draws and signing key in `~/.local/state/telryn/rehearsal`. Set `TELRYN_DEMO_TRUST_DIR` to choose another private rehearsal store. The command prints a verification command with `TELRYN_TRUST_DIR` scoped to the rehearsal read. To verify a rehearsal issued with v0.9.2 or the source example module, use the trust store active when you issued it.
 
 ## Repeat a week
 
@@ -19,12 +21,14 @@ Telryn commits each distinct design to the registry before selecting the sample.
 
 Starting the same design in another output directory creates a separately identified publication with the same sampled cases and a fresh blank grading packet. Give the team one authoritative publication for follow-up. Opening another publication cannot alter the committed sample or replace grades in the original. Copying an existing report retains its publication ID. Once either copy advances, the trust store rejects the older copy. Use the latest file for the next return. Telryn stages and syncs the new file, then commits its revision and a pending replacement record before installing it. From that commit onward, other copies of the old revision fail verification. Reading the original path finishes a pending replacement using its recorded digests.
 
+Initial issuance records the draw and policy version, publishes the report and packet together, then registers the first report revision. A failed publication leaves the report count unchanged. If issuance stops after the files appear, verifying the signed report completes registration.
+
 ## Verify, retain and share
 
 A version-2 weekly envelope authenticates all HTML bytes before the signature trailer, including the visible tables, evidence, publication ID, prior signature and revision number. Recomputing the embedded state or editing the displayed numbers invalidates the HMAC. The desk verifies the same bytes it serves and regenerates the download packet from authenticated evidence. To verify a file through the CLI, run:
 
 ```sh
-python3 -m telryn weekly runs/current/report.html --format json
+telryn weekly runs/current/report.html --format json
 ```
 
 A successful read checks both the team HMAC and the local registry's latest known revision. Opening the HTML directly uses the browser's ordinary file viewer. It does not verify either. An external recipient without the team secret can use the team's independently distributed authenticated file digest or signed release, if available. Giving someone an HMAC key gives them signing authority. Back up the entire owner-only store, including the key and registry, to an encrypted location controlled by the team. Stop writers while making a filesystem copy. On another trusted machine, restore the directory with its original permissions and point `TELRYN_TRUST_DIR` to it. Separate restored stores can know different latest revisions. Use one writer service for the team. Configure a new trust directory and record a new key ID when rotating a key. Keep the original store for reading old reports.
@@ -32,7 +36,7 @@ A successful read checks both the team HMAC and the local registry's latest know
 Version-1 weekly reports contain a checksum for accidental corruption. Read them with an explicit historical flag. They cannot be updated, used to propose a rule, or sent as a verified digest through the current CLI.
 
 ```sh
-python3 -m telryn weekly historical/report.html --legacy
+telryn weekly historical/report.html --legacy
 ```
 
 The signed file retains reviewer identities, reasons, findings and case references. The registry stores design fingerprints, dates and report-head signatures. Include them in the team's retention policy.
@@ -42,9 +46,9 @@ The signed file retains reviewer identities, reasons, findings and case referenc
 Keep the original blinded packet. Ask another reviewer to independently grade the disputed cases against the same evidence revision. Each reviewer returns their own copy. Specify identities on the first and second returns. The default first-review identity is the operating-system account if no name is supplied.
 
 ```sh
-python3 -m telryn weekly runs/current/report.html --grades first.csv --reviewer reviewer-a
-python3 -m telryn weekly runs/current/report.html --second-review independent.csv --reviewer reviewer-b
-python3 -m telryn weekly runs/current/report.html --format json
+telryn weekly runs/current/report.html --grades first.csv --reviewer reviewer-a
+telryn weekly runs/current/report.html --second-review independent.csv --reviewer reviewer-b
+telryn weekly runs/current/report.html --format json
 ```
 
 The report lists the original and second answers. A disagreement about severity leaves severity unresolved until adjudication. If both reviewers grade a case serious and disagree only about prior handling, the case still counts as confirmed serious. Its contribution to newly discovered findings ranges from zero to one. The case stays in the adjudication queue. When you open an older signed report with the current CLI, the summary applies the same distinction to its recorded votes. The original HTML retains the numbers shown at publication.
@@ -54,7 +58,7 @@ Agreement on severity is the number of first independent pairs with the same def
 An independent adjudicator selects the supported answer and records the reason and additional minutes. Copy the case and dispute ID from the report. For example:
 
 ```sh
-python3 -m telryn weekly runs/current/report.html \
+telryn weekly runs/current/report.html \
   --adjudicate CASE-123 --dispute "$DISPUTE_ID" --reviewer reviewer-c \
   --accept second --reason "The frozen handoff record confirms referral." --review-minutes 4
 ```

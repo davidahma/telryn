@@ -162,6 +162,31 @@ class TeamAudit(unittest.TestCase):
         self.assertEqual((self.trust / "audit.key").stat().st_mode & 0o777, 0o600)
         self.assertEqual(self.trust.stat().st_mode & 0o777, 0o700)
 
+    def test_initial_publication_failure_and_interrupted_registration(self):
+        target = self.root / "scheduled"
+
+        def heads():
+            with audit_trust.registry() as (db, _):
+                return db.execute("SELECT count(*) FROM reports").fetchone()[0]
+
+        baseline = heads()
+        with patch.object(Path, "rename", side_effect=OSError("disk full")):
+            with self.assertRaisesRegex(OSError, "disk full"):
+                start(self.plan, target)
+        self.assertFalse(target.exists())
+        self.assertEqual(heads(), baseline)
+
+        with patch(
+            "telryn.weekly_report.verified_snapshot", side_effect=InterruptedError
+        ):
+            with self.assertRaises(InterruptedError):
+                start(self.plan, target)
+        self.assertEqual(heads(), baseline)
+        report = target / "report.html"
+        self.assertEqual(verified_packet(report), (target / "grades.csv").read_bytes())
+        self.assertEqual(read_state(report)["week"], "2026-11-02")
+        self.assertEqual(heads(), baseline + 1)
+
     def test_old_readers_only_receive_reports_without_new_control_evidence(self):
         from telryn.weekly_report import _envelope, _report_schema
 

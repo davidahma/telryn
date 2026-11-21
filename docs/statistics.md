@@ -2,10 +2,10 @@
 
 Decide what precision would change a decision before a reviewer opens the first conversation. If a lead can afford 200 minutes at four minutes per case, that buys 50 grades. When serious failures are rare, the difference between zero and two findings can leave hundreds of cases in the weekly interval.
 
-Run a preview with the same population, ordinary-review ledger, rubric and group definitions you will use for the draw. This reads the source files and reports an allocation without selecting cases or writing a draw commitment.
+Run a preview with the same population, ordinary-review ledger, rubric and group definitions you will use for the draw. Run the command from the directory containing your weekly plan, or give its absolute path. It reads the source files and reports an allocation without selecting cases or writing a draw commitment.
 
 ```sh
-python3 -m telryn plan-week examples/fintech/week.toml \
+telryn plan-week week.toml \
   --minutes 24 --minutes-per-grade 4 --expected-rate 0.10 \
   --flagged-rate 0.25 --format json
 ```
@@ -30,7 +30,7 @@ A complaints lead might act if at least 25 of 5,000 conversations outside ordina
 In the desk, open **Decision this sample needs to support**. Enter the smallest count that would warrant action and the chance of detection you need. Reserve time for a second reviewer and for adjudication. The desk allocates the remaining minutes to first grades. The CLI accepts the same settings in a preview.
 
 ```sh
-python3 -m telryn plan-week week.toml --minutes 240 --minutes-per-grade 4 \
+telryn plan-week week.toml --minutes 240 --minutes-per-grade 4 \
   --second-review-minutes 30 --adjudication-minutes 10 \
   --detection-cases 25 --detection-target 0.95
 ```

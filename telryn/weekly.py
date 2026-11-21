@@ -47,16 +47,16 @@ def _field(value: object, label: str, *, optional: bool = False) -> str:
     return value
 
 
-def _week(value: object) -> str:
+def _week(value: object, label: str = "week") -> str:
     if type(value) is date:
         return value.isoformat()
-    value = _field(value, "week")
+    value = _field(value, label)
     try:
         parsed = date.fromisoformat(value)
     except ValueError as exc:
-        raise InputError("week must use YYYY-MM-DD") from exc
+        raise InputError(f"{label} must use YYYY-MM-DD") from exc
     if parsed.isoformat() != value:
-        raise InputError("week must use YYYY-MM-DD")
+        raise InputError(f"{label} must use YYYY-MM-DD")
     return value
 
 
@@ -282,12 +282,20 @@ def load_frame(plan_path: Path) -> Frame:
     return Frame(plan, week, meta, population, reviewed, pools, cells, dims)
 
 
-def prepare(plan_path: Path) -> dict:
+def prepare(plan_path: Path, *, delivery_date: str | None = None) -> dict:
     """Commit the sampling frame and frozen design, then issue the assignments."""
     from .audit_trust import committed_draw
     from .planning import allocate, design
 
     frame = load_frame(plan_path)
+    if delivery_date is not None:
+        delivery = date.fromisoformat(_week(delivery_date, "delivery date"))
+        if delivery.weekday() != 0:
+            raise InputError("scheduled delivery date must be a Monday in UTC")
+        if (delivery - date.fromisoformat(frame.week)).days != 7:
+            raise InputError(
+                f"plan week {frame.week} must start seven days before delivery {delivery}"
+            )
     plan, population, reviewed = frame.plan, frame.population, frame.reviewed
     meta = frame.meta.copy()
     if "planning" in plan:

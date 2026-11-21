@@ -46,7 +46,7 @@ The report shows `met`, `late`, `running`, `past_due_without_evidence` or `unres
 Run the changed policy against the team's weekly reports. Supply individual report paths or a directory tree of `report.html` files.
 
 ```sh
-python3 -m telryn policy-review inputs/policy-v2.json runs/
+telryn policy-review inputs/policy-v2.json runs/
 ```
 
 The JSON lists each affected week, path and changed clause. Telryn verifies each signed weekly report with the team trust store. It checks the saved clause contents, trigger, timezone, episode window and the holiday calendar used by business-day clocks. A newly applicable clause can affect an earlier week. Changing an unused clause leaves that week alone. Verified queue-comparison reports are listed separately. Unreadable directories or invalid evidence stop the scan. A directory scan stays inside the selected tree. Pass specific report paths for linked trees or reports stored elsewhere. A retry safely resumes reports already marked.

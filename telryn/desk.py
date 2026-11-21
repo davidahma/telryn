@@ -4,6 +4,7 @@ import csv
 import hmac
 import json
 import math
+import os
 import re
 import secrets
 import tempfile
@@ -176,14 +177,32 @@ class Desk:
     def __init__(self, root: Path):
         self.root = root
         self.runs = {}
-        if root.is_dir():
-            for directory in root.iterdir():
-                if (
-                    re.fullmatch("[a-f0-9]{24}", directory.name)
-                    and not directory.is_symlink()
-                    and directory.is_dir()
-                ):
-                    self.runs[directory.name] = directory / "report.html"
+        self._route_key = secrets.token_bytes(32)
+        self._discover()
+
+    def _discover(self) -> None:
+        if not self.root.is_dir():
+            return
+        for directory in self.root.iterdir():
+            if (
+                directory.name.startswith(".")
+                or directory.is_symlink()
+                or not directory.is_dir()
+            ):
+                continue
+            report = directory / "report.html"
+            if re.fullmatch("[a-f0-9]{24}", directory.name):
+                # Keep desk-issued routes, including entries awaiting recovery.
+                ident = directory.name
+            elif report.is_file() and not report.is_symlink():
+                # CLI output names can identify a customer or queue. Only the
+                # operator's chosen root is scanned; names never enter routes.
+                ident = hmac.digest(
+                    self._route_key, os.fsencode(directory.name), "sha256"
+                ).hex()[:32]
+            else:
+                continue
+            self.runs[ident] = report
 
     def review(self, ident: str) -> dict:
         state = weekly_report.read_state(self.report(ident))
@@ -196,6 +215,7 @@ class Desk:
         }
 
     def history(self) -> list[dict]:
+        self._discover()
         items = []
         for ident in list(self.runs):
             try:

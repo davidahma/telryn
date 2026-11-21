@@ -7,8 +7,8 @@ A payments complaints lead can check a sampled conversation against the register
 3. Attach the two dated exports to the signed weekly report. Start with a synthetic rehearsal or a queue the team has authorized.
 
 ```sh
-python3 -m telryn weekly runs/complaints/report.html --complaint-records inputs/records.json
-python3 -m telryn weekly runs/complaints/report.html --format json
+telryn weekly runs/complaints/report.html --complaint-records inputs/records.json
+telryn weekly runs/complaints/report.html --format json
 ```
 
 Open **Complaint registration and owner action** near the top of the report. Cases whose deadline has passed by follow-up and whose registration is still missing appear in three queues. A deadline can pass between the cutoff and follow-up. The statement includes those cases in open work while retaining the original estimate at cutoff. The first needs an owner to accept the work. The second has recorded acceptance. The third has recorded completion and a register discrepancy to reconcile. A fourth queue flags missing evidence. Expand a case to inspect the policy, conversation revision, source references and timestamps. The JSON response exposes the same lists under `complaints.worklist`.

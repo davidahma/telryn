@@ -4,6 +4,8 @@ The complaints lead chooses synthetic messages and a registration deadline for e
 
 ## Run the local rehearsal
 
+From the [matching source checkout](weekly-qa.md#use-the-example-input-files), run the synthetic agent and register together.
+
 ```sh
 python3 -m examples.agent_release
 ```
@@ -15,7 +17,7 @@ The first simulated prompt registers three of four complaints. It drops the cust
 Copy the [example suite](../examples/agent_release/suite.json). Pin the workspace and the revisions actually deployed for the agent (including its prompt), approved policy and handoff. Set each case's deadline in elapsed minutes after receipt. These short test deadlines measure the agent-to-register handoff. Use the weekly policy clocks for customer cases. Run the following as a blocking CI step on each change to those revisions.
 
 ```sh
-python3 -m telryn seed suite.json --run-id "$TRIAL_ID" \
+telryn seed suite.json --run-id "$TRIAL_ID" \
   --agent-adapter /opt/complaints/submit-test.py \
   --register-adapter /opt/complaints/read-test-register.py \
   --format json > release-receipt.json

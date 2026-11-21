@@ -5,7 +5,7 @@ Choose local Ollama or an approved cloud deployment when the evidence is convers
 ## Get the text for the frozen population
 
 ```sh
-python3 -m telryn integrations transcripts zendesk population.csv --out transcripts.jsonl
+telryn integrations transcripts zendesk population.csv --out transcripts.jsonl
 ```
 
 Use the credential and workspace that produced the [source population](integrations.md). The connector verifies each source ID and revision. For a completion cohort the reader checks the timestamp against the recorded completion cutoff for **every** case before fetching text. A ticket reopened on Friday cannot supply a transcript for its Monday completion. If any source revision is later than the cutoff, use the archived JSONL route below. The reader also stops on a changed revision, missing required text, failed page or recognized truncation.
@@ -37,7 +37,7 @@ For a structured fact CSV from a completion cohort, include the same per-case `a
 Start your locally administered Ollama daemon with local weights installed. Use the exact model tag shown by `ollama list`. Telryn connects directly to `127.0.0.1:11434` and checks the installed weights. Ollama supports disabling cloud features in the daemon's configuration. [Ollama chat API](https://docs.ollama.com/api/chat) · [Local-only configuration](https://docs.ollama.com/faq#how-do-i-disable-ollamas-cloud-features)
 
 ```sh
-python3 -m telryn screen transcripts.jsonl \
+telryn screen transcripts.jsonl \
   --model "$TELRYN_LOCAL_MODEL" --policy account-compromise \
   --policy-text approved-policy.txt --redact private-identifiers.txt \
   --workers 2 --checkpoint private-checkpoints/week45 --out runs/week45-screen
@@ -62,21 +62,21 @@ The complaints lead and cloud owner choose the deployment, credential, approved 
 ```
 
 ```sh
-python3 -m telryn screen transcripts.jsonl --model-endpoint azure.json \
+telryn screen transcripts.jsonl --model-endpoint azure.json \
   --model complaint-extractor --policy unlogged-complaint \
   --policy-text approved-policy.txt --redact private-identifiers.txt --out runs/azure-screen
 ```
 
 The request addresses the deployment name. Every reply must report the exact expected dated model, finish normally and contain the requested facts and valid passage numbers. A content refusal, truncated reply or revision mismatch stops publication. [Azure authentication and deployment names](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/chatgpt) · [Structured outputs and response model](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/structured-outputs)
 
-**Amazon Bedrock.** The signed container includes the SDK. For a new pipx installation use `pipx install 'telryn[bedrock]'`. To add the SDK to an existing install, use `pipx runpip telryn install 'telryn[bedrock]==0.9.2'` if the installed Telryn version is 0.9.2. For a source checkout, install `python3 -m pip install --only-binary=:all: --require-hashes -r requirements-bedrock.txt` in the environment used for Telryn. Supply the team's AWS role through the standard SDK credential chain. The role needs regional STS access and `bedrock:InvokeModel` permission scoped to the approved foundation model. Configure both regional STS and Bedrock Runtime private endpoints and DNS if the deployment requires private routing.
+**Amazon Bedrock.** The signed container includes the SDK. For a new pipx installation use `pipx install 'telryn[bedrock]'`. To add the SDK to an existing install, use `pipx runpip telryn install 'telryn[bedrock]==0.9.3'` if the installed Telryn version is 0.9.3. For a source checkout, install `python3 -m pip install --only-binary=:all: --require-hashes -r requirements-bedrock.txt` in the environment used for Telryn. Supply the team's AWS role through the standard SDK credential chain. The role needs regional STS access and `bedrock:InvokeModel` permission scoped to the approved foundation model. Configure both regional STS and Bedrock Runtime private endpoints and DNS if the deployment requires private routing.
 
 ```json
 {"schema":1,"provider":"bedrock","account_id":"123456789012","region":"us-east-1"}
 ```
 
 ```sh
-python3 -m telryn screen transcripts.jsonl --model-endpoint bedrock.json \
+telryn screen transcripts.jsonl --model-endpoint bedrock.json \
   --model amazon.nova-lite-v1:0 --policy unlogged-complaint \
   --policy-text approved-policy.txt --redact private-identifiers.txt --out runs/bedrock-screen
 ```
@@ -100,8 +100,8 @@ The population and signals files preserve the source identifiers verbatim for ma
 With an upstream export of the eight policy facts, Telryn evaluates the rule directly. No model server or transcript is required.
 
 ```sh
-python3 -m telryn screen examples/fintech/signals.csv \
+telryn screen signals.csv \
   --policy account-compromise --out runs/fintech-events
 ```
 
-The [synthetic transcript pair](../examples/fintech/transcripts.jsonl) includes one case closed without a fraud referral and one with a documented referral. It can exercise the local model and citation path without customer data. Two examples cannot establish accuracy on a production support queue.
+For the [matching source checkout](weekly-qa.md#use-the-example-input-files), the event file is `examples/fintech/signals.csv`. The [synthetic transcript pair](../examples/fintech/transcripts.jsonl) includes one case closed without a fraud referral and one with a documented referral. It can exercise the local model and citation path without customer data. Two examples cannot establish accuracy on a production support queue.
