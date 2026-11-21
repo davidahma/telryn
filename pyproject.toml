@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "telryn"
+dynamic = ["version"]
+description = "Audit how lenders and payments teams handle complaints across human and AI support."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = []
+classifiers = [
+    "Environment :: Console",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
+]
+
+[project.optional-dependencies]
+bedrock = ["boto3==1.44.9"]
+
+[project.scripts]
+telryn = "telryn.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/davidahma/telryn"
+Documentation = "https://github.com/davidahma/telryn/blob/main/docs/weekly-qa.md"
+Issues = "https://github.com/davidahma/telryn/issues"
+Releases = "https://github.com/davidahma/telryn/releases"
+
+[tool.hatch.version]
+path = "telryn/__init__.py"
+
+[tool.hatch.build.targets.sdist]
+include = ["/telryn", "/examples", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
+
+[tool.hatch.build.targets.wheel]
+only-include = ["telryn", "examples", "tests"]
+
+[tool.hatch.build.targets.wheel.sources]
+"examples" = "telryn/_bundled/examples"
+"tests" = "telryn/_bundled/tests"

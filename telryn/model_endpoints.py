@@ -120,7 +120,7 @@ def _aws_clients(region):
         from botocore.exceptions import BotoCoreError, ClientError
     except ImportError as exc:
         raise InputError(
-            "Bedrock requires the AWS SDK from requirements-bedrock.txt"
+            "Bedrock requires the telryn[bedrock] extra or the SDK in requirements-bedrock.txt"
         ) from exc
     errors = (BotoCoreError, ClientError)
     try:
