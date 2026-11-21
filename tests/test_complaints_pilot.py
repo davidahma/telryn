@@ -1,8 +1,11 @@
 """Verify the synthetic comparison through the ordinary signed weekly report."""
 
 import io
+import json
 import os
+import shutil
 import tempfile
+import tomllib
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -55,6 +58,9 @@ class ComplaintsPilot(unittest.TestCase):
             root = Path(tmp)
             isolate_trust(self, root)
             result = pilot.run(root / "trial")
+            self.assertEqual(
+                json.loads((root / "trial/comparison.json").read_text()), result
+            )
             self.assertEqual(result["evidence"], "synthetic")
             self.assertEqual(result["week_two_help_minutes"], 3)
             self.assertTrue(result["within_predeclared_help_limit"])
@@ -197,6 +203,9 @@ class ComplaintsPilot(unittest.TestCase):
         self.assertNotIn("C207", {c["case_id"] for c in history})
         repeat = signals.prior_related(cases["C108"], history, 90)
         self.assertEqual([c["case_id"] for c in repeat], ["FIN-42", "CALL-42"])
+        closing = {**cases["C108"], "closed_at": "2026-10-06T14:00:00.000000002Z"}
+        earlier = {**repeat[0], "contact_at": "2026-10-06T14:00:00.000000001Z"}
+        self.assertEqual(signals.prior_related(closing, [earlier], 90), [earlier])
         self.assertEqual(signals.prior_related(cases["C109"], history, 90), [])
         examples = {
             "C108": "prior_contact_about_same_payment",
@@ -230,3 +239,144 @@ class ComplaintsPilot(unittest.TestCase):
                 "unique": 2,
             },
         )
+
+    def test_both_weeks_reject_conflicting_owner_history_and_credit_linked_contacts(
+        self,
+    ):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            isolate_trust(self, root)
+            fixture = root / "fixture"
+            shutil.copytree(pilot.FIXTURE, fixture)
+            with (fixture / "owner-events.csv").open("a") as log:
+                log.write(
+                    "C102,A99,requested,Other team,2026-10-12T15:00:00Z,follow-up/A99\n"
+                    "C103,A98,requested,Other team,2026-10-12T07:00:00Z,follow-up/A98\n"
+                    "FIN-42,A96,accepted,Case manager,2026-10-12T12:10:00Z,follow-up/A96\n"
+                    "C108,A97,completed,Registration team,2026-10-13T12:00:00Z,actions/A97\n"
+                )
+            with (fixture / "owner-episodes.csv").open("a") as index:
+                index.write("A96,FIN-42,P-LINKED\nA97,C108,P-LINKED\n")
+            with patch.object(pilot, "FIXTURE", fixture):
+                result = pilot.run(root / "trial")
+                first = result["weeks"][0]
+                self.assertEqual(first["unresolved_owner_evidence"], ["C102"])
+                self.assertEqual(
+                    first["methods"]["native"]["owner_accepted_new"],
+                    ["P-019", "P-LINKED"],
+                )
+                linked = first["observed_owner_actions"]["C108"]
+                self.assertEqual(linked["acceptance_owner"], "Case manager")
+                self.assertEqual(linked["completion_owner"], "Registration team")
+                self.assertEqual(linked["action_ref"], "actions/A97")
+
+                week = first["week"]
+                protocol = tomllib.loads((fixture / "protocol.toml").read_text())
+                population = pilot.read_csv(fixture / "conversations.csv")
+                answers = {
+                    r["case_id"]: r for r in pilot.read_csv(fixture / "answers.csv")
+                }
+                history = pilot.visible_contacts(population, pilot.source_cutoff(week))
+                self.assertEqual(
+                    pilot.fixture_acceptances(
+                        root / "check",
+                        week,
+                        protocol,
+                        [c for c in population if c["week"] == week],
+                        history,
+                        answers,
+                    ),
+                    {"C109": "P-019", "C108": "P-LINKED"},
+                )
+
+    def test_terminal_comparison_failure_leaves_no_published_rehearsal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            isolate_trust(self, root)
+            with patch.object(
+                pilot, "two_week_result", side_effect=InputError("time ledger mismatch")
+            ):
+                with self.assertRaisesRegex(InputError, "time ledger mismatch"):
+                    pilot.run(root / "trial")
+            self.assertFalse((root / "trial").exists())
+
+    def test_cutoff_hides_future_passages_and_events_from_the_frozen_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = Path(tmp) / "fixture"
+            shutil.copytree(pilot.FIXTURE, fixture)
+            with patch.object(pilot, "FIXTURE", fixture):
+                population = pilot.read_csv(fixture / "conversations.csv")
+                cutoff = pilot.source_cutoff("2026-10-05")
+                first = pilot.visible_contacts(population, cutoff)
+                archive = fixture / "prior-contacts.json"
+                source = json.loads(archive.read_text())
+                contact = source["contacts"][0]
+                later = "2026-10-12T08:00:00.000000001Z"
+                contact["passages"].append({"at": later, "text": "Later callback"})
+                contact["events"].append(
+                    {"event": "response", "passage": 3, "quote": "Later callback"}
+                )
+                archive.write_text(json.dumps(source))
+                self.assertEqual(pilot.visible_contacts(population, cutoff), first)
+                current = pilot.visible_contacts(
+                    population, pilot.source_cutoff("2026-10-12")
+                )
+                self.assertEqual(current[0]["passages"][-1]["at"], later)
+                self.assertEqual(current[0]["events"][-1]["passage"], 3)
+
+    def test_header_only_register_and_owner_exports_retain_their_coverage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            isolate_trust(self, root)
+            fixture = root / "fixture"
+            shutil.copytree(pilot.FIXTURE, fixture)
+            for name in ("register.csv", "owner-events.csv"):
+                path = fixture / name
+                path.write_text(path.read_text().splitlines()[0] + "\n")
+            with patch.object(pilot, "FIXTURE", fixture):
+                result = pilot.run(root / "trial")
+            self.assertEqual(result["two_week_owner_accepted"]["unique"], 0)
+            self.assertIn("C102", result["weeks"][0]["new_awaiting_owner_acceptance"])
+            self.assertTrue(
+                all(not w["observed_owner_actions"] for w in result["weeks"])
+            )
+
+    def test_acceptance_one_nanosecond_after_cutoff_counts_only_at_followup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            isolate_trust(self, root)
+            fixture = root / "fixture"
+            shutil.copytree(pilot.FIXTURE, fixture)
+            log = fixture / "owner-events.csv"
+            acceptance = "2026-10-12T08:00:00.000000001Z"
+            log.write_text(
+                log.read_text().replace(
+                    "2026-10-12T11:00:00Z,owner-cases/P-012",
+                    acceptance + ",owner-cases/P-012",
+                )
+            )
+            with patch.object(pilot, "FIXTURE", fixture):
+                result = pilot.run(root / "trial")
+            week = result["weeks"][0]
+            state = weekly_report.read_state(Path(week["report"]))
+            case = next(
+                c
+                for c in pilot.complaints.reconcile(state)["cases"]
+                if c["case_id"] == "C102"
+            )
+            self.assertEqual(case["owner_at_cutoff"], "unobserved")
+            self.assertEqual(case["actions"][0]["recorded_at"], acceptance)
+            self.assertIn("P-012", week["methods"]["native"]["owner_accepted_new"])
+            self.assertAlmostEqual(
+                week["observed_owner_actions"]["C102"][
+                    "minutes_to_owner_acceptance_from_cutoff"
+                ],
+                1e-9 / 60,
+                delta=1e-20,
+            )
+            self.assertEqual(
+                result["fixture_selection_sensitivity"][
+                    "owner_accepted_episodes_vs_fixed_sql"
+                ],
+                {"equal": 324, "fewer": 972, "more": 54},
+            )

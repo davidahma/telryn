@@ -332,7 +332,10 @@ def _coverage_lines(state: dict) -> list[str]:
 
 def _report_schema(state):
     records = state.get("complaint_records", {})
-    issued_policy = records.get("snapshot", {}).get("episodes", {}).get("policy", {})
+    snapshot = records.get("snapshot", {})
+    if any("source_citation" in case for case in snapshot.get("cases", {}).values()):
+        return 5
+    issued_policy = snapshot.get("episodes", {}).get("policy", {})
     if (
         "policy_pack" in state
         or "business_weekdays" in issued_policy
@@ -527,7 +530,12 @@ def _verify_signed(raw, db, key):
             "weekly report signature does not match the team's local key or report bytes"
         )
     envelope = _envelope(data)
-    if type(envelope.get("schema")) is not int or envelope["schema"] not in (2, 3, 4):
+    if type(envelope.get("schema")) is not int or envelope["schema"] not in (
+        2,
+        3,
+        4,
+        5,
+    ):
         raise InputError("unrecognized signed weekly report version")
     state = versioned(envelope.get("state"), "weekly evidence")
     auth = envelope["auth"]

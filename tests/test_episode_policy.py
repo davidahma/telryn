@@ -140,6 +140,45 @@ class EpisodeTests(unittest.TestCase):
         )
         self.assertEqual((item["owner"], item["review_date"]), ("owner", "2026-11-11"))
 
+    def test_owner_event_predating_its_source_contact_requires_reconciliation(self):
+        self.f.register = []
+        accepted = self.f.event("C1", "A1", "accepted", self.contacts[0]["contact_at"])
+        impossible = self.f.event("phone", "A2", "completed", "2026-11-09T09:00:00Z")
+        self.f.actions = [accepted, impossible]
+        result, rows = self.attach()
+        row = rows["C1"]
+        self.assertEqual(row["owner_at_cutoff"], "accepted")
+        self.assertEqual(row["owner_as_of"], "unresolved")
+        self.assertEqual(row["follow_up"], "verify_owner_work")
+        self.assertIn("C1", result["worklist"]["unresolved"])
+        self.assertEqual(row["actions"], [accepted, impossible])
+
+    def test_two_sources_for_the_same_contact_must_agree_on_when_it_opened(self):
+        source = self.contacts[0]
+        citation = {
+            "revision": source["revision"],
+            "evidence_ref": source["evidence_ref"],
+            "passage": 1,
+            "quote": source["events"][0]["quote"],
+            "passages": source["passages"],
+            "contact_at": "2026-09-01T10:00:00Z",
+        }
+        self.f.manifest["cases"][0]["source_citation"] = citation
+        with self.assertRaisesRegex(InputError, "disagree on the contact opening"):
+            self.attach()
+        del citation["contact_at"]
+        citation["passages"] = [
+            {"at": "2026-09-01T10:00:00Z", "text": citation["quote"]}
+        ]
+        with self.assertRaisesRegex(InputError, "predates the linked contact opening"):
+            self.attach()
+        citation["passages"] = source["passages"]
+        citation["contact_at"] = source["contact_at"]
+        _, rows = self.attach()
+        self.assertEqual(
+            rows["C1"]["source_citation"]["contact_at"], source["contact_at"]
+        )
+
     def test_later_phone_closes_episode_without_rewriting_cutoff(self):
         packet = self.f.packet.read_bytes()
         _, rows = self.attach()

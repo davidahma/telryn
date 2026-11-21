@@ -137,6 +137,12 @@ def _parser() -> argparse.ArgumentParser:
         "--complaints", action="store_true", help="rehearse two weeks of complaints QA"
     )
     demo.add_argument(
+        "--format",
+        choices=("text", "json"),
+        default="text",
+        help="with --complaints, print the summary or the full comparison JSON",
+    )
+    demo.add_argument(
         "--out",
         type=Path,
         help="new output directory for the demo",
@@ -430,10 +436,37 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     from examples.complaints_pilot.__main__ import run
 
+                out = args.out or Path("runs/complaints-pilot")
                 with audit_trust.rehearse() as store:
-                    result = run(args.out or Path("runs/complaints-pilot"))
+                    result = run(out)
+                if args.format == "json":
+                    print(canonical(result))
+                    return 0
+                print("Two-week complaints rehearsal (synthetic)")
                 for week in result["weeks"]:
+                    print(f"Week of {week['week']}")
+                    for method, label in (
+                        ("native", "Saved SQL search"),
+                        ("telryn", "Telryn"),
+                    ):
+                        totals = week["methods"][method]
+                        print(
+                            f"  {label}: {len(totals['owner_accepted_new'])} owner-accepted episodes, "
+                            f"{totals['total_staff_minutes']} staff minutes"
+                        )
                     print(terminal_text(week["report"]))
+                overlap = result["two_week_owner_accepted"]
+                print(
+                    f"Two-week overlap: {len(overlap['both'])} shared, "
+                    f"{len(overlap['native_only'])} SQL only, {len(overlap['telryn_only'])} Telryn only."
+                )
+                print(
+                    f"Staged week-two operator help: {result['week_two_help_minutes']} minutes."
+                )
+                print(
+                    "Selections, time ledger and source references:",
+                    terminal_text(out / "comparison.json"),
+                )
                 first = shlex.quote(str(Path(result["weeks"][0]["report"]).absolute()))
                 print("Verify the first week's report with the rehearsal trust store:")
                 print(
@@ -442,6 +475,8 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 )
                 return 0
+            if args.format == "json":
+                raise InputError("demo --format json requires --complaints")
             return _demo(args.out)
         if args.command == "preflight":
             return preflight(args)

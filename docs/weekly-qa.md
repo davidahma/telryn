@@ -160,7 +160,7 @@ Run the guide's example commands from here. For the policy pack walkthrough, `ex
 
 ## Schedule a weekly run
 
-On Linux or macOS install the CLI with `pipx install telryn` using CPython 3.12–3.15 with SQLite. Run `command -v telryn` as the account that will own the audits. Record that absolute executable path in the scheduler. To pin an approved version, use `pipx install 'telryn==0.9.3'` in a fresh environment. Use `pipx upgrade telryn` when the team approves a newer release.
+On Linux or macOS install the CLI with `pipx install telryn` using CPython 3.12–3.15 with SQLite. Run `command -v telryn` as the account that will own the audits. Record that absolute executable path in the scheduler. To pin an approved version, use `pipx install 'telryn==0.9.4'` in a fresh environment. Use `pipx upgrade telryn` when the team approves a newer release.
 
 In this cron example the export job delivers a directory every Monday, named by **delivery date in UTC**. Each directory contains a plan for the completed audit week, its frozen population and its review ledger. Use paths relative to the plan for those inputs. Set up the inbox and output parent under the audit account, then save this script at `/srv/telryn/run-weekly.sh`. Replace the executable and storage paths with the ones on your host.
 

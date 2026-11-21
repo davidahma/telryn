@@ -80,6 +80,9 @@ def main(version):
         before = [path.read_bytes() for path in team_files]
         guidance = run("demo", "--complaints", "--out", "complaints")
         assert "TELRYN_TRUST_DIR=" in guidance and str(demo_store) in guidance
+        comparison = json.loads((work / "complaints/comparison.json").read_text())
+        assert "comparison.json" in guidance and comparison["evidence"] == "synthetic"
+        assert comparison["week_two_help_minutes"] == 3
         assert [path.read_bytes() for path in team_files] == before
         demo_report = work / "complaints/2026-10-05/report.html"
         assert "C108" in demo_report.read_text(encoding="utf-8")
@@ -87,6 +90,58 @@ def main(version):
             run("weekly", demo_report, "--format", "json", trust=demo_store)
         )
         assert demo_state["verification"] == "team_hmac_verified"
+        for week, case_id, acceptance, completion, entry in (
+            (comparison["weeks"][0], "C102", "A12", "A13", "R12"),
+            (comparison["weeks"][1], "C204", "A24", "A25", "R24"),
+        ):
+            verified = json.loads(
+                run("weekly", week["report"], "--format", "json", trust=demo_store)
+            )
+            assert verified["verification"] == "team_hmac_verified"
+            case = next(
+                c for c in verified["complaints"]["cases"] if c["case_id"] == case_id
+            )
+            quote = (
+                "Please open a complaint about this duplicate charge."
+                if case_id == "C102"
+                else "I want to make a complaint about your service."
+            )
+            cited = case["source_citation"]
+            assert cited["quote"] == quote and cited["passage"] == 1
+            assert (cited["evidence_ref"], cited["revision"]) == (
+                f"conversations/{case_id}",
+                "v1",
+            )
+            with (
+                installed / "_bundled/examples/complaints_pilot/conversations.csv"
+            ).open(newline="") as source:
+                contact = next(
+                    r for r in csv.DictReader(source) if r["case_id"] == case_id
+                )
+            assert cited["at"] == contact["message_at"] and contact["message"] == quote
+            assert "complaint" in case["classification_reason"]
+            assert (
+                case["registration_at_cutoff"] == "missing"
+                and case["owner_at_cutoff"] == "unobserved"
+            )
+            assert (
+                case["registration_as_of"] == "registered"
+                and case["owner_as_of"] == "completed"
+            )
+            assert [(a["action_id"], a["status"]) for a in case["actions"]] == [
+                (acceptance, "accepted"),
+                (completion, "completed"),
+            ]
+            assert [r["entry_id"] for r in case["register_entries"]] == [entry]
+        exported = json.loads(
+            run("demo", "--complaints", "--out", "second-trial", "--format", "json")
+        )
+        assert exported == json.loads(
+            (work / "second-trial/comparison.json").read_text()
+        )
+        assert [w["commitment"] for w in exported["weeks"]] == [
+            w["commitment"] for w in comparison["weeks"]
+        ]
         assert json.loads(run("weekly", report, "--format", "json")) == state
         run("qualify")
         with subprocess.Popen(

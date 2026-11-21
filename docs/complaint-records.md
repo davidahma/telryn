@@ -51,6 +51,24 @@ Use the exact control-profile scope on the register manifest so the lead can ver
 
 The audit `cutoff` sets the historical question. `as_of` is the latest observation time. Each export's `complete_through` is the source owner's attestation that it covers **all relevant history in this scope** through that inclusive instant, including records created before the reporting week, superseded entries and any other identifiers the queue used. For the register, this includes verifying that each supplied key uniquely identifies this case throughout the scope. A current snapshot can establish the existence of a recorded event with reliable historical provenance. If it cannot establish absence, set `complete_through` to `null`. An empty export with unknown coverage cannot establish a miss. For incomplete matching, use `null` for the match key or deadline as appropriate. A sampled case omitted from the manifest stays visible with unresolved evidence.
 
+To show why a reviewer classified a conversation as a complaint, add an optional `source_citation` to its case. Supply the same source reference and revision as the grading packet. Number the redacted source passages from one. Include `contact_at` if the export identifies when this conversation opened. The opening can precede the cited message. The example below cites the second passage.
+
+```json
+{
+  "evidence_ref": "conversations/C017/v3",
+  "revision": "close-v3",
+  "contact_at": "2026-11-05T09:10:00Z",
+  "passages": [
+    {"at": "2026-11-05T09:11:00Z", "text": "I see two debits."},
+    {"at": "2026-11-05T09:12:00Z", "text": "Please open a complaint about the second charge."}
+  ],
+  "passage": 2,
+  "quote": "Please open a complaint about the second charge."
+}
+```
+
+Telryn checks the quote against the specified passage and its date against the audit cutoff and any recorded closure. The lead’s signed report retains the quote, its date, passage number, source reference and revision. The other source text stays out of the report. The blind packet keeps its original fields. Keep the cited revision available to the second reviewer and carry the same citation into follow-up manifests.
+
 The register CSV contains one row per immutable entry. Use the authoritative time at which the entry was first available in the register. An effective date entered retrospectively can give the wrong historical answer.
 
 ```csv
@@ -58,7 +76,7 @@ match_key,entry_id,recorded_at,evidence_ref
 cards/C017,R900,2026-11-10T10:21:00Z,register/R900/rev1
 ```
 
-The owner CSV records events from the authoritative case-level work history. Use one immutable event ID per row. `requested` records a referral, `accepted` records the owner's acceptance, and `completed` records observed completion. Include a stable source reference that a second reviewer can reopen. If the workflow has concurrent tasks or the event history lacks a reliable completed-work status, supply an incomplete work export and inspect the events directly.
+The owner CSV records events from the authoritative case-level work history. Use one immutable event ID per row. `requested` records a referral, `accepted` records the owner's acceptance, and `completed` records observed completion. Include a stable source reference that a second reviewer can reopen. For a linked episode, use the ID of the contact that generated each work record. An event dated before that contact began leaves ownership unresolved. If the workflow has concurrent tasks or the event history lacks a reliable completed-work status, supply an incomplete work export and inspect the events directly.
 
 ```csv
 case_id,action_id,status,owner,recorded_at,evidence_ref
@@ -78,10 +96,10 @@ With a positive policy grade and complete coverage as declared, C017 was missing
 | No matching entry by cutoff | Missing only when the deadline has passed, coverage reaches cutoff and the key is reliable. |
 | Missing key, shared key, or multiple candidate records visible at cutoff | Unresolved. The report exposes the match status and the dated evidence available for review. |
 | Deadline after cutoff, with a reliable key and no entry observed yet | The case was not yet due. A unique entry already visible by cutoff counts as on time, even if the deadline is later. |
-| Owner history | A referral alone shows requested work. Incomplete coverage, simultaneous conflicting statuses and apparent regressions such as a new request after completion leave current ownership unresolved. Individual events remain visible. |
+| Owner history | A referral records a request. Incomplete coverage, simultaneous events with different owners or statuses, and a new request after completion leave current ownership unresolved. The open-work table assigns the evidence check to the control profile’s gap owner. Earlier acceptances and completions remain visible with their source references. |
 
-The raw exports can include records for other cases. The private report retains the bytes' SHA-256 digests and the projected records relevant to the sample. Each file and the manifest may be up to 32 MiB. Preserve the source files and scope attestation under the same retention policy as the report. The signature authenticates the team’s saved record. The source owner is responsible for export completeness and record provenance.
+The register and owner-action exports can include records for other cases. The private report retains each CSV file’s SHA-256 digest and the rows relevant to the sample. Each file and the manifest may be up to 32 MiB. Preserve the source files and scope attestation under the same retention policy as the report. The signature authenticates the team’s saved record. The source owner is responsible for export completeness and record provenance.
 
 A later follow-up uses the same command. Set `previous_receipt` in the new manifest to the current `complaints.receipt` from the JSON result. Keep the cutoff, scope, known case mappings and earlier events. You can fill a deadline or key previously marked unknown. Extend `as_of` and the coverage times as records become available. A new mapping cannot invalidate another case’s previously unambiguous register match at the issued horizon. Changed or removed historical entries, or a backfill that contradicts an earlier completeness attestation, require an investigation and a fresh audit. An identical retry preserves the report revision. Each accepted change advances the signed report and requires a new current proposal for a future shadow decision.
 
-Use v0.8.0 or later to update a report with a control profile or linked episodes. An older manual-deadline complaints attachment needs v0.7.0 or later. Grading continues with the original blind packet. Register evidence stays in the lead’s report. The weekly population estimates continue to use the human votes. A register match or proposed work item leaves those votes intact. The observed case queues describe the sample. Customer adoption, payment and effort saved require field evidence.
+Use v0.9.4 or later for reports with a case-level source citation. Reports with a control profile or linked episodes require at least v0.8.0, and an older manual-deadline attachment requires v0.7.0. Grading continues with the original blind packet. Register evidence stays in the lead’s report. The weekly population estimates continue to use the human votes. A register match or proposed work item leaves those votes intact. The observed case queues describe the sample. Customer adoption, payment and effort saved require field evidence.
