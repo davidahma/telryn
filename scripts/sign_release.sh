@@ -3,6 +3,12 @@
 set -euo pipefail
 export GH_REPO="$GITHUB_REPOSITORY"
 version=${TAG#v}
+tools_dir=$(cd "$(dirname "$0")" && pwd)
+test "$(git rev-parse HEAD)" = "$COMMIT"
+# GitHub intentionally hides draft releases from read-only workflow tokens.
+# Check the draft with the publisher credential before building or writing anything.
+gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,targetCommitish |
+  jq -e --arg sha "$COMMIT" '.isDraft and .targetCommitish == $sha'
 image="ghcr.io/${GITHUB_REPOSITORY,,}"
 identity="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/.github/workflows/release-container.yml@refs/heads/main"
 issuer="https://token.actions.githubusercontent.com"
@@ -14,7 +20,7 @@ mkdir "$out" "$work/layout"
 source_name="telryn-$version.tar.gz"
 archive_name="telryn-$version.oci.tar"
 gh release download "$TAG" --dir "$out" -p "$source_name"
-python scripts/release_artifacts.py source "$out/$source_name" "$TAG" "$COMMIT"
+python "$tools_dir/release_artifacts.py" source "$out/$source_name" "$TAG" "$COMMIT"
 # Produce both HTML assets from this checkout. Only the reports leave this runner;
 # the private demo trust store and grading packets stay in the temporary workspace.
 export TELRYN_TRUST_DIR="$work/demo-trust"
@@ -34,7 +40,7 @@ docker buildx build --platform linux/amd64,linux/arm64 --provenance=false --sbom
   --build-arg "REVISION=$COMMIT" -t "$image:$TAG" \
   --output "type=oci,dest=$out/$archive_name" .
 tar -xf "$out/$archive_name" -C "$work/layout"
-python scripts/release_artifacts.py inventory "$work/layout" "$image" "$TAG" "$COMMIT" "$out/image-digests.json"
+python "$tools_dir/release_artifacts.py" inventory "$work/layout" "$image" "$TAG" "$COMMIT" "$out/image-digests.json"
 skopeo copy --all --preserve-digests --authfile "$HOME/.docker/config.json" \
   "oci-archive:$out/$archive_name" "docker://$image:$TAG"
 digest=$(jq -r '.digest' "$out/image-digests.json")
