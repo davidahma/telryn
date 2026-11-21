@@ -1,6 +1,7 @@
 """Exercise the desk in installed Google Chrome with the optional Playwright test driver."""
 
 import csv
+import json
 import os
 import subprocess
 import sys
@@ -15,6 +16,107 @@ def write_return(path, rows):
         writer = csv.DictWriter(file, rows[0].keys())
         writer.writeheader()
         writer.writerows(rows)
+
+
+def complaint_control_flow(page, root):
+    # Three people use the same blind packet and adjudicate a category-only change.
+    form = page.locator("#intake")
+    for name, value in {
+        "week": "2026-11-09",
+        "rubric": "P1",
+        "rubric_question": "Is this a complaint?",
+        "screen_version": "none",
+        "expected_rate": "10",
+        "minutes": "5",
+        "minutes_per_grade": "5",
+    }.items():
+        form.locator(f"[name={name}]").fill(value)
+    control = {
+        "schema": 1,
+        "scope": "Example payments queue",
+        "categories": ["service", "harm"],
+        "gap_owner": "Complaints lead",
+        "gap_review_date": "2026-11-20",
+        "onboarding_minutes": 10,
+        "channels": [
+            {
+                "name": "chat",
+                "coverage": "covered",
+                "ordinary_qa": "weekly",
+                "register_link": "case reference",
+                "retention": "90 days",
+                "owner": "Support ops",
+                "review_date": "2026-11-20",
+            }
+        ],
+    }
+    for name, text in {
+        "control": json.dumps(control),
+        "population": "case_id,revision,evidence_ref,screen_flag\nc1,v1,fixture/1,0\n",
+        "reviewed": "case_id\n",
+    }.items():
+        filename = name + (".json" if name == "control" else ".csv")
+        form.locator(f"[name={name}]").set_input_files(
+            {"name": filename, "mimeType": "text/plain", "buffer": text.encode()}
+        )
+    page.locator("#create").click()
+    expect(page.locator("#message")).to_contain_text("Audit ready")
+    with page.expect_download() as download:
+        page.locator("#packet").click()
+    packet = root / "complaints.csv"
+    download.value.save_as(packet)
+    with packet.open(encoding="utf-8-sig", newline="") as src:
+        row = next(csv.DictReader(src))
+    assert (
+        json.loads(row["category_options"]) == ["service", "harm"]
+        and "screen_flag" not in row
+    )
+    for stage, reviewer, category, reason in (
+        ("grades", "first", "harm", "Clause two"),
+        ("second-review", "second", "service", "Clause one"),
+    ):
+        write_return(
+            packet,
+            [
+                {
+                    **row,
+                    "serious": "yes",
+                    "disposition": "unknown",
+                    "minutes": "5",
+                    "category": category,
+                    "vulnerability": "unknown",
+                    "redress": "completed",
+                    "classification_reason": reason,
+                }
+            ],
+        )
+        page.locator("#grade [name=round]").select_option(stage)
+        page.locator("#grade [name=reviewer]").fill(reviewer)
+        page.locator("#grade [name=grades]").set_input_files(packet)
+        with page.expect_response("**/" + stage):
+            page.locator("#grade button").click()
+        expect(page.locator("#grade button")).to_be_enabled()
+    resolution = page.locator("#resolution")
+    expect(resolution.locator("#answers")).to_contain_text("category harm")
+    expect(resolution.locator("#answers")).to_contain_text("Clause one")
+    for name, value in (
+        ("reviewer", "third"),
+        ("minutes", "1"),
+        ("reason", "Second clause concerns a different product"),
+    ):
+        resolution.locator(f"[name={name}]").fill(value)
+    resolution.locator("[name=choice]").select_option("second")
+    resolution.locator("button").click()
+    expect(resolution).to_be_hidden()
+    with page.expect_popup() as report:
+        page.locator("#report").click()
+    expect(report.value.get_by_role("heading", level=1)).to_have_text(
+        "Weekly complaints control statement"
+    )
+    expect(report.value.locator("#control-inventory")).to_contain_text("Support ops")
+    expect(
+        report.value.get_by_text("Category downgrade requested.", exact=False).first
+    ).to_be_visible()
 
 
 def run(root: Path):
@@ -207,6 +309,8 @@ def run(root: Path):
             expect(page.locator("#history li")).to_contain_text("Unavailable audit")
             expect(page.locator("#history a")).to_have_count(0)
             expect(page.locator("#current")).to_be_hidden()
+            page.unroute("**/adjudicate", navigate_during_save)
+            complaint_control_flow(page, root)
             browser.close()
     finally:
         server.terminate()

@@ -3,10 +3,11 @@
 import csv
 import hashlib
 import io
-from collections import Counter, defaultdict
+from collections import defaultdict
 from html import escape
 from pathlib import Path
 
+from . import episodes
 from .contracts import InputError, fingerprint, read_json, timestamp
 from .weekly_review import effective_grades
 
@@ -117,6 +118,10 @@ def attach(state, path: Path, audit_id: str):
         raise InputError("complaint manifest exceeds 32 MiB")
     doc = read_json(path, "complaint records")
     previous = doc.pop("previous_receipt", None)
+    contacts_file = doc.pop("episode_evidence", None)
+    policy_file = doc.pop("clock_policy", None)
+    if (contacts_file is None) != (policy_file is None):
+        raise InputError("episode_evidence and clock_policy must be supplied together")
     _fields(
         doc,
         (
@@ -135,6 +140,10 @@ def attach(state, path: Path, audit_id: str):
     if doc["audit_id"] != audit_id or doc["rubric"] != state["rubric"]:
         raise InputError("complaint records belong to a different audit or rubric")
     _text(doc["scope"], "scope")
+    if "control" in state and doc["scope"] != state["control"]["scope"]:
+        raise InputError(
+            "complaint register scope differs from the signed control scope"
+        )
     cutoff = _time(doc["cutoff"])
     if _time(doc["as_of"]) < cutoff or cutoff < _time(state["week"] + "T00:00:00Z"):
         raise InputError(
@@ -166,11 +175,23 @@ def attach(state, path: Path, audit_id: str):
         rows[case] = item
     doc["cases"] = rows
     keys = {item["match_key"] for item in rows.values()} - {None}
+    action_ids = set(sampled)
+    if contacts_file is not None:
+        doc["episodes"] = episodes.load(
+            path.parent / _text(contacts_file, "episode evidence file"),
+            path.parent / _text(policy_file, "clock policy file"),
+            doc,
+            sampled,
+            control=state.get("control"),
+        )
+        for binding in episodes.bindings(doc, _time(doc["as_of"])).values():
+            keys.update(binding["keys"])
+            action_ids.update(binding["members"])
     doc["register"] = _ledger(
         path.parent, doc["register"], REGISTER, keys, doc["as_of"]
     )
     doc["actions"] = _ledger(
-        path.parent, doc["actions"], ACTIONS, sampled, doc["as_of"]
+        path.parent, doc["actions"], ACTIONS, action_ids, doc["as_of"]
     )
     receipt = fingerprint(doc)
     existing = state.get("complaint_records")
@@ -198,18 +219,53 @@ def attach(state, path: Path, audit_id: str):
             raise InputError(
                 "complaint follow-up changed the frozen scope, case mapping or evidence horizon"
             )
+        old_keys = {r["match_key"] for r in old["cases"].values()}
+        old_ids = set(sampled)
+        if "episodes" in old:
+            prior = old["episodes"]
+            after = doc.get("episodes", {})
+            if prior["policy"] != after.get("policy"):
+                raise InputError("cannot replace the policy of an issued episode")
+            for binding in episodes.bindings(old, _time(old["as_of"])).values():
+                old_keys.update(binding["keys"])
+                old_ids.update(binding["members"])
+            old_collisions, new_collisions = prior["collisions"], after["collisions"]
+            if any(
+                new_collisions.get(k) != v for k, v in old_collisions.items()
+            ) or any(
+                key in old_keys
+                and key not in old_collisions
+                and _time(at) <= _time(old["as_of"])
+                for key, at in new_collisions.items()
+            ):
+                raise InputError("follow-up changed historical episode alias coverage")
+            by_id = {r["case_id"]: r for r in after["contacts"]}
+            previously = {r["case_id"] for r in prior["contacts"]}
+            if any(by_id.get(r["case_id"]) != r for r in prior["contacts"]) or any(
+                _time(r["contact_at"]) <= _time(old["as_of"])
+                for cid, r in by_id.items()
+                if cid not in previously
+            ):
+                raise InputError(
+                    "follow-up changed or backfilled dated episode contacts"
+                )
         _extends(
             old["register"],
             doc["register"],
             REGISTER,
-            {r["match_key"] for r in old["cases"].values()},
+            old_keys,
         )
-        _extends(old["actions"], doc["actions"], ACTIONS, sampled)
+        _extends(old["actions"], doc["actions"], ACTIONS, old_ids)
         history = [*existing["history"], existing["receipt"]]
     state["complaint_records"] = {
         "receipt": receipt,
         "snapshot": doc,
         "history": history,
+        **(
+            {"policy_reviews": existing["policy_reviews"]}
+            if existing and "policy_reviews" in existing
+            else {}
+        ),
     }
     return True
 
@@ -264,32 +320,78 @@ def reconcile(state):
         by_key[r["match_key"]].append(r)
     for r in doc["actions"]["rows"]:
         by_case[r["case_id"]].append(r)
-    counts = Counter(r["match_key"] for r in doc["cases"].values())
+    at_bindings = episodes.bindings(doc, cutoff)
+    now_bindings = episodes.bindings(doc, as_of)
+    policy_doc = doc.get("episodes", {}).get("policy")
     grades = effective_grades(state)
     rows = []
     worklist = {group: [] for group in WORKLIST}
+
+    def view(cid, spec, bindings, horizon):
+        info = bindings.get(
+            cid,
+            {"keys": set(), "members": {cid}, "match": "missing_key", "contacts": []},
+        )
+        exact = info["match"] == "exact_key"
+        entries = sorted(
+            (
+                r
+                for key in info["keys"]
+                for r in by_key[key]
+                if exact and _time(r["recorded_at"]) <= horizon
+            ),
+            key=lambda r: (_time(r["recorded_at"]), r["entry_id"]),
+        )
+        actions = sorted(
+            (
+                r
+                for member in info["members"]
+                for r in by_case[member]
+                if _time(r["recorded_at"]) <= horizon
+            ),
+            key=lambda r: (_time(r["recorded_at"]), r["action_id"]),
+        )
+        deadline = spec.get("deadline")
+        clocks = {}
+        if info["contacts"]:
+            through = doc["register"]["complete_through"]
+            clocks = episodes.clocks(
+                info["contacts"],
+                policy_doc,
+                horizon,
+                entries,
+                exact,
+                _time(through) if through else None,
+            )
+            registration = clocks[policy_doc["registration_clause"]]
+            deadline = registration["deadline"]
+            if (
+                entries
+                and registration["start"]
+                and _time(entries[0]["recorded_at"])
+                < _time(registration["start"]["at"])
+            ):
+                exact = False
+        return info, exact, entries, actions, deadline, clocks
+
     for case in state["cases"]:
         cid = case["case_id"]
         spec = doc["cases"].get(cid, {})
         key = spec.get("match_key")
-        exact = key is not None and counts[key] == 1
-        entries = by_key.get(key, []) if exact else []
-        if key is None:
-            match = "missing_key"
-        elif not exact:
-            match = "shared_key"
-        elif len(entries) > 1:
-            match = "multiple_entries"
-        else:
-            match = "exact_key"
-        actions = sorted(
-            by_case.get(cid, []),
-            key=lambda r: (_time(r["recorded_at"]), r["action_id"]),
+        _, prior_exact, visible, earlier_actions, earlier_due, earlier_clocks = view(
+            cid, spec, at_bindings, cutoff
         )
-        visible = [r for r in entries if _time(r["recorded_at"]) <= cutoff]
+        info, exact, entries, actions, deadline, clocks = view(
+            cid, spec, now_bindings, as_of
+        )
+        match = info["match"]
+        if len(entries) > 1:
+            match = "multiple_entries"
+        elif not exact and match == "exact_key":
+            match = "entry_predates_trigger"
         grade = grades.get(cid, {}).get("serious")
         at_cutoff = _at_cutoff(
-            grade, exact, spec.get("deadline"), cutoff, visible, doc["register"]
+            grade, prior_exact, earlier_due, cutoff, visible, doc["register"]
         )
         current = "unresolved"
         if exact and len(entries) == 1:
@@ -297,8 +399,9 @@ def reconcile(state):
         elif exact and not entries and _complete(doc["register"], as_of):
             current = "missing"
         owner = _owner(actions, doc["actions"], as_of)
-        due_now = spec.get("deadline") is not None and _time(spec["deadline"]) <= as_of
-        if grade is True and due_now and current == "missing":
+        due_now = deadline is not None and _time(deadline) <= as_of
+        overdue_now = grade is True and due_now and current == "missing"
+        if overdue_now:
             if owner == "completed":
                 follow_up = "check_registration_after_completed_work"
             elif owner == "unresolved":
@@ -309,7 +412,7 @@ def reconcile(state):
             follow_up = "registration_observed"
         else:
             follow_up = "outside_rubric" if grade is False else "check_evidence"
-        if at_cutoff == "missing" and current == "missing":
+        if overdue_now:
             group = {
                 "unobserved": "awaiting_acceptance",
                 "requested": "awaiting_acceptance",
@@ -329,17 +432,44 @@ def reconcile(state):
                 "evidence_ref": case["evidence_ref"],
                 "completed_at": case.get("completed_at"),
                 "grade": grade,
-                "deadline": spec.get("deadline"),
+                "deadline": deadline,
                 "policy_ref": spec.get("policy_ref"),
                 "match_key": key,
                 "match_status": match,
                 "registration_at_cutoff": at_cutoff,
                 "registration_as_of": current,
-                "owner_at_cutoff": _owner(actions, doc["actions"], cutoff),
+                "registration_overdue_as_of": overdue_now,
+                "owner_at_cutoff": _owner(earlier_actions, doc["actions"], cutoff),
                 "owner_as_of": owner,
                 "register_entries": entries,
                 "actions": actions,
                 "follow_up": follow_up,
+                **(
+                    {
+                        "episode_id": info.get("episode_id"),
+                        "subject": info["contacts"][0]["subject"],
+                        "contacts": [
+                            {
+                                k: row[k]
+                                for k in (
+                                    "case_id",
+                                    "revision",
+                                    "evidence_ref",
+                                    "channel",
+                                    "contact_at",
+                                )
+                            }
+                            for row in info["contacts"]
+                        ],
+                        "repeat_contacts": len(info["contacts"]) - 1,
+                        "clocks": clocks,
+                        "clocks_at_cutoff": earlier_clocks,
+                        "policy_id": policy_doc["id"],
+                        "policy_version": policy_doc["version"],
+                    }
+                    if info["contacts"]
+                    else {}
+                ),
             }
         )
     return {
@@ -352,6 +482,7 @@ def reconcile(state):
         },
         "cases": rows,
         "worklist": worklist,
+        "policy_reviews": evidence.get("policy_reviews", []),
     }
 
 
@@ -362,8 +493,13 @@ def html(state):
     parts = [
         "<section><h2>Complaint registration and owner action</h2>",
         f"<p>{escape(summary['scope'])} · Policy cutoff {escape(summary['cutoff'])} · Follow-up through {escape(summary['as_of'])}</p>",
-        "<p>These queues cover the sampled cases that missed their policy deadline by the cutoff or still need evidence. Absence depends on the export owner's declared coverage.</p>",
+        "<p>These queues cover sampled cases still overdue at follow-up, including deadlines that passed after cutoff, and cases that still need evidence. Absence depends on the export owner's declared coverage.</p>",
     ]
+    for notice in summary["policy_reviews"]:
+        clauses = ", ".join(escape(name) for name in notice["changed_clauses"])
+        parts.append(
+            f"<p><strong>Policy re-review required</strong> · {escape(notice['policy'])} {escape(notice['review_version'])} · affected clauses {clauses}. The original findings use the issued policy.</p>"
+        )
     for key, label in WORKLIST.items():
         cases = summary["worklist"][key]
         preview = ", ".join(escape(case) for case in cases[:12])
@@ -397,6 +533,26 @@ def html(state):
         parts.extend(
             f"<p>{label} · {escape(value or 'unknown')}</p>" for label, value in details
         )
+        if "contacts" in case:
+            parts.append(
+                f"<p>Complaint episode · {escape(case.get('episode_id') or 'unresolved')} · Policy {escape(case['policy_id'])} {escape(case['policy_version'])}</p>"
+            )
+            for row in case["contacts"]:
+                parts.append(
+                    f"<p>{escape(row['channel'])} · {escape(row['contact_at'])} · {escape(row['case_id'])} · {escape(row['evidence_ref'])} ({escape(row['revision'])})</p>"
+                )
+            for name, clock in case["clocks"].items():
+                cutoff_status = (
+                    case["clocks_at_cutoff"].get(name, {}).get("status", "unresolved")
+                )
+                parts.append(
+                    f"<p><strong>{escape(name)}</strong> · At cutoff {escape(cutoff_status.replace('_', ' '))} · At follow-up {escape(clock['status'].replace('_', ' '))} · Due {escape(clock['deadline'] or 'unknown')}</p>"
+                )
+                for event in (clock["start"], clock["stop"]):
+                    if event and "quote" in event:
+                        parts.append(
+                            f"<blockquote>{escape(event['quote'])}</blockquote><p>{escape(event['at'])} · {escape(event['evidence_ref'])} ({escape(event['revision'])}), passage {event['passage']}</p>"
+                        )
         for row in case["register_entries"]:
             parts.append(
                 f"<p>Register entry {escape(row['entry_id'])} · {escape(row['recorded_at'])} · {escape(row['evidence_ref'])}</p>"

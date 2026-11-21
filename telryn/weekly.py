@@ -171,6 +171,15 @@ def load_frame(plan_path: Path) -> Frame:
     for key in ("finding_label", "scope_note"):
         if key in plan:
             meta[key] = _field(plan[key], key)
+    if "control" in plan:
+        from .control import profile
+
+        meta["control"] = profile(
+            read_json(
+                plan_path.parent / string(plan["control"], "control"),
+                "complaint control",
+            )
+        )
     week = _week(plan.get("week"))
     path = plan_path.parent / string(plan.get("population"), "population")
     raw = path.read_bytes()
@@ -199,6 +208,19 @@ def load_frame(plan_path: Path) -> Frame:
     population = _csv(
         raw, CASE_COLUMNS + tuple(dims), "population", optional=DIMENSIONS
     )
+    if "control" in meta:
+        access = {
+            c["name"].casefold(): c["coverage"] for c in meta["control"]["channels"]
+        }
+        observed = {
+            r["channel"].casefold() for r in population.values() if "channel" in r
+        }
+        if any(
+            access.get(channel) not in ("covered", "partial") for channel in observed
+        ):
+            raise InputError(
+                "every exported channel must have a covered or partial channel inventory entry"
+            )
     coverage = path.with_name(path.name + ".coverage.json")
     if "coverage_receipt" in plan:
         coverage = plan_path.parent / string(
@@ -291,6 +313,7 @@ def prepare(plan_path: Path) -> dict:
             meta.get("coverage"),
             meta.get("screen_receipt_digest"),
             plan.get("planning"),
+            *([meta["control"]] if "control" in meta else []),
             sample_targets,
             targets,
             sorted(population.values(), key=lambda row: row["case_id"]),
@@ -437,6 +460,10 @@ def validate_state(state: dict) -> tuple[dict, dict]:
         cell_flag(k, i) and i["population"] for k, i in strata.items()
     ):
         raise InputError("weekly runs without a screen cannot contain flagged cases")
+    if "control" in state:
+        from . import control
+
+        control.profile(state["control"])
     grades = mapping(state.get("grades"), "weekly grades")
     if not grades.keys() <= cases.keys():
         raise InputError("weekly grade is outside the frozen sample")
@@ -463,6 +490,8 @@ def validate_state(state: dict) -> tuple[dict, dict]:
                 optional=record["disposition"] != "new",
             )
         integer(record.get("minutes"), "grade minutes")
+        if "control" in state:
+            control.check_grade(state["control"], record)
     return cases, grades
 
 
@@ -713,7 +742,10 @@ def summarize(state: dict) -> dict:
     if state["screen_version"] != "none":
         metrics = _screen_metrics(strata, groups, severity["range_kind"] == "complete")
     graded = determinate.total()
+    from . import control
+
     return {
+        **({"control_statement": control.summary(state)} if "control" in state else {}),
         "population": state["population_count"],
         "reviewed": state["reviewed_count"],
         "unreviewed": state["population_count"] - state["reviewed_count"],

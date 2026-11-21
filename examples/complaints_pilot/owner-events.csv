@@ -7,3 +7,7 @@ C202,A22,requested,Complaints lead,2026-10-19T11:00:00Z,actions/A22
 C203,A23,completed,Case manager,2026-10-19T12:30:00Z,actions/A23
 C204,A24,accepted,Case manager,2026-10-19T12:00:00Z,owner-cases/P-024
 C204,A25,completed,Case manager,2026-10-20T09:00:00Z,actions/A25
+C108,A18,requested,Case manager,2026-10-12T11:00:00Z,follow-up/C108
+C109,A19,accepted,Case manager,2026-10-12T13:00:00Z,owner-cases/P-019
+C207,A27,accepted,Case manager,2026-10-19T12:00:00Z,owner-cases/P-027
+C208,A28,accepted,Case manager,2026-10-19T14:00:00Z,owner-cases/P-028

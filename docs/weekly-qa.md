@@ -106,3 +106,41 @@ An existing signed v0.5 HTML report keeps its original display. Use `python3 -m 
 ## Check a complaints register after grading
 
 A complaints QA lead can attach the queue’s register and owner-work ledger to the same signed report. Supply the team’s policy deadline for each case and the dates through which the sources are complete. The report separates missing registrations that need an owner from accepted work, completed work with a register discrepancy, and cases needing more evidence. Use the original packet for independent review. [Complaint evidence and file formats](complaint-records.md)
+
+### Issue a weekly complaints control statement
+
+Add `control = "control.json"` above any TOML table in the weekly plan, or choose **Complaint control profile** in the desk. The complaints lead and second line agree on a scope, an ordered taxonomy from lowest to highest, and a follow-up date before issuing the packet. The signed report freezes their choices. This abbreviated example covers chat and records a phone gap.
+
+```json
+{
+  "schema": 1,
+  "scope": "Payments servicing, October queue",
+  "categories": ["Service complaint", "Priority complaint"],
+  "gap_owner": "Complaints case manager",
+  "gap_review_date": "2026-10-20",
+  "onboarding_minutes": 70,
+  "channels": [
+    {"name":"chat","owner":"Support ops","coverage":"covered","ordinary_qa":"Human scorecard sample","register_link":"Ticket reference","retention":"90 days","review_date":"2026-10-20"},
+    {"name":"phone","owner":"Contact centre","coverage":"uncovered","ordinary_qa":"Call quality sample","register_link":"Manual lookup","retention":"30 days","review_date":"2026-10-20"}
+  ]
+}
+```
+
+Inventory every route a customer can use, including AI agents, human chat, email, phone, disputes, chargebacks and app or social reviews. Use `partial` when Telryn can read only some of the records. If the population contains a `channel` column, its values must match a covered or partial inventory entry, ignoring case. The inventory records the team’s assessment. A connector’s coverage receipt separately records which source rows entered the week. `onboarding_minutes` is the team’s one-time setup effort charged to this run.
+
+Give each reviewer the blind CSV and authorized access to the cited revision. The original `serious` column answers the firm’s complaint question. Complete the four additional columns on every returned row.
+
+| Column | What to record |
+| --- | --- |
+| `category` | For a complaint, use one of the labels in `category_options` or `unknown`. Use `none` for a negative grade and `unknown` for insufficient evidence. |
+| `vulnerability` | `yes`, `no` or `unknown`, independent of the complaint grade. |
+| `redress` | `none`, `pending`, `offered`, `completed` or `unknown`. A refund and registration are separate events. |
+| `classification_reason` | Cite the evidence or policy clause behind the grade. Keep personal details in the source system. |
+
+A second reviewer records an independent answer on the same blind packet. A lower category, including removal of a confirmed complaint, opens a dispute. The signed history records the requester, original and requested categories, reason, adjudicator and decision. The report keeps dimensions both reviewers agree on while the dispute is open.
+
+Attach dated register and action records. The statement at the top of the report links its counts to the sample, register reconciliation, sampling intervals and channel inventory. Telryn counts a confirmed episode once when the episode evidence establishes the subject and matter. A conversation with a confirmed register result and no verified episode identity contributes to a separate conversation count at cutoff and follow-up. Several of those conversations may concern one complaint. The 95% range counts conversations containing an overdue complaint with no entry **at the cutoff**. It covers the queue outside ordinary human QA and treats inconclusive grades or register matches both ways. A complaint registered late but already present at the cutoff has a separate status in the register table. When comparing two shortlists, set `"population_basis": "shortlist_union"` in the profile. The interval then covers only their union.
+
+The open-work table gives each unresolved registration or missing grade an owner and review date. Age is elapsed whole days from conversation close to the register observation date. The timing measure is the median hours from close to a matched registration across conversations with both timestamps. Registration can precede closure. Missing timestamps stay unknown. The optional aggregate email identifies the exact signed report revision and omits case references, free text and names. [Register and action records](complaint-records.md)
+
+Set the optional boolean `synthetic` to `true` in a rehearsal control profile. The signed report and the aggregate email subject identify the simulation.

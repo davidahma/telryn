@@ -108,7 +108,8 @@ function forecast(plan) {
 function answerText(grade) {
   if (!grade) return "pending";
   const finding = grade.serious == null ? "insufficient evidence" : grade.serious ? "yes" : "no";
-  return finding + " (" + grade.disposition + ")";
+  const dimensions = grade.category ? " · category " + grade.category + ", vulnerability " + grade.vulnerability + ", redress " + grade.redress + ". Basis: " + grade.classification_reason : "";
+  return finding + " (" + grade.disposition + ")" + dimensions;
 }
 function displayDispute() {
   const selected = resolution.elements.dispute.value;

@@ -30,3 +30,9 @@ The weekly report owns the human grades. The population estimator derives ranges
 The full blinded packet stays available for independent review. The desk and CLI derive a remaining packet from the current report, with the same row identifiers. They put already-returned cases in separate groups for insufficient evidence, disputed grades and unknown prior handling. The history screen reads progress only from verifiable evidence. [Weekly operating guide](weekly-qa.md)
 
 A proposal-backed comparison has two readers. A lead inspecting history can read the recorded result offline. A job authorizing a shadow trial needs the originating team registry, the current weekly source and the current comparison. A submitted trial names the decision revision its owner saw. After a correction, check the gate again before starting work. [Comparison and gates](comparison.md) · [Release design review](design-review.md)
+
+## From contact to complaint control
+
+A conversation is the sampling unit. A complaint episode can include earlier contacts from other channels. Evidence about those contacts can change the first cited expression, the clock and the registration outcome without adding cases to the sample. Keep receipt dates, policy deadlines, registration and remedy distinct. The lead owns one signed weekly report. Reviewers return one blinded packet. The inventory records which channels the team could examine and who owns each gap. An email recipient can read the control summary and open the signed report under the team's normal access controls.
+
+A release check asks a different question before a changed support agent goes live. Its sender submits synthetic complaints to the test deployment. Its reader checks the test register for the corresponding dated entries. The build receives a receipt and a blocking exit code. Release-check cases never enter the weekly queue or its population estimate. [Agent release check](agent-release.md)

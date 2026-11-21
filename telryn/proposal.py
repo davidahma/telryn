@@ -131,6 +131,8 @@ def _search(state: dict, max_reserved: int) -> dict:
 
 def propose(report: Path, out: Path, max_reserved: int = 1) -> dict:
     state, revision, signature = verified_snapshot(report)
+    if state.get("complaint_records", {}).get("policy_reviews"):
+        raise InputError("policy re-review required before a new rule proposal")
     result = summarize(state)
     if result["estimate"] is None or result["unknown"]:
         raise InputError(

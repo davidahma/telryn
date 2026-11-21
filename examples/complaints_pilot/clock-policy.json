@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "id": "payments-example",
+  "version": "2026-08",
+  "timezone": "Europe/London",
+  "holidays": [
+    "2026-08-31"
+  ],
+  "episode_days": 90,
+  "registration_clause": "registration",
+  "clauses": {
+    "registration": {
+      "start_event": "dissatisfaction",
+      "stop_event": "register_entry",
+      "unit": "business_days",
+      "count": 3,
+      "due_time": "17:00"
+    },
+    "final-response": {
+      "start_event": "dissatisfaction",
+      "stop_event": "final_response_sent",
+      "unit": "weeks",
+      "count": 8,
+      "due_time": "17:00"
+    }
+  }
+}

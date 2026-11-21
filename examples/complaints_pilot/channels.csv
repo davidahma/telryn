@@ -1,0 +1,7 @@
+name,owner,coverage,ordinary_qa,register_link,retention
+Fin,AI agent owner,covered,Completed human scorecards only,Case reference and transfer reference,90 days under the example policy
+Human chat,Support operations,covered,Completed human scorecards only,Case reference and transfer reference,90 days under the example policy
+Phone,Contact centre operations,partial,Selected calls only,Consented call reference and payment reference,30 days under the example policy
+Email,Inbox lead,uncovered,Inbox checks outside this export,Mailbox ID requires a mapping,30 days under the example policy
+Disputes and chargebacks,Disputes operations,uncovered,Disputes ledger reviewed separately,Transaction reference requires a mapping,90 days under the example policy
+Social and app reviews,Customer communications,uncovered,Manual moderation only,Public handles require an authorized link,14 days under the example policy

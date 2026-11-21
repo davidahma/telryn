@@ -6,13 +6,18 @@ import json
 import sqlite3
 import tempfile
 import tomllib
+from collections import Counter
 from contextlib import closing
 from datetime import datetime, timedelta, timezone
+from itertools import combinations, product
 from pathlib import Path
 
-from telryn import complaints, weekly, weekly_report, weekly_review
+from telryn import complaints, control, weekly, weekly_report, weekly_review
+
 from telryn.contracts import InputError, canonical, fingerprint
 from telryn.integrations_coverage import new_receipt, publish
+
+from . import signals
 
 FIXTURE = Path(__file__).resolve().parent
 
@@ -69,10 +74,33 @@ def pilot_plan(work, week, cases, protocol, *, commitment=None):
         finding_label="conversations requiring complaint registration",
         population="population.csv",
         reviewed="ordinary.csv",
-        screen_version="none" if commitment else "synthetic-complaints-screen-v1",
+        screen_version="none" if commitment else "synthetic-complaints-screen-v2",
         flagged_sample="100%" if commitment else protocol["flagged_sample"],
         unflagged_sample="100%" if commitment else protocol["unflagged_sample"],
     )
+    if commitment:
+        review_date = (monday + timedelta(days=11)).date().isoformat()
+        onboarding = read_csv(FIXTURE / "onboarding.csv")
+        cfg = {
+            "schema": 1,
+            "scope": protocol["queue"],
+            "population_basis": "shortlist_union",
+            "synthetic": True,
+            "categories": ["Service complaint", "Priority complaint"],
+            "gap_owner": "Complaints case manager",
+            "gap_review_date": review_date,
+            "onboarding_minutes": (
+                sum(int(r["telryn"]) for r in onboarding)
+                if week == protocol["weeks"][0]
+                else 0
+            ),
+            "channels": [
+                {**c, "review_date": review_date}
+                for c in read_csv(FIXTURE / "channels.csv")
+            ],
+        }
+        (work / "control.json").write_text(canonical(cfg))
+        settings["control"] = "control.json"
     path = work / "plan.toml"
     path.write_text("".join(f"{k} = {json.dumps(v)}\n" for k, v in settings.items()))
     return path
@@ -90,11 +118,48 @@ def ledger_through(name, cutoff):
     ]
 
 
-def shortlists(work, week, cases, protocol):
+def current_contact(case):
+    return {
+        **{
+            k: case[k]
+            for k in ("case_id", "channel", "subject_ref", "matter_ref", "match_key")
+        },
+        "revision": "v1",
+        "evidence_ref": "conversations/" + case["case_id"],
+        "contact_at": case["closed_at"],
+        "passages": [{"at": case["closed_at"], "text": case["message"]}],
+        "events": [],
+    }
+
+
+def visible_contacts(population, cutoff):
+    archive = json.loads((FIXTURE / "prior-contacts.json").read_text())["contacts"]
+    contacts = [*archive, *(current_contact(c) for c in population)]
+    return [c for c in contacts if datetime.fromisoformat(c["contact_at"]) <= cutoff]
+
+
+def shortlists(work, week, cases, protocol, history):
     query = (FIXTURE / "native.sql").read_text()
     cutoff = source_cutoff(week)
     _, register = ledger_through("register", cutoff)
     _, owners = ledger_through("owner-events", cutoff)
+    policy = json.loads((FIXTURE / "clock-policy.json").read_text())
+    register_keys = {r["match_key"] for r in register}
+    owned = {r["case_id"] for r in owners if r["status"] in ("accepted", "completed")}
+    links, screened, cues, eligible = [], [], {}, []
+    for case in cases:
+        cid = case["case_id"]
+        prior = signals.prior_related(case, history, policy["episode_days"])
+        related = [current_contact(case), *prior]
+        links.extend((cid, c["case_id"], c["match_key"]) for c in related)
+        known = any(c["match_key"] in register_keys for c in related)
+        flagged, cues[cid] = signals.flags(case, prior, known)
+        already_owned = any(c["case_id"] in owned for c in related)
+        screened.append(
+            {**case, "screen_flag": str(flagged and not already_owned).lower()}
+        )
+        if case["ordinary_reviewed"] == "no":
+            eligible.append((cid, case["message"], case["agent_note"], len(prior)))
     with closing(sqlite3.connect(":memory:")) as db:
         db.execute(
             "CREATE TABLE register_at_cutoff(match_key,entry_id,recorded_at,evidence_ref)"
@@ -110,25 +175,14 @@ def shortlists(work, week, cases, protocol):
             "INSERT INTO owners_at_cutoff VALUES (:case_id,:action_id,:status,:owner,:recorded_at,:evidence_ref)",
             owners,
         )
+        db.execute("CREATE TABLE linked(case_id, contact_id, match_key)")
+        db.executemany("INSERT INTO linked VALUES (?,?,?)", links)
         db.execute(
-            "CREATE TABLE eligible(case_id PRIMARY KEY, message, screen_flag, match_key, deadline)"
+            "CREATE TABLE eligible(case_id PRIMARY KEY, message, agent_note, prior_contacts)"
         )
-        db.executemany(
-            "INSERT INTO eligible VALUES (?,?,?,?,?)",
-            [
-                (
-                    r["case_id"],
-                    r["message"],
-                    r["screen_flag"],
-                    r["match_key"],
-                    r["deadline"],
-                )
-                for r in cases
-                if r["ordinary_reviewed"] == "no"
-            ],
-        )
+        db.executemany("INSERT INTO eligible VALUES (?,?,?,?)", eligible)
         native = [r[0] for r in db.execute(query, {"slots": protocol["native_slots"]})]
-    draw = weekly.prepare(pilot_plan(work / "frame", week, cases, protocol))
+    draw = weekly.prepare(pilot_plan(work / "frame", week, screened, protocol))
     picks = {"native": native, "telryn": [r["case_id"] for r in draw["cases"]]}
     preregistered = {
         "evidence": "synthetic",
@@ -141,6 +195,10 @@ def shortlists(work, week, cases, protocol):
             "owners": fingerprint(owners),
         },
         "native_sql": query,
+        "history_fingerprint": fingerprint(history),
+        "screen_recipe_fingerprint": fingerprint(Path(signals.__file__).read_text()),
+        "clock_policy_fingerprint": fingerprint(policy),
+        "screen_cues": cues,
         "draw_commitment": draw["draw_commitment"],
         "picks": picks,
     }
@@ -162,7 +220,14 @@ def grade_union(report, work, answers):
                     **prompt,
                     **{
                         k: answer[k]
-                        for k in ("serious", "disposition", "owner", "action")
+                        for k in (
+                            "serious",
+                            "disposition",
+                            "owner",
+                            "action",
+                            *control.FIELDS,
+                        )
+                        if k in prompt
                     },
                     "minutes": answer[review + "_minutes"],
                 }
@@ -173,7 +238,7 @@ def grade_union(report, work, answers):
     return packet[0]["audit_id"]
 
 
-def attach_records(report, work, week, union, protocol, audit_id):
+def attach_records(report, work, week, union, protocol, audit_id, history):
     cutoff = source_cutoff(week)
     as_of = cutoff + timedelta(days=2)
     # Each simulated vendor export ends at its observation date. In particular,
@@ -202,13 +267,31 @@ def attach_records(report, work, week, union, protocol, audit_id):
             {
                 "case_id": case["case_id"],
                 "revision": "v1",
-                "deadline": case["deadline"],
+                "deadline": case["deadline"] or None,
                 "match_key": case["match_key"],
                 "policy_ref": protocol["policy"] + "#logging-deadline",
             }
             for case in union
         ],
     }
+    calculated = [c for c in union if not c["deadline"]]
+    if calculated:
+        clock_source = (FIXTURE / "clock-policy.json").read_text()
+        days = json.loads(clock_source)["episode_days"]
+        contacts = {}
+        for case in calculated:
+            for c in [
+                *signals.prior_related(case, history, days),
+                current_contact(case),
+            ]:
+                contacts[c["case_id"]] = c
+        (work / "contacts.json").write_text(
+            canonical({"schema": 1, "contacts": list(contacts.values())})
+        )
+        (work / "clock-policy.json").write_text(clock_source)
+        manifest.update(
+            episode_evidence="contacts.json", clock_policy="clock-policy.json"
+        )
     path = work / "records.json"
     path.write_text(canonical(manifest))
     weekly_report.attach_complaints(report, path)
@@ -325,6 +408,49 @@ def tally(state, picks, effort, protocol):
     }
 
 
+def possible_selections(work, week, protocol):
+    """Sensitivity to the draw using staged owner outcomes only after grading."""
+    cutoff = source_cutoff(week)
+    _, events = ledger_through("owner-events", cutoff + timedelta(days=2))
+    accepted = {
+        (e["case_id"], e["action_id"])
+        for e in events
+        if e["status"] == "accepted"
+        and datetime.fromisoformat(e["recorded_at"]) > cutoff
+    }
+    episode_by_case = {
+        row["case_id"]: row["complaint_episode"]
+        for row in read_csv(FIXTURE / "owner-episodes.csv")
+        if (row["case_id"], row["action_id"]) in accepted
+    }
+    reviewed = {r["case_id"] for r in read_csv(work / "ordinary.csv")}
+    pool = read_csv(work / "population.csv")
+    choices = []
+    for flag, target in [("true", "flagged_sample"), ("false", "unflagged_sample")]:
+        members = [
+            r["case_id"]
+            for r in pool
+            if r["case_id"] not in reviewed and r["screen_flag"] == flag
+        ]
+        choices.append(combinations(members, min(len(members), protocol[target])))
+    return Counter(
+        frozenset(episode_by_case[c] for c in (*a, *b) if c in episode_by_case)
+        for a, b in product(*choices)
+    )
+
+
+def sensitivity(distributions, native):
+    counts = Counter()
+    for (a, n), (b, m) in product(*(d.items() for d in distributions)):
+        total = len(a | b)
+        outcome = "more" if total > native else "equal" if total == native else "fewer"
+        counts[outcome] += n * m
+    return {
+        "possible_two_week_selections": sum(counts.values()),
+        "owner_accepted_episodes_vs_fixed_sql": dict(sorted(counts.items())),
+    }
+
+
 def run(out: Path):
     if out.exists() or out.is_symlink():
         raise InputError(f"output directory already exists: {out}")
@@ -332,6 +458,7 @@ def run(out: Path):
     protocol = tomllib.loads((FIXTURE / "protocol.toml").read_text())
     population = read_csv(FIXTURE / "conversations.csv")
     weeks = []
+    possible = []
     with tempfile.TemporaryDirectory(prefix=".complaints-", dir=out.parent) as temp:
         staging = Path(temp) / "audits"
         staging.mkdir(mode=0o700)
@@ -339,7 +466,8 @@ def run(out: Path):
             cases = [c for c in population if c["week"] == week]
             work = Path(temp) / week
             work.mkdir()
-            picks, design = shortlists(work, week, cases, protocol)
+            history = visible_contacts(population, source_cutoff(week))
+            picks, design = shortlists(work, week, cases, protocol, history)
             committed = fingerprint(design)
             selected = set(picks["native"]) | set(picks["telryn"])
             union = [c for c in cases if c["case_id"] in selected]
@@ -349,13 +477,16 @@ def run(out: Path):
             report = weekly_report.start(blind_plan, staging / week)
             answers = {r["case_id"]: r for r in read_csv(FIXTURE / "answers.csv")}
             audit_id = grade_union(report, work, answers)
-            attach_records(report, work, week, union, protocol, audit_id)
+            attach_records(report, work, week, union, protocol, audit_id, history)
             effort = {
                 r["method"]: r
                 for r in read_csv(FIXTURE / "staff-minutes.csv")
                 if r["week"] == week
             }
-            result = tally(weekly_report.read_state(report), picks, effort, protocol)
+            state = weekly_report.read_state(report)
+            result = tally(state, picks, effort, protocol)
+            result["control_statement"] = control.summary(state)
+            possible.append(possible_selections(work / "frame", week, protocol))
             weeks.append(
                 {
                     "week": week,
@@ -375,8 +506,21 @@ def run(out: Path):
         arm: sum(w["methods"][arm]["total_staff_minutes"] for w in weeks)
         for arm in all_episodes
     }
+    onboarding = read_csv(FIXTURE / "onboarding.csv")
+    if any(
+        sum(int(r[arm]) for r in onboarding)
+        != weeks[0]["methods"][arm]["staff_minutes"]["preparation"]
+        for arm in all_episodes
+    ):
+        raise InputError(
+            "team onboarding minutes must reconcile to first-week preparation"
+        )
     return {
         "evidence": "synthetic",
+        "onboarding_by_team": onboarding,
+        "fixture_selection_sensitivity": sensitivity(
+            possible, len(all_episodes["native"])
+        ),
         "weeks": weeks,
         "two_week_owner_accepted": ownership(all_episodes),
         "two_week_staff_minutes": total,
