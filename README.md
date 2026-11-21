@@ -10,7 +10,7 @@ In the synthetic rehearsal, Mira tells Fin about a duplicate charge on 4 August.
 
 IT can run the desk and weekly job from the signed Linux container on amd64 or arm64. Start with the offline weekly job. It reads mounted exports and writes the report and packet on storage you control. On Windows, use a Linux container engine and follow the volume setup in the deployment guide.
 
-The security review pack includes a data-flow diagram, answers to vendor-risk questions and an SPDX inventory for each architecture. The release also includes a portable image for teams that import approved software into a private registry. [Container deployment and signature verification](docs/container.md) · [Security review pack](docs/security-review.md)
+The security review pack includes a data-flow diagram, answers to vendor-risk questions and an SPDX inventory for each architecture. The release also includes a portable image for teams that import approved software into a private registry. [Container deployment and signature verification](docs/container.md) · [Read the security review](docs/security-review.md) · [Download the review pack with both SBOMs](https://github.com/davidahma/telryn/releases/download/v0.9.0/telryn-security-review.tar.gz)
 
 ## Follow one complaint through two weeks of QA
 

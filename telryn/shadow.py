@@ -74,6 +74,7 @@ def record(state: dict, path: Path, recommendation: dict) -> bool:
         )
     if proposal:
         previous.update(proposal["prior_id_hashes"])
+        previous.update(proposal.get("declared_tuning_id_hashes", []))
         previous.update(
             fingerprint(pick["id"])
             for trial in trials.values()

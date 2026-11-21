@@ -38,8 +38,13 @@ COLUMNS = FIXED + ANSWERS
 def _columns(state: dict) -> tuple:
     evidence = ("completed_at",) if "coverage_sha256" in state else ()
     rubric = ("category_options",) if "control" in state else ()
+    guidance = (
+        ("policy_applicability", "policy_sources")
+        if state.get("pack_packet_version") == 2
+        else ()
+    )
     dimensions = control.FIELDS if "control" in state else ()
-    return FIXED + evidence + rubric + ANSWERS + dimensions
+    return FIXED + evidence + rubric + guidance + ANSWERS + dimensions
 
 
 def _audit_id(state: dict) -> str:
@@ -78,6 +83,10 @@ def _packet(state: dict) -> dict:
             fields["category_options"] = json.dumps(
                 state["control"]["categories"], ensure_ascii=False
             )
+        if state.get("pack_packet_version") == 2:
+            pack = state["policy_pack"]
+            fields["policy_applicability"] = pack["applicability"]
+            fields["policy_sources"] = json.dumps(pack["sources"], ensure_ascii=False)
         rows[row_id] = (
             case["case_id"],
             {key: render_cell(value) for key, value in fields.items()},
@@ -324,7 +333,11 @@ def _coverage_lines(state: dict) -> list[str]:
 def _report_schema(state):
     records = state.get("complaint_records", {})
     issued_policy = records.get("snapshot", {}).get("episodes", {}).get("policy", {})
-    if "policy_pack" in state or "business_weekdays" in issued_policy:
+    if (
+        "policy_pack" in state
+        or "business_weekdays" in issued_policy
+        or any("pack_digest" in n for n in records.get("policy_reviews", []))
+    ):
         return 4
     if (
         "control" in state
@@ -546,6 +559,7 @@ def _verify_signed(raw, db, key):
                 "stale or diverging weekly report; open the latest signed revision"
             )
     validate_state(state)
+    audit_trust.bind_policy_versions(db, state)
     return state, revision, actual
 
 
@@ -633,13 +647,16 @@ def start(plan_path: Path, out_dir: Path) -> Path:
         raise FileExistsError(f"output directory already exists: {out_dir}")
     state = prepare(plan_path)
     state["publication_id"] = secrets.token_hex(16)
-    with audit_trust.registry() as (db, key):
-        audit_trust.check_draw(db, key, state)
-        data, signature = _signed(state, key, 1, None)
-        db.execute(
-            "INSERT INTO reports VALUES (?,1,?)", (state["publication_id"], signature)
-        )
-        with new_directory(out_dir) as staging:
+    with new_directory(out_dir) as staging:
+        # Publish the packet only after its signature and pack identity commit.
+        with audit_trust.registry() as (db, key):
+            audit_trust.check_draw(db, key, state)
+            audit_trust.bind_policy_versions(db, state)
+            data, signature = _signed(state, key, 1, None)
+            db.execute(
+                "INSERT INTO reports VALUES (?,1,?)",
+                (state["publication_id"], signature),
+            )
             (staging / "report.html").write_bytes(data)
             (staging / "grades.csv").write_bytes(_packet_bytes(state))
     return out_dir / "report.html"
@@ -716,6 +733,7 @@ def _update(report_path: Path, change) -> dict:
         state, revision, previous = _verify_signed(report_path.read_bytes(), db, key)
         if change(state):
             validate_state(state)
+            audit_trust.bind_policy_versions(db, state)
             data, signature = _signed(state, key, revision + 1, previous)
             db.execute(
                 "UPDATE reports SET revision=?,signature=? WHERE id=?",

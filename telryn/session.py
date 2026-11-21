@@ -82,10 +82,17 @@ def compare(
     counts = Counter(case for ids in replayed.values() for case in ids)
     tuning_cases = set()
     for name in plan.get("tuning_shifts", []):
-        if name in source["shifts"]:
-            batch = mapping(source["shifts"][name], f"tuning shift {name}")
-            membership = mapping(batch.get("membership"), f"{name} tuning membership")
-            tuning_cases.update(unique_ids(membership.get("ids"), f"{name} tuning IDs"))
+        if name not in source["shifts"]:
+            if proposal is not None:
+                raise InputError(
+                    f"weekly proposal requires tuning membership for {name}"
+                )
+            continue
+        batch = mapping(source["shifts"][name], f"tuning shift {name}")
+        membership = mapping(batch.get("membership"), f"{name} tuning membership")
+        tuning_cases.update(unique_ids(membership.get("ids"), f"{name} tuning IDs"))
+    if proposal is not None and plan.get("tuning_shifts"):
+        proposal["declared_tuning_id_hashes"] = sorted(map(fingerprint, tuning_cases))
     for name, ids in replayed.items():
         overlap = sorted(case for case in ids if counts[case] > 1)
         if overlap:

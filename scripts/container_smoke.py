@@ -40,7 +40,7 @@ def main(image):
             "python",
             image,
             "-c",
-            "import boto3, os; assert os.getuid() == 65532; print(os.getuid())",
+            "import boto3, os, site; assert site.ENABLE_USER_SITE is False; print(os.getuid())",
         )
         assert identity == "65532"
         # Exercise the installed AWS SDK and the complete release on the image interpreter.

@@ -187,6 +187,7 @@ def load_frame(plan_path: Path) -> Frame:
         meta["control"] = profile(cfg)
     if pack is not None:
         meta["policy_pack"] = pack
+        meta["pack_packet_version"] = 2
     week = _week(plan.get("week"))
     path = plan_path.parent / string(plan.get("population"), "population")
     raw = path.read_bytes()
@@ -393,6 +394,10 @@ def validate_state(state: dict) -> tuple[dict, dict]:
             _field(state[key], key)
     if "policy_pack" in state:
         pack = packs.validate(state["policy_pack"])
+        if type(state.get("pack_packet_version", 1)) is not int or state.get(
+            "pack_packet_version", 1
+        ) not in (1, 2):
+            raise InputError("unsupported grading packet version for this policy pack")
         if (
             state["rubric"] != packs.reference(pack)
             or state["rubric_question"] != pack["rubric_question"]

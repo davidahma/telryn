@@ -2,13 +2,22 @@
 
 import csv
 import json
+import os
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from threading import Event
 from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
-from telryn import integrations_coverage, integrations_transcripts, screen, weekly
+from telryn import (
+    integrations,
+    integrations_coverage,
+    integrations_transcripts,
+    screen,
+    weekly,
+)
 from telryn.contracts import InputError
 from tests import test_integrations as wire
 
@@ -39,6 +48,76 @@ class Coverage(unittest.TestCase):
     def read(self, file):
         with (self.root / file).open(encoding="utf-8-sig", newline="") as stream:
             return list(csv.DictReader(stream))
+
+    def test_interrupted_coverage_blocks_plain_import_and_allows_matching_retry(self):
+        output = self.root / "population.csv"
+        ledger = self.root / "population.csv.coverage.json"
+        rows = [("c1", "r1", "ref", "true")]
+        receipt = {"basis": "legacy-created", "scope": "test"}
+        link = os.link
+
+        def interrupt(source, target):
+            if target == output:
+                raise OSError("interrupted publication")
+            return link(source, target)
+
+        with (
+            patch.object(os, "link", interrupt),
+            self.assertRaisesRegex(OSError, "interrupted publication"),
+        ):
+            integrations_coverage.publish(output, rows, receipt)
+        self.assertTrue(ledger.is_file())
+        self.assertFalse(output.exists())
+        with self.assertRaisesRegex(InputError, "already has a coverage receipt"):
+            integrations.write_csv(output, integrations_coverage.FIELDS, rows)
+        with self.assertRaisesRegex(InputError, "unmatched coverage receipt"):
+            integrations_coverage.publish(output, rows, dict(receipt, scope="another"))
+        integrations_coverage.publish(output, rows, receipt)
+        self.assertEqual(self.read(output.name)[0]["case_id"], "c1")
+        self.assertEqual(json.loads(ledger.read_text()), receipt)
+
+    def test_plain_import_waits_for_covered_publication(self):
+        output = self.root / "population.csv"
+        ledger = self.root / "population.csv.coverage.json"
+        receipt = {"basis": "legacy-created", "scope": "test"}
+        started_receipt, competing_lock = Event(), Event()
+        real_link = os.link
+        real_flock = integrations_coverage.fcntl.flock
+
+        def pause_before_receipt(source, target):
+            if target == ledger:
+                started_receipt.set()
+                self.assertTrue(competing_lock.wait(5))
+            return real_link(source, target)
+
+        def observe_lock(fd, operation):
+            if started_receipt.is_set():
+                competing_lock.set()
+            return real_flock(fd, operation)
+
+        with (
+            patch.object(os, "link", pause_before_receipt),
+            patch.object(integrations_coverage.fcntl, "flock", observe_lock),
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            covered = pool.submit(
+                integrations_coverage.publish,
+                output,
+                [("c1", "r1", "ref", "true")],
+                receipt,
+            )
+            self.assertTrue(started_receipt.wait(5))
+            plain = pool.submit(
+                integrations.write_csv,
+                output,
+                integrations_coverage.FIELDS,
+                [("c2", "r1", "ref", "false")],
+            )
+            covered.result(timeout=10)
+            with self.assertRaisesRegex(InputError, "output already exists"):
+                plain.result(timeout=10)
+        self.assertEqual(self.read(output.name)[0]["case_id"], "c1")
+        self.assertEqual(json.loads(ledger.read_text()), receipt)
 
     def test_zendesk_history_handles_prior_creation_reopening_and_admin_closure(self):
         ti = dict(

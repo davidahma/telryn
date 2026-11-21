@@ -1,6 +1,6 @@
 # Use a versioned complaint policy and rubric
 
-A pack is one JSON file containing the reviewer’s question, an ordered category list, source references and dated clock clauses. The complaints lead selects a version for the queue. Reviewers receive its question and category options in their usual blinded packet. The signed report retains the complete pack, its version and its canonical SHA-256 digest. Later changes to the source file leave issued findings reproducible.
+A pack is one JSON file containing the reviewer’s question, an ordered category list, source references and dated clock clauses. The complaints lead selects a version for the queue. The blinded grading packet includes the question, category options, applicability instructions and policy source references. Reviewers can check whether the policy covers a case without seeing its sample group or the register results. The signed report retains the complete pack, its version and its canonical SHA-256 digest. Later changes to the source file leave issued findings reproducible.
 
 ## Run the supplied example
 
@@ -34,7 +34,7 @@ python3 -m telryn pack show us-reg-e@1.0.0 > lender-policy.json
 
 1. Give `clock_policy.id` a firm-owned lowercase ID and set `clock_policy.version` to a major.minor.patch version. Edit the applicability note, sources, question and categories. Order categories from lowest to highest priority so Telryn can recognize downgrade requests. Keep the policy owner’s approval and effective dates in your policy repository.
 2. Set the local time zone, holidays and close of business for each clock. The optional `business_weekdays` array uses ISO weekdays, Monday 1 through Sunday 7. The default is Monday to Friday. An institution that performs its relevant business functions on Saturday can include 6. Verify the resulting dates against the approved operational calendar. If the calendar or exception cannot be represented, leave that route for manual review.
-3. Run `python3 -m telryn pack show lender-policy.json` to validate the file. Set `policy_pack = "lender-policy.json"` in the weekly TOML beside it. Use a new version for each change and retain the approved file. Telryn rejects an edited file that reuses a shipped pack’s identity. A local pack requires no plug-in, expression evaluator or network connection.
+3. Run `python3 -m telryn pack show lender-policy.json` to validate the file. Set `policy_pack = "lender-policy.json"` in the weekly TOML beside it. Use a new version for each change and retain the approved file. When the team issues a report or signs a re-review notice, its private registry binds that pack ID and version to one content digest across audits. Telryn rejects an edited file that reuses a shipped pack’s identity. A local pack requires no plug-in, expression evaluator or network connection.
 
 ## Attach the register and revisit a change
 

@@ -6,10 +6,11 @@ import json
 import shutil
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
-from telryn import packs, policy, weekly_report
+from telryn import audit_trust, packs, policy, weekly_report
 from telryn.__main__ import main
 from telryn.contracts import InputError
 from telryn.desk import Desk
@@ -86,6 +87,17 @@ class PolicyPacks(unittest.TestCase):
             row = next(csv.DictReader(f))
         self.assertEqual(row["rubric_question"], pack["rubric_question"])
         self.assertEqual(json.loads(row["category_options"]), pack["categories"])
+        self.assertEqual(row["policy_applicability"], pack["applicability"])
+        self.assertEqual(json.loads(row["policy_sources"]), pack["sources"])
+        before_guidance = dict(state)
+        del before_guidance["pack_packet_version"]
+        self.assertNotIn(
+            "policy_applicability", weekly_report._columns(before_guidance)
+        )
+        self.assertNotIn(
+            "policy_sources",
+            next(iter(weekly_report._packet(before_guidance).values()))[1],
+        )
         self.assertFalse(state["group_by"])
         self.assertEqual({r["channel"] for r in state["cases"]}, {"Chat"})
         self.assertNotIn("screen_flag", row)
@@ -265,6 +277,60 @@ class PolicyPacks(unittest.TestCase):
             weekly_report.read_state(report)["rubric"], "example-lender@1.0.0"
         )
         self.assertIn("1.1.0", report.read_text())
+
+    def test_team_cannot_issue_different_rubrics_under_same_firm_version(self):
+        pack = packs.load("firm-example@1.0.0", self.data)
+        pack["clock_policy"]["id"] = "issuer"
+        spec = self.data / "firm.json"
+        spec.write_text(json.dumps(pack))
+        plan = self.data / "week.toml"
+        plan.write_text(plan.read_text().replace("firm-example@1.0.0", "firm.json"))
+        self.cli("weekly", plan, "--out", self.root / "issued")
+        report = self.root / "issued" / "report.html"
+        original = weekly_report.read_state(report)
+        # A prior team backup can contain the draw but predate the publication.
+        with audit_trust.registry() as (db, _):
+            db.execute("DELETE FROM reports WHERE id=?", (original["publication_id"],))
+            db.execute("DROP TABLE pack_versions")
+        self.assertEqual(weekly_report.read_state(report), original)
+        with audit_trust.registry() as (db, _):
+            self.assertEqual(
+                db.execute(
+                    "SELECT digest FROM pack_versions WHERE policy=? AND version=?",
+                    ("issuer", "1.0.0"),
+                ).fetchone(),
+                (packs.receipt(pack)["sha256"],),
+            )
+        self.cli("weekly", plan, "--out", self.root / "same-version")
+        pack["categories"].reverse()
+        spec.write_text(json.dumps(pack))
+        refused = self.root / "unissued"
+        self.assertIn(
+            "already issued", self.cli("weekly", plan, "--out", refused, ok=False)
+        )
+        self.assertFalse(refused.exists())
+        pack["clock_policy"]["version"] = "1.0.1"
+        spec.write_text(json.dumps(pack))
+        self.cli("weekly", plan, "--out", self.root / "revised")
+
+    def test_failed_registry_commit_keeps_initial_packet_private(self):
+        real_registry = audit_trust.registry
+
+        @contextmanager
+        def failed_commit(*, create=False):
+            with real_registry(create=create) as store:
+                yield store
+                if not create:
+                    raise OSError("registry commit failed")
+
+        target = self.root / "unissued"
+        with (
+            patch.object(audit_trust, "registry", failed_commit),
+            self.assertRaisesRegex(OSError, "registry commit failed"),
+        ):
+            weekly_report.start(self.data / "week.toml", target)
+        self.assertFalse(target.exists())
+        self.assertFalse(list(self.root.glob(".telryn-*")))
 
     def test_unsupported_business_calendars_fail_explicitly(self):
         clock = packs.load("us-reg-e@1.0.0", self.data)["clock_policy"]

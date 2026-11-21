@@ -13,14 +13,18 @@ out="$work/release"
 mkdir "$out" "$work/layout"
 source_name="telryn-$version.tar.gz"
 archive_name="telryn-$version.oci.tar"
-gh release download "$TAG" --dir "$out" -p "$source_name" -p ubuntu-support-audit.html -p synthetic-complaints-audit.html -p SHA256SUMS.txt
+gh release download "$TAG" --dir "$out" -p "$source_name"
 python scripts/release_artifacts.py source "$out/$source_name" "$TAG" "$COMMIT"
-# Recheck only the three approved initial assets. A retried draft's manifest may
-# also include the generated artifacts from an earlier workflow attempt.
-for file in "$source_name" synthetic-complaints-audit.html ubuntu-support-audit.html; do
-  actual=$(sha256sum "$out/$file" | cut -d' ' -f1)
-  test "$(awk -v f="$file" '$2 == f {print $1}' "$out/SHA256SUMS.txt")" = "$actual"
+# Produce both HTML assets from this checkout. Only the reports leave this runner;
+# the private demo trust store and grading packets stay in the temporary workspace.
+export TELRYN_TRUST_DIR="$work/demo-trust"
+python -m examples.public_demo --census --out "$work/ubuntu" > /dev/null
+python -m examples.complaints_pilot --out "$work/complaints" > /dev/null
+for report in "$work/ubuntu/report.html" "$work/complaints/2026-10-05/report.html"; do
+  python -m telryn weekly "$report" --format json > /dev/null
 done
+cp "$work/ubuntu/report.html" "$out/ubuntu-support-audit.html"
+cp "$work/complaints/2026-10-05/report.html" "$out/synthetic-complaints-audit.html"
 echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 docker buildx build --platform linux/amd64,linux/arm64 --provenance=false --sbom=false \
   --build-arg "REVISION=$COMMIT" -t "$image:$TAG" \
@@ -57,6 +61,7 @@ tar -C "$work" -czf "$out/telryn-security-review.tar.gz" telryn-security-review
   cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS.txt
   cosign verify-blob "${authority[@]}" --bundle SHA256SUMS.sigstore.json SHA256SUMS.txt
   gh release view "$TAG" --json isDraft,targetCommitish | jq -e --arg sha "$COMMIT" '.isDraft and .targetCommitish == $sha'
-  gh release upload "$TAG" --clobber "$archive_name" telryn-linux-amd64.spdx.json telryn-linux-arm64.spdx.json \
+  gh release upload "$TAG" --clobber "$archive_name" ubuntu-support-audit.html synthetic-complaints-audit.html \
+    telryn-linux-amd64.spdx.json telryn-linux-arm64.spdx.json \
     image-digests.json telryn-security-review.tar.gz SHA256SUMS.txt SHA256SUMS.sigstore.json
 )

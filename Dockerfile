@@ -13,7 +13,7 @@ LABEL org.opencontainers.image.title="Telryn" \
       org.opencontainers.image.source="https://github.com/davidahma/telryn" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.revision="${REVISION}"
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONNOUSERSITE=1 \
     TELRYN_TRUST_DIR=/trust/team HOME=/data
 COPY --from=dependencies /opt/wheels/ /usr/lib/python3.15/site-packages/
 COPY --from=dependencies --chown=65532:65532 /volumes/ /

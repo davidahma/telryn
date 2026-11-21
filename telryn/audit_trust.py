@@ -224,6 +224,40 @@ def committed_draw(week: str, frame: str, design: str) -> tuple[str, dict]:
         }
 
 
+def bind_policy_versions(db, state):
+    """One published pack identity must identify the same bytes across team audits."""
+    versions = []
+    if pack := state.get("policy_pack"):
+        clocks = pack["clock_policy"]
+        versions.append((clocks["id"], clocks["version"], fingerprint(pack)))
+    for notice in (
+        *state.get("pack_reviews", []),
+        *state.get("complaint_records", {}).get("policy_reviews", []),
+    ):
+        if "pack_digest" in notice:
+            versions.append(
+                (notice["policy"], notice["review_version"], notice["pack_digest"])
+            )
+    if not versions:
+        return
+    db.execute(
+        "CREATE TABLE IF NOT EXISTS pack_versions (policy TEXT NOT NULL, version TEXT NOT NULL, digest TEXT NOT NULL, PRIMARY KEY(policy,version))"
+    )
+    for name, version, digest in set(versions):
+        db.execute(
+            "INSERT OR IGNORE INTO pack_versions VALUES (?,?,?)",
+            (name, version, digest),
+        )
+        row = db.execute(
+            "SELECT digest FROM pack_versions WHERE policy=? AND version=?",
+            (name, version),
+        ).fetchone()
+        if row != (digest,):
+            raise InputError(
+                f"pack {name}@{version} conflicts with the version already issued by this team; use a new version"
+            )
+
+
 def check_draw(db, key: bytes, state: dict) -> None:
     commitment = state.get("draw_commitment")
     if not isinstance(commitment, dict) or commitment.get("key_id") != key_id(key):
