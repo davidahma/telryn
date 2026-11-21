@@ -18,13 +18,17 @@ python scripts/release_artifacts.py source "$out/$source_name" "$TAG" "$COMMIT"
 # Produce both HTML assets from this checkout. Only the reports leave this runner;
 # the private demo trust store and grading packets stay in the temporary workspace.
 export TELRYN_TRUST_DIR="$work/demo-trust"
-python -m examples.public_demo --census --out "$work/ubuntu" > /dev/null
-python -m examples.complaints_pilot --out "$work/complaints" > /dev/null
+python -m examples.public_demo --census --out "$work/ubuntu" |
+  jq -e '.public_conversations == 200 and .residual_human_friction_total == 86' > /dev/null
+python -m examples.complaints_pilot --out "$work/complaints" |
+  jq -e '.evidence == "synthetic" and .fixture_selection_sensitivity.possible_two_week_selections == 1350' > /dev/null
 for report in "$work/ubuntu/report.html" "$work/complaints/2026-10-05/report.html"; do
   python -m telryn weekly "$report" --format json > /dev/null
 done
 cp "$work/ubuntu/report.html" "$out/ubuntu-support-audit.html"
 cp "$work/complaints/2026-10-05/report.html" "$out/synthetic-complaints-audit.html"
+grep -Fq 'C108' "$out/synthetic-complaints-audit.html"
+grep -Fq 'Even with a refund I want to know how this happened.' "$out/synthetic-complaints-audit.html"
 echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 docker buildx build --platform linux/amd64,linux/arm64 --provenance=false --sbom=false \
   --build-arg "REVISION=$COMMIT" -t "$image:$TAG" \
