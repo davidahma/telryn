@@ -100,7 +100,7 @@ class DecisionMetrics(unittest.TestCase):
         self.assertIsNone(result["precision"])  # v0.5 scalar completion contract
         self.assertEqual(result["screen_metrics"]["recall"]["interval"], [0.5, 2 / 3])
         self.assertIn("1 await a first return", digest(report))
-        self.assertIn("1.0 to 3.0", digest(report))
+        self.assertIn("Findings new to the team · 1 to 3", digest(report))
 
     def test_unsampled_group_and_missing_denominators(self):
         report = self.audit((2, 3), (2, 0))

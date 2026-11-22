@@ -43,7 +43,15 @@ The fresh run writes a self-contained `report.html` for the lead and a blind `gr
 
 Leave unanswered rows blank in a partial return. More evidence can resolve an insufficient answer. If an accepted yes or no was wrong, ask a second person to grade the same blinded packet independently. Import with `--second-review returned.csv --reviewer REVIEWER_ID`. A disagreement opens a dispute. A third person selects the accepted answer and records their reason and minutes. The report preserves both answers, shows reviewer agreement and recomputes its bounds. [Correction and adjudication commands](trust.md)
 
-### Pick up a partly graded week
+### Finish a complaints audit in the browser
+
+After the administrator starts the desk, the lead can complete the audit in a browser. Upload the population and source coverage receipt, ordinary review ledger, and original vendor scores. Preview the sample, issue the audit and give reviewers the blind packet. Upload their returned CSVs under the appropriate review round. The lead can adjudicate disagreements in the same audit. [Native score import](native-scores.md)
+
+Under **Attach complaint records and contact history**, download the selected audit's manifest template. Fill in policy references, match keys, source coverage and both observation dates using the source records. Select the manifest, dated register and owner ledger. For episode clocks, also choose the contact archive and the clock policy, unless the audit already has a frozen pack. The desk uses the files selected in the browser. It ignores the source filenames in the manifest. Review proposed payment-reference links against the source before confirming them. Attach the evidence and open the signed report to follow a case through its deadline and owner action.
+
+Under **Export a bank statement**, enter the approved queue name, exclusions and responsible teams. Download the HTML and give its SHA-256 to the recipient through a separate authenticated channel. The bank can replay a disputed case using its private report and original exports. Under **Review a policy change**, preview the effect of a revised policy or pack on this audit, then mark the affected work for review. The CLI also supports marking multiple issued weeks. [Bank handoff](bank-report.md) · [Hosted desk for leads and reviewers](hosted-desk.md)
+
+## Pick up a partly graded week
 
 To review a scheduled CLI run, start the desk with the parent of the dated output directory, for example `telryn desk --out /srv/telryn/runs`, under the same account and with the same `TELRYN_TRUST_DIR`. Reload the desk after a new delivery. It looks one directory deep and omits hidden and symlinked directories. Open **Open a saved audit** in the desk. Each verified entry shows the week, rubric, and how many primary grades have come back. Choose **Download unanswered assignments** to send the next reviewer only cases that still lack a first return. The rows keep their original audit IDs, case revisions, cutoffs and blank answer fields. They can be returned through the same grade import. For an independent second review, use **Download full blind packet**.
 

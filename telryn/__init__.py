@@ -1,3 +1,4 @@
-"""Audit unreviewed support cases and replay changes to a QA queue."""
+"""Find complaints your AI and human support teams missed."""
 
-__version__ = "0.10.0"
+TAGLINE = "Find complaints your AI and human support teams missed."
+__version__ = "0.11.0"

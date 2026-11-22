@@ -27,6 +27,7 @@ The demo then uses a [separate development cohort](development.toml), constructe
 The demo has already run the held-out replay and recorded a shadow observation on it. Read the digest and check whether the saved comparison still qualifies against the latest evidence in your trust store.
 
 ```sh
+export TELRYN_TRUST_DIR=runs/fintech/trust
 python3 -m telryn weekly runs/fintech/weekly/report.html --digest
 python3 -m telryn explain runs/fintech/comparison/report.html \
   --require-shadow --require-weekly-source --format json

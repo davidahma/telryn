@@ -15,8 +15,9 @@ from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import weekly_report, weekly_review
-from .contracts import InputError, integer, mapping
+from . import desk_evidence, weekly_report, weekly_review
+from .desk_hosted import Proxy, reviewer_id
+from .contracts import InputError, decode_json, integer, mapping
 from .screen import RUBRICS
 
 PAGE = Path(__file__).with_name("desk.html")
@@ -31,6 +32,12 @@ FILES = {
     "policy_pack": "pack.json",
     "scores": "scores.csv",
     "grades": "return.csv",
+    "manifest": "manifest.json",
+    "register": "register.csv",
+    "actions": "actions.csv",
+    "contacts": "contacts.json",
+    "clock": "clock.json",
+    "policy": "revised-policy.json",
 }
 PLAN_FILES = {
     "population": "population",
@@ -48,7 +55,7 @@ class UploadLimit(InputError):
 
 def _form(content_type, body):
     if content_type.split(";", 1)[0].strip() == "application/json":
-        fields = mapping(json.loads(body), "weekly intake")
+        fields = mapping(decode_json(body, "weekly intake"), "weekly intake")
     else:
         if "\r" in content_type or "\n" in content_type:
             raise InputError("invalid form content type")
@@ -74,7 +81,7 @@ def _form(content_type, body):
                 raise InputError("invalid form part")
             raw = part.get_payload(decode=True)
             if name == "settings" and fields is None and len(raw) <= 32_768:
-                fields = mapping(json.loads(raw), "weekly settings")
+                fields = mapping(decode_json(raw, "weekly settings"), "weekly settings")
             elif name in FILES and name not in files:
                 if len(raw) > MAX_FILE:
                     raise UploadLimit(f"{name} exceeds the 24 MiB per-file limit")
@@ -173,17 +180,19 @@ def _plan(fields):
                 lines.append(f"{key} = {integer(fields.get(key), key)}")
         if "scores" in fields or "score_audit" in fields:
             config = mapping(fields.get("score_audit"), "score audit settings")
-            if set(config) != {
+            if set(config) - {"native"} != {
                 "scorecard",
                 "version",
                 "cutoff",
                 "scope",
             } or not fields.get("scores"):
                 raise InputError(
-                    "choose the score CSV and enter the scorecard, version, cutoff and scope"
+                    "choose the score export and enter the scorecard, version, cutoff and scope"
                 )
             lines.extend(("[score_audit]", 'file = "scores.csv"'))
             for name, value in config.items():
+                if name == "native":
+                    continue
                 if (
                     not isinstance(value, str)
                     or not value.strip()
@@ -191,6 +200,13 @@ def _plan(fields):
                 ):
                     raise InputError(f"enter a single line for score audit {name}")
                 lines.append(f"{name} = {json.dumps(value, ensure_ascii=False)}")
+            if "native" in config:
+                from .score_import import settings
+
+                native = settings(config["native"])
+                lines.append("[score_audit.native]")
+                for name, value in native.items():
+                    lines.append(f"{name} = {json.dumps(value, ensure_ascii=False)}")
             (base / FILES["scores"]).write_text(
                 fields["scores"], encoding="utf-8", newline=""
             )
@@ -313,14 +329,16 @@ class Desk:
         )
 
 
-def handler(desk: Desk, token: str):
+def handler(desk: Desk, token: str, proxy: Proxy | None = None):
     class Handler(BaseHTTPRequestHandler):
         timeout = 20
 
         def log_message(self, *args):
             pass  # The local entry URL contains a session secret.
 
-        def reply(self, status, body, mime, *, download=None, script_nonce=None):
+        def reply(
+            self, status, body, mime, *, download=None, script_nonce=None, digest=None
+        ):
             self.send_response(status)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(len(body)))
@@ -335,6 +353,8 @@ def handler(desk: Desk, token: str):
                 f"script-src {script_policy}; connect-src 'self'; base-uri 'none'; "
                 "form-action 'none'; frame-ancestors 'none'",
             )
+            if digest:
+                self.send_header("X-Telryn-SHA256", digest)
             if download:
                 self.send_header(
                     "Content-Disposition", f'attachment; filename="{download}"'
@@ -343,18 +363,24 @@ def handler(desk: Desk, token: str):
             self.wfile.write(body)
 
         def route(self):
+            self.role, self.subject = "lead", None
+            if proxy is not None:
+                principal = proxy.principal(self)
+                if not principal or not self.path.startswith("/"):
+                    return None
+                self.role, self.subject = principal
+                return self.path.split("/")[1:]
             host = f"127.0.0.1:{self.server.server_port}"
-            if self.headers.get("Host") != host:
+            if self.headers.get_all("Host", []) != [host]:
                 return None
             parts = self.path.split("/")
             if len(parts) < 3 or not hmac.compare_digest(
                 parts[1].encode(), token.encode()
             ):
                 return None
-            if (
-                self.command == "POST"
-                and self.headers.get("Origin") != "http://" + host
-            ):
+            if self.command == "POST" and self.headers.get_all("Origin", []) != [
+                "http://" + host
+            ]:
                 return None
             return parts[2:]
 
@@ -365,11 +391,24 @@ def handler(desk: Desk, token: str):
                 self.reply(400, str(exc).encode(), "text/plain; charset=utf-8")
 
         def get(self, parts):
+            if (
+                self.role == "reviewer"
+                and parts
+                and len(parts) == 2
+                and parts[-1] not in ("grades.csv", "outstanding.csv", "review")
+            ):
+                self.reply(
+                    403, b"This operation requires a complaints lead", "text/plain"
+                )
+                return
             if parts == [""]:
                 nonce = secrets.token_hex(16)
                 self.reply(
                     200,
-                    PAGE.read_bytes().replace(b"SESSION_NONCE", nonce.encode()),
+                    PAGE.read_bytes()
+                    .replace(b"SESSION_NONCE", nonce.encode())
+                    .replace(b"DESK_ROLE", self.role.encode())
+                    .replace(b"SSO_SUBJECT", (self.subject or "").encode()),
                     "text/html; charset=utf-8",
                     script_nonce=nonce,
                 )
@@ -382,7 +421,15 @@ def handler(desk: Desk, token: str):
             elif parts == ["rubrics"]:
                 self.reply(200, json.dumps(RUBRICS).encode(), "application/json")
             elif parts == ["audits"]:
-                self.reply(200, json.dumps(desk.history()).encode(), "application/json")
+                history = desk.history()
+                if self.role == "reviewer":
+                    for row in history:
+                        if row.get("verified"):
+                            row["progress"] = {
+                                k: row["progress"][k]
+                                for k in ("assigned", "primary_outstanding")
+                            }
+                self.reply(200, json.dumps(history).encode(), "application/json")
             elif parts and len(parts) == 2 and parts[0] in desk.runs:
                 path = desk.report(parts[0])
                 if parts[1] in ("grades.csv", "outstanding.csv"):
@@ -400,8 +447,29 @@ def handler(desk: Desk, token: str):
                         weekly_report.verified_html(path),
                         "text/html; charset=utf-8",
                     )
+                elif parts[1] == "manifest.json":
+                    self.reply(
+                        200,
+                        json.dumps(desk_evidence.template(path), indent=2).encode(),
+                        "application/json",
+                        download="manifest.json",
+                    )
                 elif parts[1] == "review":
-                    status = desk.review(parts[0])
+                    if self.role == "reviewer":
+                        state = weekly_report.read_state(path)
+                        status = {
+                            "week": state["week"],
+                            "rubric": state["rubric"],
+                            "progress": {
+                                "assigned": len(state["cases"]),
+                                "primary_outstanding": len(state["cases"])
+                                - len(state["grades"]),
+                            },
+                            "follow_up": [],
+                            "open_disputes": [],
+                        }
+                    else:
+                        status = desk.review(parts[0])
                     self.reply(200, json.dumps(status).encode(), "application/json")
                 else:
                     self.reply(404, b"Unknown artifact", "text/plain")
@@ -413,8 +481,20 @@ def handler(desk: Desk, token: str):
             if route is None:
                 self.reply(403, b"Unknown session or browser origin", "text/plain")
                 return
+            if self.role == "reviewer" and (
+                len(route) != 2 or route[1] not in ("grades", "second-review")
+            ):
+                self.reply(
+                    403, b"This operation requires a complaints lead", "text/plain"
+                )
+                return
             try:
-                length = int(self.headers.get("Content-Length", "-1"))
+                lengths = self.headers.get_all("Content-Length", [])
+                if len(lengths) != 1 or self.headers.get("Transfer-Encoding"):
+                    raise InputError(
+                        "supply the complete upload with a single content length"
+                    )
+                length = int(lengths[0])
                 if length > MAX_BODY:
                     raise UploadLimit(
                         "The complete upload exceeds 64 MiB. Use the CLI for this batch."
@@ -425,7 +505,39 @@ def handler(desk: Desk, token: str):
                 ):
                     raise InputError("use the desk intake form")
                 fields = _form(self.headers["Content-Type"], self.rfile.read(length))
-                if route == ["plan"]:
+                if len(route) == 2 and route[1] in {
+                    "records",
+                    "links",
+                    "policy-preview",
+                    "policy-review",
+                    "bank",
+                }:
+                    report = desk.report(route[0])
+                    if route[1] == "records":
+                        value = desk_evidence.attach(
+                            report,
+                            fields,
+                            reviewer_id(self.subject) if self.subject else None,
+                        )
+                    elif route[1] == "links":
+                        value = {
+                            "suggestions": desk_evidence.suggestions(report, fields)
+                        }
+                    elif route[1] == "bank":
+                        data, digest = desk_evidence.bank(report, fields)
+                        self.reply(
+                            200,
+                            data,
+                            "text/html; charset=utf-8",
+                            download="bank-statement.html",
+                            digest=digest,
+                        )
+                        return
+                    else:
+                        value = desk_evidence.review_policy(
+                            report, fields, apply=route[1] == "policy-review"
+                        )
+                elif route == ["plan"]:
                     value = desk.preview(fields)
                 elif route == ["audits"]:
                     value = {"id": desk.create(fields)}
@@ -434,6 +546,8 @@ def handler(desk: Desk, token: str):
                     "second-review",
                     "adjudicate",
                 ):
+                    if self.subject:
+                        fields["reviewer"] = reviewer_id(self.subject)
                     if route[1] == "adjudicate":
                         desk.resolve(route[0], fields)
                     else:
@@ -446,29 +560,60 @@ def handler(desk: Desk, token: str):
                 )
             except UploadLimit as exc:
                 self.reply(413, str(exc).encode(), "text/plain; charset=utf-8")
-            except (ValueError, OSError, csv.Error, OverflowError) as exc:
+            except (
+                ValueError,
+                OSError,
+                csv.Error,
+                OverflowError,
+                RecursionError,
+            ) as exc:
                 self.reply(400, str(exc).encode(), "text/plain; charset=utf-8")
 
     return Handler
 
 
 def serve(
-    root: Path, *, open_browser: bool = True, container_port: int | None = None
+    root: Path,
+    *,
+    open_browser: bool = True,
+    container_port: int | None = None,
+    hosted_origin: str | None = None,
+    proxy_secret_file: Path | None = None,
+    listen_port: int | None = None,
 ) -> int:
+    proxy = None
+    if any(x is not None for x in (hosted_origin, proxy_secret_file, listen_port)):
+        if (
+            not hosted_origin
+            or not proxy_secret_file
+            or listen_port is None
+            or not 1024 <= listen_port <= 65535
+            or container_port is not None
+        ):
+            raise InputError(
+                "hosted desk needs HTTPS origin, proxy secret file and loopback listen port (1024–65535)"
+            )
+        proxy = Proxy.configure(hosted_origin, proxy_secret_file)
     if container_port is not None and not 1024 <= container_port <= 65535:
         raise InputError("container port must be between 1024 and 65535")
     address = (
-        ("0.0.0.0", container_port) if container_port is not None else ("127.0.0.1", 0)
+        ("0.0.0.0", container_port)
+        if container_port is not None
+        else ("127.0.0.1", listen_port or 0)
     )
     token = secrets.token_hex(32)
     desk = Desk(root)
-    with ThreadingHTTPServer(address, handler(desk, token)) as server:
-        url = f"http://127.0.0.1:{server.server_port}/{token}/"
+    with ThreadingHTTPServer(address, handler(desk, token, proxy)) as server:
+        url = (
+            proxy.origin + "/"
+            if proxy
+            else f"http://127.0.0.1:{server.server_port}/{token}/"
+        )
         print(
             f"Weekly QA desk: {url}\nPrivate audit directory: {root.resolve()}",
             flush=True,
         )
-        if open_browser:
+        if open_browser and not proxy:
             webbrowser.open(url)
         server.serve_forever()
     return 0

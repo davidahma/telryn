@@ -30,14 +30,8 @@ def directory() -> Path:
 
 
 @contextmanager
-def rehearse():
-    """Keep synthetic draws and signatures out of the operator's active ledger."""
-    override = os.environ.get("TELRYN_DEMO_TRUST_DIR")
-    path = (
-        Path(override).expanduser().absolute()
-        if override
-        else Path.home() / ".local/state/telryn/rehearsal"
-    )
+def rehearse(path: Path):
+    """Use an explicitly scoped private store while issuing a synthetic report."""
     if path.resolve() == directory().resolve():
         raise InputError(
             "choose a rehearsal trust directory separate from the team trust store"

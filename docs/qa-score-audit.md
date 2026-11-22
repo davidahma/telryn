@@ -4,6 +4,8 @@ A complaints lead can use a closed queue, the QA tool’s original scores and th
 
 A scorecard can pass a correctly identified complaint that the firm subsequently registers late. Equally, a tool can overlook a complaint that the complaints team still registers on time. Telryn reports the two rates separately.
 
+The desk can also read original Zendesk QA, MaestroQA and Langfuse evaluator exports. [Native import formats](native-scores.md)
+
 ## Freeze one week
 
 Prepare a [weekly plan](weekly-qa.md), a source population with its case-specific completion receipt, and a ledger of completed human reviews. Retain the weekly export from the QA tool as it stood at the cutoff. If it stores edits, project the last score version that was actually available by that instant and preserve its original reference. The score timestamp is when that decision on that revision was recorded. Enter the firm's complaint-classification question in the grading rubric.

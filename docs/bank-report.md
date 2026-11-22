@@ -4,7 +4,7 @@ A complaints lead can use the statement to decide whether to request a case revi
 
 ## Prepare the handoff
 
-Start from a current signed weekly score audit with complaint records attached. The operator needs the team trust store used to issue that audit. Use names that the recipient has permission to see in the four display fields.
+Start from a current signed weekly score audit with complaint records attached. If a revised policy has marked the week for re-review, resolve it in a fresh audit before issuing a new bank statement. A previously issued statement can still be verified against its original source. The operator needs the team trust store used to issue that audit. Use names that the recipient has permission to see in the four display fields.
 
 ```sh
 telryn bank-report export private/week-one/report.html --out handoff/week-one \
@@ -13,6 +13,8 @@ telryn bank-report export private/week-one/report.html --out handoff/week-one \
 ```
 
 The new directory contains one offline HTML page. Send the file through the bank’s approved process and supply the printed SHA-256 through a separate authenticated channel. The issuing CLI first checks the private weekly report against its signing key and current revision registry. A bank recipient can check the resulting statement without that key.
+
+The headline gives the number of QA passes with a missed deadline and the eligible denominator. An unresolved census vote gives a range with no sampling error. A sampled result carries a 95% population range. When episode clocks were applied the page names the calendar and coverage.
 
 The page shows the issuer-declared roles and exclusions, scorecard name and version, human policy rubric ID, weekly population, score coverage, cutoffs, report revision and source digests. Each metric gives its eligible denominator, sample size, confirmed count, unresolved sample count and population rate range. Owner counts describe the sampled **QA passes with a confirmed missed deadline**. A request is a referral, acceptance records ownership, and completion records work done. The public page omits conversation IDs, quotations, individual score records, staff identities from the work ledger and grading packets. Choose a versioned human rubric ID when issuing the audit. Review that ID, the scorecard labels and small counts before sharing.
 

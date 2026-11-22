@@ -1,10 +1,18 @@
-"""Join dated contacts by a team-keyed subject, matter and bounded time window."""
+"""Join confirmed matters and propose window-bounded links from payment references."""
 
 from collections import defaultdict
 from datetime import timedelta
 
 from . import audit_trust, policy
-from .contracts import InputError, canonical, fingerprint, integer, sequence, timestamp
+from .contracts import (
+    InputError,
+    canonical,
+    fingerprint,
+    integer,
+    mapping,
+    sequence,
+    timestamp,
+)
 
 
 SUBJECT_DOMAIN = "complaint-subject-v1"
@@ -19,9 +27,17 @@ def _reference(key, domain, parts):
     return audit_trust.mac(key, domain, canonical(parts).encode("ascii"))
 
 
+def _over_window(start, end, days):
+    elapsed = end[0] - start[0]
+    limit = timedelta(days=days)
+    return elapsed > limit or (elapsed == limit and end[1] > start[1])
+
+
 def _contact(item, key, scope, horizon):
     policy.fields(
-        item,
+        {k: v for k, v in item.items() if k != "payment_ref"}
+        if isinstance(item, dict)
+        else item,
         (
             "case_id",
             "revision",
@@ -94,22 +110,85 @@ def _contact(item, key, scope, horizon):
         "matter": matter,
         "match_key": item["match_key"],
         "events": events,
+        **(
+            {
+                "payment": _reference(
+                    key,
+                    "episode-payment-v1",
+                    [subject, policy.label(item["payment_ref"], "payment_ref")],
+                )
+            }
+            if subject and item.get("payment_ref") is not None
+            else {}
+        ),
     }
 
 
-def groups(contacts, window, horizon):
-    """Anchor each window at its first contact. A later chain cannot extend it."""
+def suggestions(archive, policy_doc):
+    """Return candidate groups for a lead to check against the payment records."""
+    by_payment = defaultdict(list)
+    seen = set()
+    for row in sequence(
+        mapping(archive, "episode evidence").get("contacts"), "episode contacts"
+    ):
+        if not isinstance(row, dict):
+            raise InputError("episode contact must be an object")
+        cid = policy.label(row.get("case_id"), "case_id")
+        if cid in seen:
+            raise InputError("duplicate episode contact ID")
+        seen.add(cid)
+        payment = row.get("payment_ref")
+        if payment is None:
+            continue
+        policy.label(payment, "payment_ref")
+        subject = row.get("subject_ref")
+        matter = row.get("matter_ref")
+        if matter is not None:
+            policy.label(matter, "matter_ref")
+        if subject is not None:
+            by_payment[policy.label(subject, "subject_ref"), payment].append(
+                (instant(row.get("contact_at")), cid, matter)
+            )
+    choices = []
+    for (_, payment), rows in sorted(by_payment.items()):
+        batch = []
+        start = None
+        for at, cid, matter in sorted(rows):
+            if start is None or _over_window(start, at, policy_doc["episode_days"]):
+                batch = []
+                choices.append((payment, batch))
+                start = at
+            batch.append((cid, matter))
+    return [
+        {"case_ids": [cid for cid, _ in batch], "payment_ref": payment}
+        for payment, batch in choices
+        if len(batch) > 1
+        and any(m is None for _, m in batch)
+        and len({m for _, m in batch if m is not None}) <= 1
+    ]
+
+
+def _matter(row, horizon):
+    link = row.get("confirmed_link")
+    return row["matter"] or (
+        link["matter"] if link and instant(link["visible_from"]) <= horizon else None
+    )
+
+
+def groups(contacts, window, horizon, *, legacy_windows=False):
+    """A verified matter stays one episode, however long the obligation runs."""
     grouped = defaultdict(list)
     by_id = {}
     for contact in contacts:
         if instant(contact["contact_at"]) > horizon:
             continue
-        subject, matter = contact["subject"], contact["matter"]
+        subject, matter = contact["subject"], _matter(contact, horizon)
         group = grouped[subject, matter] if subject and matter else []
         start = instant(group[0]["contact_at"]) if group else None
-        if start and instant(contact["contact_at"]) > (
-            start[0] + timedelta(days=window),
-            start[1],
+        if (
+            legacy_windows
+            and start
+            and _over_window(start, instant(contact["contact_at"]), window)
         ):
             group = grouped[subject, matter] = []
         group.append(contact)
@@ -117,12 +196,27 @@ def groups(contacts, window, horizon):
     return by_id
 
 
-def load(contact_path, policy_path, doc, sampled, *, control=None, frozen_policy=None):
+def load(
+    contact_path,
+    policy_path,
+    doc,
+    sampled,
+    *,
+    control=None,
+    frozen_policy=None,
+    previous=None,
+):
     clock_policy = (
         frozen_policy if frozen_policy is not None else policy.load(policy_path)
     )
     archive = policy.read_input(contact_path, "episode evidence")
-    policy.fields(archive, ("schema", "contacts"), "episode evidence")
+    policy.fields(
+        {k: v for k, v in archive.items() if k != "confirmed_links"},
+        ("schema", "contacts"),
+        "episode evidence",
+    )
+    if type(archive["schema"]) is not int or archive["schema"] != 1:
+        raise InputError("unsupported episode evidence schema")
     key = audit_trust._key()
     horizon = instant(doc["as_of"])
     contacts = {}
@@ -164,6 +258,61 @@ def load(contact_path, policy_path, doc, sampled, *, control=None, frozen_policy
                     "a cited event postdates the sampled conversation's frozen closure"
                 )
         contacts[cid] = row
+    # Carry signed confirmations forward, with their original witness horizon.
+    # The outer receipt check rejects changes to the underlying contact rows.
+    prior_groups = defaultdict(set)
+    for earlier in (previous or {}).get("contacts", []):
+        cid = earlier["case_id"]
+        if cid in contacts and (link := earlier.get("confirmed_link")):
+            contacts[cid]["confirmed_link"] = link
+            prior_groups[link["matter"], link["reviewer"]].add(cid)
+    proposals = {
+        tuple(sorted(choice["case_ids"])): choice
+        for choice in suggestions(archive, clock_policy)
+    }
+    for selection in sequence(archive.get("confirmed_links", []), "confirmed links"):
+        policy.fields(selection, ("case_ids", "reviewer"), "confirmed link")
+        ids = tuple(
+            sorted(
+                policy.label(cid, "linked case ID")
+                for cid in sequence(selection["case_ids"], "linked case IDs")
+            )
+        )
+        reviewer = policy.label(selection["reviewer"], "link reviewer")
+        matched = [contacts[c] for c in ids if c in contacts]
+        if (
+            len(ids) >= 2
+            and len(set(ids)) == len(ids) == len(matched)
+            and all("confirmed_link" in r for r in matched)
+        ):
+            already = (matched[0]["confirmed_link"]["matter"], reviewer)
+            if set(ids) <= prior_groups.get(already, set()):
+                continue
+            raise InputError(
+                "follow-up changed or backfilled an issued payment confirmation"
+            )
+        if ids not in proposals:
+            raise InputError("a confirmed link must match one proposed payment group")
+        choice = proposals.pop(ids)
+        rows = [contacts[cid] for cid in ids]
+        existing = {matter for row in rows if (matter := _matter(row, horizon))}
+        if len(existing) > 1:
+            raise InputError("payment proposal spans multiple confirmed matters")
+        matter = next(iter(existing), None) or _reference(
+            key,
+            "confirmed-payment-link-v1",
+            [rows[0]["subject"], choice["payment_ref"], ids],
+        )
+        visible_from = max((row["contact_at"] for row in rows), key=instant)
+        for row in rows:
+            row.setdefault(
+                "confirmed_link",
+                {
+                    "reviewer": reviewer,
+                    "visible_from": visible_from,
+                    "matter": matter,
+                },
+            )
     ordered = sorted(
         contacts.values(), key=lambda r: (instant(r["contact_at"]), r["case_id"])
     )
@@ -174,6 +323,10 @@ def load(contact_path, policy_path, doc, sampled, *, control=None, frozen_policy
     eligible = {row["case_id"] for group in selected_groups.values() for row in group}
     if not eligible:
         raise InputError("episode evidence must include a sampled contact")
+    # Freeze potential counterparts without applying a join until a lead confirms.
+    for ids in proposals:
+        if eligible.intersection(ids):
+            eligible.update(ids)
     related = [row for row in ordered if row["case_id"] in eligible]
     if control:
         readable = {
@@ -205,6 +358,7 @@ def load(contact_path, policy_path, doc, sampled, *, control=None, frozen_policy
         }
     )
     return {
+        "link_version": 2,
         "policy": clock_policy,
         "contacts": related,
         "collisions": collisions,
@@ -219,6 +373,7 @@ def bindings(doc, horizon):
         evidence.get("contacts", []),
         evidence.get("policy", {}).get("episode_days", 1),
         horizon,
+        legacy_windows=evidence.get("link_version", 1) == 1,
     )
     anchors = {cid: group[0]["case_id"] for cid, group in by_case.items()}
     aliases = defaultdict(set)
@@ -248,7 +403,8 @@ def bindings(doc, horizon):
             match = "missing_key"
         elif keys & collisions or any(len(aliases[key]) != 1 for key in keys):
             match = "shared_key"
-        if group and (not group[0]["subject"] or not group[0]["matter"]):
+        matter = _matter(group[0], horizon) if group else None
+        if group and (not group[0]["subject"] or not matter):
             match = "unresolved_episode"
         info = {
             "contacts": group,
@@ -256,9 +412,13 @@ def bindings(doc, horizon):
             "match": match,
             "members": {r["case_id"] for r in group} or {cid},
         }
-        if group and group[0]["subject"] and group[0]["matter"]:
-            info["episode_id"] = fingerprint(
-                [group[0]["subject"], group[0]["matter"], anchor]
+        if group and group[0]["subject"] and matter:
+            info["episode_id"] = fingerprint([group[0]["subject"], matter, anchor])
+            first = instant(group[0]["contact_at"])
+            info["long_running"] = _over_window(
+                first,
+                instant(group[-1]["contact_at"]),
+                evidence["policy"]["episode_days"],
             )
         known[anchor] = info
         result[cid] = info
@@ -286,6 +446,9 @@ def clocks(group, policy_doc, horizon, entries, exact, covered):
             continue
         due = policy.deadline(start["at"], rule, policy_doc)
         row["deadline"] = due
+        if due is None:
+            row["reason"] = "holiday_calendar_outside_coverage"
+            continue
         if name == policy_doc["registration_clause"]:
             if not exact or len(entries) > 1:
                 continue

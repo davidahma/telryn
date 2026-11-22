@@ -43,7 +43,7 @@ class PolicyPacks(unittest.TestCase):
         self.assertEqual(
             {i["reference"] for i in items},
             {
-                f"{p}@1.0.0"
+                f"{p}@1.1.0"
                 for p in ("fca-disp", "cfpb-company-portal", "us-reg-e", "firm-example")
             },
         )
@@ -66,7 +66,7 @@ class PolicyPacks(unittest.TestCase):
         )
 
     def test_desk_packet_pinning_and_conflicting_taxonomy(self):
-        pack = json.loads(self.cli("pack", "show", "us-reg-e@1.0.0"))
+        pack = json.loads(self.cli("pack", "show", "us-reg-e@1.1.0"))
         form = dict(
             week="2026-10-05",
             screen_version="case-events",
@@ -81,8 +81,8 @@ class PolicyPacks(unittest.TestCase):
         path = desk.report(desk.create(form))
         state = weekly_report.read_state(path)
         self.assertEqual(state["policy_pack"], pack)
-        self.assertEqual(weekly_report._envelope(path.read_bytes())["schema"], 4)
-        self.assertIn("us-reg-e@1.0.0", path.read_text())
+        self.assertEqual(weekly_report._envelope(path.read_bytes())["schema"], 7)
+        self.assertIn("us-reg-e@1.1.0", path.read_text())
         with path.with_name("grades.csv").open(encoding="utf-8-sig") as f:
             row = next(csv.DictReader(f))
         self.assertEqual(row["rubric_question"], pack["rubric_question"])
@@ -110,7 +110,7 @@ class PolicyPacks(unittest.TestCase):
 
     def check_unregistered(self, reference, field_pack, passage):
         plan = self.data / "week.toml"
-        plan.write_text(plan.read_text().replace("firm-example@1.0.0", reference))
+        plan.write_text(plan.read_text().replace("firm-example@1.1.0", reference))
         report = self.root / "audit" / "report.html"
         self.cli("weekly", plan, "--out", report.parent)
         packet = report.with_name("grades.csv")
@@ -210,7 +210,7 @@ class PolicyPacks(unittest.TestCase):
         return report, packet, manifest, path, case
 
     def test_portal_reviewer_can_identify_complaint_before_register_check(self):
-        reference = "cfpb-company-portal@1.0.0"
+        reference = "cfpb-company-portal@1.1.0"
         pack = json.loads(self.cli("pack", "show", reference))
         self.assertIn("policy requires it to register", pack["rubric_question"])
         _, _, _, _, case = self.check_unregistered(
@@ -218,10 +218,11 @@ class PolicyPacks(unittest.TestCase):
             pack,
             "The CFPB routed the customer's duplicate-charge complaint to our portal.",
         )
-        self.assertEqual(case["registration_at_cutoff"], "missing")
+        self.assertEqual(case["registration_at_cutoff"], "not_due")
+        self.assertEqual(case["deadline"], "2026-10-13T21:00:00Z")
 
     def test_weekly_reconciliation_uses_issued_clocks_and_preserves_revision(self):
-        field_pack = json.loads(self.cli("pack", "show", "firm-example@1.0.0"))
+        field_pack = json.loads(self.cli("pack", "show", "firm-example@1.1.0"))
         field_pack["clock_policy"].update(
             id="example-lender", business_weekdays=[1, 2, 3, 4, 5, 6]
         )
@@ -245,7 +246,7 @@ class PolicyPacks(unittest.TestCase):
             self.cli("weekly", report, "--complaint-records", path, ok=False),
         )
         self.assertEqual(report.read_bytes(), issued)
-        field_pack["clock_policy"]["version"] = "1.0.1"
+        field_pack["clock_policy"]["version"] = "1.1.1"
         field_pack["clock_policy"]["clauses"]["firm-register"]["count"] = 2
         spec.write_text(json.dumps(field_pack))
         self.assertEqual(
@@ -262,7 +263,7 @@ class PolicyPacks(unittest.TestCase):
             "reuse a review version", self.cli("policy-review", spec, report, ok=False)
         )
         self.assertEqual(report.read_bytes(), marked)
-        field_pack["clock_policy"]["version"] = "1.1.0"
+        field_pack["clock_policy"]["version"] = "1.2.0"
         field_pack["clock_policy"]["clauses"]["firm-register"]["count"] = 3
         field_pack["categories"] = ["Updated review category"]
         spec.write_text(json.dumps(field_pack))
@@ -274,17 +275,17 @@ class PolicyPacks(unittest.TestCase):
         self.assertEqual(json.loads(self.cli("policy-review", spec, report)), changed)
         self.assertEqual(report.read_bytes(), marked)
         self.assertEqual(
-            weekly_report.read_state(report)["rubric"], "example-lender@1.0.0"
+            weekly_report.read_state(report)["rubric"], "example-lender@1.1.0"
         )
         self.assertIn("1.1.0", report.read_text())
 
     def test_team_cannot_issue_different_rubrics_under_same_firm_version(self):
-        pack = packs.load("firm-example@1.0.0", self.data)
+        pack = packs.load("firm-example@1.1.0", self.data)
         pack["clock_policy"]["id"] = "issuer"
         spec = self.data / "firm.json"
         spec.write_text(json.dumps(pack))
         plan = self.data / "week.toml"
-        plan.write_text(plan.read_text().replace("firm-example@1.0.0", "firm.json"))
+        plan.write_text(plan.read_text().replace("firm-example@1.1.0", "firm.json"))
         self.cli("weekly", plan, "--out", self.root / "issued")
         report = self.root / "issued" / "report.html"
         original = weekly_report.read_state(report)
@@ -297,7 +298,7 @@ class PolicyPacks(unittest.TestCase):
             self.assertEqual(
                 db.execute(
                     "SELECT digest FROM pack_versions WHERE policy=? AND version=?",
-                    ("issuer", "1.0.0"),
+                    ("issuer", "1.1.0"),
                 ).fetchone(),
                 (packs.receipt(pack)["sha256"],),
             )
@@ -309,7 +310,7 @@ class PolicyPacks(unittest.TestCase):
             "already issued", self.cli("weekly", plan, "--out", refused, ok=False)
         )
         self.assertFalse(refused.exists())
-        pack["clock_policy"]["version"] = "1.0.1"
+        pack["clock_policy"]["version"] = "1.1.1"
         spec.write_text(json.dumps(pack))
         self.cli("weekly", plan, "--out", self.root / "revised")
 
@@ -333,7 +334,7 @@ class PolicyPacks(unittest.TestCase):
         self.assertFalse(list(self.root.glob(".telryn-*")))
 
     def test_unsupported_business_calendars_fail_explicitly(self):
-        clock = packs.load("us-reg-e@1.0.0", self.data)["clock_policy"]
+        clock = packs.load("us-reg-e@1.1.0", self.data)["clock_policy"]
         for days in ([], [8], [1, 1], [True], "Monday"):
             with self.subTest(days), self.assertRaisesRegex(InputError, "ISO weekdays"):
                 policy.validate({**clock, "business_weekdays": days})

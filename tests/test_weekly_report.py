@@ -85,7 +85,7 @@ unflagged_sample = 2
         self.assertEqual(text.count("</script>"), 1)
         self.assertIn("&lt;/script&gt;", text)
         self.assertIn("default-src 'none'", text)
-        self.assertIn("95% range", text)
+        self.assertIn("Census: no sampling error", text)
         with self.assertRaises(FileExistsError):
             start(self.plan, self.run)
         self.plan.unlink()
@@ -106,7 +106,7 @@ unflagged_sample = 2
         self.assertIn("1 of 3", output)
         self.assertIn("1 returned with insufficient evidence", output)
         self.assertIn("6 review minutes", output)
-        self.assertIn("95% range", output)
+        self.assertIn("Census: no sampling error", output)
         resolved = {
             **row_a,
             "serious": "yes",

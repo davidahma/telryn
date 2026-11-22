@@ -1,0 +1,29 @@
+{
+  "dataset": "320 synthetic chats, 160 paired contexts",
+  "frozen_sha256": {
+    "keyword.sql": "0b50fb8b34bd96d2b8cc58881f4acf8548cbf9818eb1dfe968bc0bb1fb6e5092",
+    "pairs.tsv": "b26106361b115aec45e2d0c54645d5f8ced1c2070afed0560849c24adc219255",
+    "policy.txt": "a70cfa844b481f1524324876fc7dacdad61f093055167f593683611c35647a37",
+    "protocol.json": "5481b79a474f77af0f35cc506aaeef4c1ce66e543bf8ebb17a360535983b5292"
+  },
+  "inference_output_written_utc": "2026-11-22T12:02:24+00:00",
+  "inference_started_utc": "2026-11-22T11:59:40Z",
+  "ollama_version": "0.13.0",
+  "screen_receipt": {
+    "cases": 320,
+    "citations_sha256": "bc7bab4000bc5ff451a92c671256ac90d50a2a602f55c3c247697a90aa11b490",
+    "coverage_sha256": null,
+    "events_fingerprint": "117f65096537b434391d08c907a0ab888efcbc37bffd0d4fe07373ee4c723213",
+    "mechanism": "cited-transcript-events",
+    "model": "llama3.2:latest",
+    "model_digest": "a80c4f17acd55265feec403c7aef86be0c25983ab279d83f3bcd3abbcb5b8b72",
+    "policy": "unlogged-complaint",
+    "policy_fingerprint": "73587a918baf1e58fc0e220ea75009073c9e16332560af0d7cfcbb8edcc544ec",
+    "population_sha256": "8d807e257fae84972116ad8ed90c732cd5af7584b31494d6f124de4f63ad4ed7",
+    "prompt_fingerprint": "11429453e8f13cf675223055c85b407efd348e03c79a143067d8ea4973c77743",
+    "schema": 1,
+    "screen_version": "local-model:a22e240b8e46b481f220a37afa4b0128e7cd310d0b8ba6620ee0e229ac34f7b8",
+    "transcripts_fingerprint": "908da43a3467bcf052ca28ebe3dcb253a1c7914af295b1e837316a62d01d46ff"
+  },
+  "workers": 2
+}

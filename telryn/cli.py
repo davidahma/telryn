@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 
 from . import (
+    TAGLINE,
     __version__,
     audit_trust,
     bank_report,
@@ -19,6 +20,7 @@ from . import (
     intake,
     integrations,
     outcomes,
+    oversight,
     packs,
     planning,
     policy,
@@ -59,7 +61,7 @@ def _result_flags(parser: argparse.ArgumentParser, *, gate: bool = True) -> None
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="telryn",
-        description="Audit unreviewed support cases and replay changes to the QA queue.",
+        description=TAGLINE,
     )
     parser.add_argument("--version", action="version", version=__version__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -116,6 +118,7 @@ def _parser() -> argparse.ArgumentParser:
     audit_trust.register_arguments(commands)
     bank_report.register_arguments(commands)
     outcomes.register_arguments(commands)
+    oversight.register_arguments(commands)
     seed.register_arguments(commands)
     screen.register_arguments(commands)
     desk = commands.add_parser(
@@ -129,6 +132,16 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         metavar="PORT",
         help="listen on container interfaces; publish only to host 127.0.0.1 on the same port",
+    )
+    desk.add_argument(
+        "--hosted-origin",
+        help="public HTTPS origin of the authenticating reverse proxy",
+    )
+    desk.add_argument(
+        "--proxy-secret-file", type=Path, help="private shared proxy credential file"
+    )
+    desk.add_argument(
+        "--listen-port", type=int, help="hosted-mode loopback backend port"
     )
     desk.add_argument(
         "--no-browser",
@@ -146,6 +159,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="audit two weeks of synthetic vendor QA decisions",
     )
+    kind.add_argument(
+        "--agent-release",
+        action="store_true",
+        help="check two synthetic agent releases and their register entries",
+    )
     demo.add_argument(
         "--format",
         choices=("text", "json"),
@@ -157,7 +175,11 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help="new output directory for the demo",
     )
-    compare_parser = commands.add_parser(
+    queue = commands.add_parser(
+        "queue", help="compare and qualify changes to QA queue routing"
+    )
+    routing = queue.add_subparsers(dest="queue_command", required=True)
+    compare_parser = routing.add_parser(
         "compare", help="compare two rules and write a report and packet"
     )
     compare_parser.add_argument("definition", type=Path)
@@ -171,10 +193,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     compare_parser.add_argument("--out", type=Path, required=True)
     _result_flags(compare_parser)
-    explain = commands.add_parser("explain", help="read a saved evidence snapshot")
+    explain = routing.add_parser("explain", help="read a saved evidence snapshot")
     explain.add_argument("report", type=Path)
     _result_flags(explain)
-    update = commands.add_parser(
+    update = routing.add_parser(
         "refresh", help="merge partial grades or record adjudication"
     )
     update.add_argument("report", type=Path)
@@ -197,7 +219,7 @@ def _parser() -> argparse.ArgumentParser:
         help="record that a reviewer knew which requests switched",
     )
     _result_flags(update)
-    check = commands.add_parser(
+    check = routing.add_parser(
         "preflight", help="check CSV intake before translating a rule"
     )
     check.add_argument("intake", type=Path)
@@ -208,13 +230,13 @@ def _parser() -> argparse.ArgumentParser:
         "--out", type=Path, help="write a reconciled cutoff JSON export when ready"
     )
     _result_flags(check, gate=False)
-    trial = commands.add_parser(
+    trial = routing.add_parser(
         "record-shadow", help="record a completed shadow trial from your queue system"
     )
     trial.add_argument("report", type=Path)
     trial.add_argument("observations", type=Path)
     _result_flags(trial, gate=False)
-    pilot = commands.add_parser(
+    pilot = routing.add_parser(
         "benchmark", help="assess a matched pilot record against a saved comparison"
     )
     pilot.add_argument("report", type=Path)
@@ -411,7 +433,19 @@ def weekly_audit(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] and argv[0] in {
+        "compare",
+        "refresh",
+        "explain",
+        "preflight",
+        "benchmark",
+        "record-shadow",
+    }:
+        argv.insert(0, "queue")  # Established command names remain callable.
     args = _parser().parse_args(argv)
+    if args.command == "queue":
+        args.command = args.queue_command
     try:
         if getattr(args, "require_weekly_source", False) and not args.require_shadow:
             raise InputError("--require-weekly-source requires --require-shadow")
@@ -422,11 +456,16 @@ def main(argv: list[str] | None = None) -> int:
                 args.out,
                 open_browser=not args.no_browser,
                 container_port=args.container_port,
+                hosted_origin=args.hosted_origin,
+                proxy_secret_file=args.proxy_secret_file,
+                listen_port=args.listen_port,
             )
         if args.command == "weekly":
             return weekly_audit(args)
         if args.command == "bank-report":
             return bank_report.execute(args)
+        if args.command == "oversight":
+            return oversight.execute(args)
         if args.command == "outcome":
             return outcomes.execute(args)
         if args.command == "integrations":
@@ -444,13 +483,20 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "trust":
             return audit_trust.execute(args)
         if args.command == "demo":
+            if args.agent_release:
+                return seed.demo(
+                    EXAMPLE.parent / "agent_release",
+                    args.out or Path("runs/agent-release"),
+                    args.format,
+                )
             if args.qa_passes:
                 if BUNDLED.is_dir():
                     from ._bundled.examples.complaints_pilot.qa_passes import run
                 else:
                     from examples.complaints_pilot.qa_passes import run
-                with audit_trust.rehearse() as store:
-                    result = run(args.out or Path("runs/qa-passes"))
+                out = args.out or Path("runs/qa-passes")
+                store = out / "trust"
+                result = run(out, isolated=True)
                 if args.format == "json":
                     print(canonical(result))
                 else:
@@ -467,9 +513,7 @@ def main(argv: list[str] | None = None) -> int:
                         print(terminal_text(week["report"]))
                     print("Bank statement:", terminal_text(result["bank_report"]))
                     print("Bank statement SHA-256:", result["bank_report_sha256"])
-                    first = shlex.quote(
-                        str(Path(result["weeks"][0]["report"]).absolute())
-                    )
+                    first = shlex.quote(str(Path(result["weeks"][0]["report"])))
                     print(
                         terminal_text(
                             f"TELRYN_TRUST_DIR={shlex.quote(str(store))} telryn weekly {first} --format json"
@@ -483,8 +527,8 @@ def main(argv: list[str] | None = None) -> int:
                     from examples.complaints_pilot.__main__ import run
 
                 out = args.out or Path("runs/complaints-pilot")
-                with audit_trust.rehearse() as store:
-                    result = run(out)
+                store = out / "trust"
+                result = run(out, isolated=True)
                 if args.format == "json":
                     print(canonical(result))
                     return 0
@@ -513,7 +557,7 @@ def main(argv: list[str] | None = None) -> int:
                     "Selections, time ledger and source references:",
                     terminal_text(out / "comparison.json"),
                 )
-                first = shlex.quote(str(Path(result["weeks"][0]["report"]).absolute()))
+                first = shlex.quote(str(Path(result["weeks"][0]["report"])))
                 print("Verify the first week's report with the rehearsal trust store:")
                 print(
                     terminal_text(

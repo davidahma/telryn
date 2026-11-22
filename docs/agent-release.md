@@ -38,3 +38,21 @@ Every request contains `schema: 1`, `environment: "test"`, `scope` (the four dep
 | `read_register` | `markers` | Read authoritative dated entries for those markers from the test complaints register, including duplicates. Return `source_ref`, `as_of`, `complete_through` (or null when unknown), and `entries`. Each entry has `marker`, `conversation_id`, unique `entry_id` and `recorded_at`. |
 
 Use timestamps with UTC offsets. Report a complete-through time only when the register feed is complete to that point. A confirmed positive entry is evidence even when full coverage is unknown. An empty or stale feed cannot clear the release. Keep test credentials outside the suite and use access-controlled CI storage for the receipt. The [local bridge](../examples/agent_release/bridge.py) implements the protocol with a synthetic agent and a separate register table. Vendor-specific bridge credentials and mappings belong to the deploying team.
+
+## Run the installed demonstration
+
+`telryn demo --agent-release --out runs/agent-check` sends synthetic messages to a local SQLite simulation. The first revision misses the request for readable letters. The second registers all four cases. The two JSON receipts, fixture suites and test database stay in the new output directory.
+
+## Zendesk sandbox and a dated CSV register
+
+For a configured Zendesk test workspace, use `telryn seed suite.json --run-id release-42 --agent-adapter zendesk-sandbox --register-adapter csv-register`. The sandbox's normal ticket-creation triggers must exercise the agent being released. An administrator provisions a synthetic requester with a bank-controlled test mailbox, a dedicated sandbox credential, and a deployment-owned ZIS configuration. Use the sandbox account ID from the administrator's inventory. Keep the local manifest, test receipt database and export directory private. The API contracts are exercised with offline fixtures. Tenant configuration and delivery through a live agent require a tenant test.
+
+Set `TELRYN_ZENDESK_SUBDOMAIN`, `TELRYN_ZENDESK_TOKEN` (sandbox tickets), `TELRYN_SEED_ZIS_TOKEN` (sandbox configuration read) and `TELRYN_SEED_ZENDESK_MANIFEST` (local JSON path). Populate the manifest with the actual deployment and its test requester.
+
+```json
+{"schema":1,"environment":"test","scope":{"workspace":"your-sandbox","agent_revision":"build-42","policy_revision":"p3","handoff_revision":"h1"},"integration":"sandbox_release","account_id":123,"test_requester_id":45}
+```
+
+Provision a ZIS configuration in that integration with scope `telryn-release`. Its `config` contains exactly the same `environment`, `scope` and `test_requester_id`. The adapter checks the remote account, deployment revisions and requester before submitting. It reserves the marker locally, sends it as both the external ID and idempotency key, and persists the original receipt. If a write has an unknown outcome, reconcile the ticket with its external ID before repairing the local receipt. The adapter sets both the ticket requester and submitter to the synthetic customer. Zendesk uses the submitter as the author of the first comment, so the test exercises a customer-originated message. The environment must route notifications only to controlled test destinations. [Zendesk requester and submitter](https://developer.zendesk.com/api-reference/ticketing/tickets/tickets/#requesters-and-submitters) [Zendesk configuration API](https://developer.zendesk.com/api-reference/integration-services/configs/configs/) · [Ticket idempotency](https://developer.zendesk.com/api-reference/ticketing/introduction/)
+
+For the independent register, set `TELRYN_SEED_REGISTER_MANIFEST` to a JSON file with `schema: 1`, `environment: "test"`, the deployer's original `scope`, `file`, `sha256`, `source_ref`, `as_of` and `complete_through`. Use a relative CSV in the same directory with header `marker,conversation_id,entry_id,recorded_at`. The exporter states how far its ledger is complete. Use null for unknown coverage. Refresh the snapshot and rerun the same run ID after asynchronous handoff. The adapter checks the frozen bytes and includes every matching entry, including duplicate registrations with different entry IDs.

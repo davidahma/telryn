@@ -1,5 +1,7 @@
 # Comparison and export reference
 
+Use `telryn queue --help` to list queue-routing commands. For example, `telryn queue compare DEFINITION --out RUN` starts a comparison. Earlier top-level spellings remain callable for existing jobs.
+
 Telryn evaluates a candidate against a recorded queue run. A comparison uses
 disjoint historical shifts that start fresh, a single combined exception-count
 hurdle, and per-shift operating limits. Keep configuration, rule source and

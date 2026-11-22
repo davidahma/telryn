@@ -29,7 +29,14 @@ python -m examples.public_demo --census --out "$work/ubuntu" |
 python -m examples.complaints_pilot --out "$work/complaints" |
   jq -e '.evidence == "synthetic" and .fixture_selection_sensitivity.possible_two_week_selections == 1350' > /dev/null
 for report in "$work/ubuntu/report.html" "$work/complaints/2026-10-05/report.html"; do
-  python -m telryn weekly "$report" --format json > /dev/null
+  store="$TELRYN_TRUST_DIR"
+  if test -d "$work/ubuntu/trust"; then
+    case "$report" in
+      "$work/ubuntu/"*) store="$work/ubuntu/trust" ;;
+      *) store="$work/complaints/trust" ;;
+    esac
+  fi
+  TELRYN_TRUST_DIR="$store" python -m telryn weekly "$report" --format json > /dev/null
 done
 cp "$work/ubuntu/report.html" "$out/ubuntu-support-audit.html"
 cp "$work/complaints/2026-10-05/report.html" "$out/synthetic-complaints-audit.html"
@@ -76,6 +83,7 @@ pack="$work/telryn-security-review"
 mkdir "$pack"
 cp docs/security-review.md "$pack/README.md"
 cp SECURITY.md docs/container.md "$out/image-digests.json" "$out"/telryn-linux-*.spdx.json "$pack/"
+if [[ -f docs/hosted-desk.md ]]; then cp docs/hosted-desk.md "$pack/"; fi
 tar -C "$work" -czf "$out/telryn-security-review.tar.gz" telryn-security-review
 (
   cd "$out"

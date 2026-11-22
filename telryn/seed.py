@@ -66,8 +66,15 @@ def _unique(pairs):
     return obj
 
 
-def exchange(adapter, request):
+def exchange(adapter, request, *, env=None):
     # Code paths come explicitly from the operator, never from the suite or a response.
+    if str(adapter) in {"zendesk-sandbox", "csv-register"}:
+        from . import seed_adapters
+
+        response = seed_adapters.exchange(str(adapter), request)
+        if response["scope"] != request["scope"] or response["environment"] != "test":
+            raise InputError("test adapter scope differs from the selected suite")
+        return response
     path = adapter.resolve(strict=True)
     cmd = [sys.executable, "-I", str(path)] if path.suffix == ".py" else [str(path)]
     try:
@@ -75,6 +82,7 @@ def exchange(adapter, request):
             process = subprocess.run(
                 cmd,
                 input=canonical(request).encode("ascii"),
+                env=env,
                 stdout=output,
                 stderr=subprocess.DEVNULL,
                 timeout=60,
@@ -109,7 +117,8 @@ def exchange(adapter, request):
     return response
 
 
-def run(path, run_id, agent, register):
+def run(path, run_id, agent, register, *, transport=None):
+    transport = exchange if transport is None else transport
     plan, scope = _plan(path)
     run_id = _label(run_id, "run ID")
     base = {
@@ -121,7 +130,7 @@ def run(path, run_id, agent, register):
     }
 
     def call(adapter, operation, **fields):
-        return exchange(adapter, {**base, "operation": operation, **fields})
+        return transport(adapter, {**base, "operation": operation, **fields})
 
     def identify():
         for role, adapter in (("agent", agent), ("register", register)):
@@ -261,3 +270,44 @@ def execute(args):
             else "Release check did not pass."
         )
     return 0 if result["passed"] else 1
+
+
+def demo(fixtures, out, output_format):
+    """Exercise the public release gate against two isolated deployment revisions."""
+    import os
+    from .artifacts import new_directory
+
+    suite = read_json(fixtures / "suite.json", "demo suite")
+    bridge = fixtures / "bridge.py"
+    receipts = []
+    with new_directory(out) as staging:
+        for revision, expected in (("demo-prompt-v1", 1), ("demo-prompt-v2", 0)):
+            suite["agent_revision"] = revision
+            plan = staging / (revision + "-suite.json")
+            plan.write_text(canonical(suite), encoding="utf-8")
+            from functools import partial
+
+            env = {
+                **os.environ,
+                "TELRYN_SEED_DEMO_DB": str(staging / "lab.db"),
+                "TELRYN_DEMO_AGENT_REVISION": revision,
+            }
+            receipt = run(
+                plan, revision, bridge, bridge, transport=partial(exchange, env=env)
+            )
+            if receipt["passed"] != (expected == 0):
+                raise InputError(
+                    f"unexpected result from synthetic deployment {revision}"
+                )
+            receipts.append(receipt)
+            (staging / (revision + "-receipt.json")).write_text(
+                canonical(receipt) + "\n", encoding="utf-8"
+            )
+    if output_format == "json":
+        print(canonical({"synthetic": True, "releases": receipts}))
+    else:
+        for receipt in receipts:
+            status = "passed" if receipt["passed"] else "held"
+            print(f"{receipt['scope']['agent_revision']} · {status}")
+        print(f"Test register and receipts: {out}")
+    return 0

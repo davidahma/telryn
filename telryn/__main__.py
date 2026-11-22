@@ -8,7 +8,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             "Telryn needs Linux or macOS for file locking and private audit storage. "
             "On Windows use WSL 2 or the signed Linux container. "
-            "See https://github.com/davidahma/telryn#install",
+            "See https://github.com/davidahma/telryn#try-the-two-week-audit",
             file=sys.stderr,
         )
         return 2

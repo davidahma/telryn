@@ -6,21 +6,25 @@
 body{margin:0}main{max-width:46rem;margin:auto;padding:2rem 1.4rem 4rem}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #b8bfb3;padding-bottom:1rem}
 header b{font-family:Georgia,serif;letter-spacing:-.06em;font-size:1.8rem}header span,small{color:#4c6059}h1,h2{font-family:Georgia,serif;font-weight:500;line-height:1.12}h1{font-size:clamp(2.4rem,7vw,3.7rem);margin:2rem 0 .65rem}h2{font-size:1.7rem;margin:.2rem 0 1rem}p{margin:.4rem 0 1.4rem}section,details{border-top:1px solid #b8bfb3;padding:1.4rem 0}select{font:inherit;padding:.6rem;border:1px solid #99a69b;border-radius:.25rem}label{display:grid;gap:.35rem;font-weight:600;font-size:.95rem;margin-bottom:1rem}input,textarea{max-width:100%;min-width:0;box-sizing:border-box;font:inherit;color:#18332e;padding:.55rem;border:1px solid #99a69b;background:#fffef8;border-radius:.25rem}input[type=file]{width:100%;font-weight:400}
 fieldset{margin:.8rem 0 1.4rem;padding:0;border:0}legend{font-weight:650;margin-bottom:.5rem}.checks{display:flex;flex-wrap:wrap;gap:1rem}.checks label{display:flex;align-items:center;gap:.4rem}.compact{border:1px solid #b8bfb3;border-radius:.3rem;padding:1rem;margin:1rem 0;background:#fffef8}
-table{border-collapse:collapse;width:100%;margin:.75rem 0}td,th{border-bottom:1px solid #d4d8cf;text-align:left;padding:.3rem}.scroll{overflow:auto}button.secondary{background:white;color:#175146;margin-right:.5rem}.list{padding-left:1.3rem}textarea{width:100%;font:inherit}p.note{color:#4c6059;font-size:.9rem}.buttons{display:flex;gap:.6rem;flex-wrap:wrap}section[hidden],[hidden]{display:none}
+table{border-collapse:collapse;width:100%;margin:.75rem 0}td,th{border-bottom:1px solid #d4d8cf;text-align:left;padding:.3rem}.scroll{overflow:auto}button.secondary{background:white;color:#175146;margin-right:.5rem}.list{padding-left:1.3rem}textarea{width:100%;font:inherit}p.note{color:#4c6059;font-size:.9rem}.buttons{display:flex;gap:.6rem;flex-wrap:wrap}body[data-role=reviewer] [data-lead],section[hidden],[hidden]{display:none}
 summary{font-weight:600;cursor:pointer}details[open] summary{margin-bottom:1rem}.pair{display:grid;grid-template-columns:1fr 1fr;gap:1rem}button,.link{display:inline-block;font:inherit;font-weight:650;padding:.65rem 1rem;border-radius:.25rem;border:1px solid #175146;color:white;background:#175146;cursor:pointer;text-decoration:none}button:disabled{opacity:.6}a{color:#15514a}.links{display:flex;flex-wrap:wrap;align-items:center;gap:1.4rem;margin:1rem 0 1.5rem}#message{font-weight:600;margin-top:1rem}small{font-weight:400}#current{margin-top:2rem}code{overflow-wrap:anywhere}@media(max-width:480px){.pair{grid-template-columns:1fr;gap:0}main{padding-top:1rem}}
 </style></head>
-<body><main><header><b>Telryn</b><span>Support QA</span></header>
+<body data-role="DESK_ROLE" data-subject="SSO_SUBJECT"><main><header><b>Telryn</b><span>Support QA</span></header>
 <h1>Weekly support audit</h1><p>Sample closed conversations for blind review. Add a QA scorecard to audit passes and missed complaint deadlines.</p>
 <details id="history" hidden><summary>Open a saved audit</summary><ul></ul>
 <p id="recovery" class="note" hidden>To recover an unavailable audit, restore its latest signed report and the matching team trust store, then reload the desk.</p></details>
-<form id="intake">
+<form id="intake" data-lead>
 <section><h2>Weekly exports</h2><p class="note">Choose UTF-8 files up to 24 MiB each and 64 MiB combined. Use the CLI for larger batches.</p>
 <label>Week starting (UTC)<input name="week" type="date" required></label>
 <label>Eligible conversations <input name="population" type="file" accept=".csv" required><small>CSV with case_id, revision, evidence_ref and screen_flag. It may also contain channel, agent_type and product.</small></label>
 <label>Ordinary human reviews <input name="reviewed" type="file" accept=".csv" required><small>CSV with one case_id per reviewed conversation.</small></label>
 <details><summary>Audit an external QA scorecard</summary>
-<label>QA decisions <input name="scores" type="file" accept=".csv"><small>Supply the frozen score export and a source coverage receipt with closure timestamps.</small></label>
-<div class="pair"><label>Scorecard name<input name="scorecard"></label><label>Scorecard version<input name="score_version"></label></div>
+<label>Score export format<select name="score_format"><option value="">Telryn score CSV</option><option value="zendesk-qa">Zendesk QA — Export API JSON</option><option value="maestroqa">MaestroQA — Rubric_scores.csv</option><option value="langfuse-v2">Langfuse — v2 boolean evaluator scores</option></select></label>
+<fieldset id="native-options" hidden disabled><label id="percent-label">Passing score (%)<input name="pass_percent" type="number" min="0" max="100" step="any"></label>
+<label>Case ID prefix (only for namespaced populations)<input name="case_prefix" placeholder="zendesk:workspace:"></label><label id="classifier-label" hidden>Complaint evaluator name (optional)<input name="complaint_evaluator"></label>
+<label><span><input name="attest_revisions" type="checkbox" required> I checked the scored revisions against the conversation export and confirmed the scorecard version.</span></label></fieldset>
+<label>QA decisions <input name="scores" type="file" accept=".csv,.json"><small>Supply the frozen score export and a source coverage receipt with closure timestamps.</small></label>
+<div class="pair"><label>Scorecard name or native ID<input name="scorecard"></label><label>Scorecard version<input name="score_version"></label></div>
 <label>Score cutoff with UTC offset<input name="score_cutoff" placeholder="2026-10-12T08:00:00Z"></label>
 <label>Scored population<select name="score_scope"><option value="all_scored">All scored conversations, including human-reviewed cases</option><option value="unreviewed_scored">Scored conversations outside ordinary human QA</option></select></label></details>
 <label>Policy and rubric pack (optional)<input name="policy_pack" type="file" accept=".json"><small>A versioned pack supplies the reviewer question, category order and clocks. Include the control profile for this queue.</small></label>
@@ -58,7 +62,7 @@ summary{font-weight:600;cursor:pointer}details[open] summary{margin-bottom:1rem}
 <div id="message" role="status" aria-live="polite"></div>
 <section id="current" hidden><h2 id="current-title">Review this audit</h2>
 <p id="progress"></p>
-<div class="links"><a id="report" class="link" target="_blank" rel="noopener">Open report</a>
+<div class="links"><a data-lead id="report" class="link" target="_blank" rel="noopener">Open report</a>
 <a id="outstanding" download="outstanding.csv" hidden>Download unanswered assignments</a>
 <a id="packet" download="grades.csv">Download full blind packet</a></div>
 <p id="next-step" class="note"></p>
@@ -68,8 +72,29 @@ summary{font-weight:600;cursor:pointer}details[open] summary{margin-bottom:1rem}
 <label>Reviewer identifier<input name="reviewer" required autocomplete="off"><small>Use the identifier of the person who independently graded this packet.</small></label>
 <label>Returned grades<input type="file" name="grades" accept=".csv" required></label><button>Update report</button></form>
 <div id="agreement" role="status"></div>
-<form id="resolution" class="compact" hidden><h2>Resolve a disagreement</h2><label>Disputed case<select name="dispute" required></select></label>
+<form data-lead id="resolution" class="compact" hidden><h2>Resolve a disagreement</h2><label>Disputed case<select name="dispute" required></select></label>
 <p id="answers"></p><div class="pair"><label>Adjudicator identifier<input name="reviewer" required autocomplete="off"></label><label>Minutes spent<input name="minutes" type="number" min="0" step="1" required></label></div>
 <label>Accepted answer<select name="choice" required><option value="" disabled selected>Choose an answer</option><option value="primary">Primary review</option><option value="second">Second review</option></select></label>
 <label>Reason<textarea name="reason" rows="2" required></textarea></label><button>Record decision</button></form>
+<div data-lead>
+<details id="case-sources"><summary>Attach complaint records and contact history</summary>
+<p>Download the template for this draw. Supply the register aliases, policy deadlines or clock evidence, source references and coverage dates. Keep unknowns in the template until evidence resolves them.</p>
+<a id="manifest-download" download="manifest.json">Download case manifest template</a>
+<form id="records"><label>Completed case manifest<input type="file" name="manifest" accept=".json" required></label>
+<label>Dated complaints register<input type="file" name="register" accept=".csv" required></label>
+<label>Owner action ledger<input type="file" name="actions" accept=".csv" required></label>
+<label>Contact archive (optional)<input type="file" name="contacts" accept=".json"></label>
+<label>Clock policy for the archive (omit when using a frozen pack)<input type="file" name="clock" accept=".json"></label>
+<button type="button" id="suggest" class="secondary">Check proposed episode links</button>
+<fieldset id="link-candidates" hidden><legend>Confirm contacts about the same payment</legend><div></div><label>Confirming lead<input name="link_reviewer"></label></fieldset>
+<button>Attach records</button></form></details>
+<details id="review-policy"><summary>Review a policy change</summary>
+<form id="policy-form"><label>Revised clock policy or pack<input type="file" name="policy" accept=".json" required></label>
+<button class="secondary" value="preview">Preview effect</button><button value="apply">Mark affected work for review</button></form>
+<p id="policy-result" role="status"></p></details>
+<details id="bank-handoff"><summary>Export a bank statement</summary>
+<form id="bank"><label>Queue in scope<input name="queue" required maxlength="180"></label>
+<div class="pair"><label>Sample selected by<input name="sample_owner" required maxlength="180"></label><label>Register supplied by<input name="register_owner" required maxlength="180"></label></div>
+<label>Excluded queues<input name="excluded_queues" required maxlength="180"></label><button>Download bank statement</button></form>
+<p id="bank-digest" class="note"></p></details></div>
 </section></main><script nonce="SESSION_NONCE" src="desk.js"></script></body></html>

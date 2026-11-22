@@ -2,7 +2,8 @@
   "schema": 1,
   "applicability": "UK starter for a firm-approved DISP route. Cite receipt under the relevant route and evidence of an applicable response. Screen for exclusions, temporary rule changes and alternate response obligations. Registration, the 17:00 close, holidays and episode window are illustrative firm settings.",
   "sources": [
-    "https://handbook.fca.org.uk/handbook/disp1"
+    "https://handbook.fca.org.uk/handbook/disp1",
+    "https://www.gov.uk/bank-holidays"
   ],
   "rubric_question": "Did the customer raise a complaint the firm should register under its approved DISP policy?",
   "categories": [
@@ -12,9 +13,8 @@
   "clock_policy": {
     "schema": 1,
     "id": "fca-disp",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "timezone": "Europe/London",
-    "holidays": [],
     "episode_days": 90,
     "registration_clause": "firm-register",
     "clauses": {
@@ -60,6 +60,7 @@
         "count": 35,
         "due_time": "17:00"
       }
-    }
+    },
+    "holiday_calendar": "england-and-wales@2026-11-22"
   }
 }

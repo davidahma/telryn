@@ -1,6 +1,7 @@
 """Exercise the desk in installed Google Chrome with the optional Playwright test driver."""
 
 import csv
+import hashlib
 import json
 import os
 import subprocess
@@ -52,11 +53,40 @@ def scorecard_intake(page, root):
         "expected_rate": "10",
     }.items():
         form.locator(f"[name={name}]").fill(value)
+    # A native evaluator export supplies independent overall-pass and complaint scores.
+    evaluations = []
+    for row in pilot.read_csv(pilot.FIXTURE / "scores" / f"{week}.csv"):
+        for evaluator, label in (
+            ("payments-support", row["decision"]),
+            ("complaint", row["complaint_prediction"]),
+        ):
+            if label == "unknown":
+                continue
+            evaluations.append(
+                {
+                    "traceId": row["case_id"],
+                    "id": row["score_ref"] + "/" + evaluator,
+                    "name": evaluator,
+                    "source": "EVAL",
+                    "dataType": "BOOLEAN",
+                    "value": int(label in ("yes", "pass")),
+                    "updatedAt": row["scored_at"],
+                }
+            )
+    scorefile = inputs / "langfuse.json"
+    scorefile.write_text(
+        json.dumps(
+            {"data": evaluations, "meta": {"page": 1, "totalItems": len(evaluations)}}
+        )
+    )
+    form.locator("[name=score_format]").select_option("langfuse-v2")
+    form.locator("[name=attest_revisions]").check()
+    form.locator("[name=complaint_evaluator]").fill("complaint")
     for name, path in {
         "population": inputs / "population.csv",
         "reviewed": inputs / "ordinary.csv",
         "coverage": inputs / "population.csv.coverage.json",
-        "scores": pilot.FIXTURE / "scores" / f"{week}.csv",
+        "scores": scorefile,
     }.items():
         form.locator(f"[name={name}]").set_input_files(path)
     for scope, count in (("unreviewed_scored", 9), ("all_scored", 10)):
@@ -77,6 +107,130 @@ def scorecard_intake(page, root):
         page.locator("#report").click()
     expect(report.value.locator("#score-audit")).to_contain_text("payments-support")
     report.value.close()
+
+    answers = {r["case_id"]: r for r in pilot.read_csv(pilot.FIXTURE / "answers.csv")}
+    for row in rows:
+        answer = answers[row["case_id"]]
+        row.update(
+            {
+                key: answer[key]
+                for key in (
+                    "serious",
+                    "disposition",
+                    "owner",
+                    "action",
+                    *pilot.control.FIELDS,
+                )
+                if key in row
+            }
+        )
+        row["minutes"] = answer["primary_minutes"]
+    write_return(packet, rows)
+    grade = page.locator("#grade")
+    grade.locator("[name=reviewer]").fill("Browser reviewer")
+    grade.locator("[name=grades]").set_input_files(packet)
+    grade.locator("button").click()
+    expect(page.locator("#message")).to_contain_text("Grades recorded")
+    page.locator("#case-sources summary").click()
+    with page.expect_download() as result:
+        page.locator("#manifest-download").click()
+    result.value.save_as(root / "manifest-template.json")
+    template = json.loads((root / "manifest-template.json").read_text())
+    assert template["audit_id"] == rows[0]["audit_id"]
+    manifest = pilot.records_manifest(
+        inputs,
+        week,
+        cases,
+        protocol,
+        template["audit_id"],
+        pilot.visible_contacts(
+            pilot.read_csv(pilot.FIXTURE / "conversations.csv"),
+            pilot.source_cutoff(week),
+        ),
+    )
+    doc = json.loads(manifest.read_text())
+    # File-name references in third-party manifests cannot select server-side files.
+    for name in ("register", "actions"):
+        doc[name]["file"] = "/unused/private/path"
+    manifest.write_text(json.dumps(doc))
+    archive = inputs / "contacts.json"
+    data = json.loads(archive.read_text())
+    same = {}
+    for c in data["contacts"]:
+        same.setdefault((c["subject_ref"], c["matter_ref"]), []).append(c)
+    candidates = next(group for group in same.values() if len(group) > 1)
+    for c in candidates:
+        c.update(payment_ref="browser-payment", matter_ref=None)
+    archive.write_text(json.dumps(data))
+    sources = page.locator("#records")
+    for name, path in {
+        "manifest": manifest,
+        "register": inputs / "register.csv",
+        "actions": inputs / "owner-events.csv",
+        "contacts": archive,
+        "clock": inputs / "clock-policy.json",
+    }.items():
+        sources.locator(f"[name={name}]").set_input_files(path)
+    sources.locator("#suggest").click()
+    expect(sources.locator("#link-candidates")).to_contain_text("browser-payment")
+    sources.locator("[name=link]").check()
+    sources.locator("[name=link_reviewer]").fill("Complaints lead")
+    sources.get_by_role("button", name="Attach records").click()
+    expect(page.locator("#message")).to_contain_text("Records attached")
+    with page.expect_popup() as shown:
+        page.locator("#report").click()
+    expect(shown.value.locator("#score-audit")).to_contain_text("C102")
+    shown.value.close()
+    page.locator("#bank-handoff summary").click()
+    bank = page.locator("#bank")
+    for name, value in {
+        "queue": "Test queue",
+        "sample_owner": "Complaints QA",
+        "register_owner": "Payments operations",
+        "excluded_queues": "Collections",
+    }.items():
+        bank.locator(f"[name={name}]").fill(value)
+    with page.expect_download() as result:
+        bank.locator("button").click()
+    receipt = root / "bank.html"
+    result.value.save_as(receipt)
+    expect(page.locator("#bank-digest")).to_contain_text(
+        hashlib.sha256(receipt.read_bytes()).hexdigest()
+    )
+    assert b"C102" not in receipt.read_bytes()
+    from telryn import bank_report
+
+    private = root / "sealed-week.html"
+    private.write_bytes(
+        page.request.get(page.locator("#report").evaluate("a => a.href")).body()
+    )
+    replay = bank_report.verify(
+        receipt,
+        hashlib.sha256(receipt.read_bytes()).hexdigest(),
+        source_report=private,
+        case_id="C102",
+        sources={
+            "register": inputs / "register.csv",
+            "actions": inputs / "owner-events.csv",
+            "scores": scorefile,
+        },
+    )
+    assert (
+        replay["case"]["qa"]["decision"] == "pass"
+        and replay["case"]["qa"]["deadline_miss"] is True
+    )
+    page.locator("#review-policy summary").click()
+    revised = json.loads((inputs / "clock-policy.json").read_text())
+    revised["version"] = "browser-revision"
+    revised["clauses"][revised["registration_clause"]]["count"] += 1
+    revised_file = inputs / "revision.json"
+    revised_file.write_text(json.dumps(revised))
+    form = page.locator("#policy-form")
+    form.locator("[name=policy]").set_input_files(revised_file)
+    form.get_by_text("Preview effect").click()
+    expect(page.locator("#policy-result")).to_contain_text("Affected")
+    form.get_by_text("Mark affected work for review").click()
+    expect(page.locator("#policy-result")).to_contain_text("Marked for review")
 
 
 def complaint_control_flow(page, root):
@@ -113,7 +267,7 @@ def complaint_control_flow(page, root):
     }
     pack_path = (
         Path(__file__).resolve().parents[1]
-        / "telryn/policy_packs/firm-example@1.0.0.json"
+        / "telryn/policy_packs/firm-example@1.1.0.json"
     )
     pack = json.loads(pack_path.read_text())
     pack["clock_policy"]["id"] = "desk-fixture"
@@ -183,7 +337,7 @@ def complaint_control_flow(page, root):
     expect(report.value.get_by_role("heading", level=1)).to_have_text(
         "Weekly complaints control statement"
     )
-    expect(report.value.locator("header")).to_contain_text("desk-fixture@1.0.0")
+    expect(report.value.locator("header")).to_contain_text("desk-fixture@1.1.0")
     expect(report.value.locator("#control-inventory")).to_contain_text("Support ops")
     expect(
         report.value.get_by_text("Category downgrade requested.", exact=False).first

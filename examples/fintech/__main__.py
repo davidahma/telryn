@@ -4,6 +4,8 @@ import argparse
 import csv
 import json
 import tempfile
+from contextlib import ExitStack
+from telryn import audit_trust
 from pathlib import Path
 
 from telryn.contracts import InputError, canonical
@@ -35,13 +37,18 @@ def sample_return(
             writer.writerow(row)
 
 
-def run(out: Path) -> dict:
+def run(out: Path, *, isolated=False) -> dict:
     if out.exists() or out.is_symlink():
         raise InputError(f"output directory already exists: {out}")
     out.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix=".fintech-", dir=out.parent) as temp:
+    with (
+        tempfile.TemporaryDirectory(prefix=".fintech-", dir=out.parent) as temp,
+        ExitStack() as context,
+    ):
         work = Path(temp) / "run"
         work.mkdir(mode=0o700)
+        if isolated:
+            context.enter_context(audit_trust.rehearse(work / "trust"))
         weekly = start(FIXTURE / "week.toml", work / "weekly")
         returned = work / "synthetic-return.csv"
         sample_return(weekly.with_name("grades.csv"), returned)
@@ -71,6 +78,7 @@ def run(out: Path) -> dict:
         work.rename(out)
     return {
         "evidence": "synthetic",
+        **({"trust_directory": str(out / "trust")} if isolated else {}),
         "weekly": summarize(audit),
         "new_cases": sorted(
             case
@@ -93,6 +101,6 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     try:
-        print(canonical(run(args.out)))
+        print(canonical(run(args.out, isolated=True)))
     except (OSError, ValueError, csv.Error) as exc:
         parser.exit(2, f"{exc}\n")

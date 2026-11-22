@@ -7,7 +7,7 @@ from collections import Counter
 from html import escape
 from pathlib import Path
 
-from . import complaints, score_audit, weekly, weekly_report
+from . import complaints, policy, score_audit, weekly, weekly_report
 from .artifacts import new_directory
 from .contracts import InputError, canonical, integer, timestamp
 
@@ -48,9 +48,31 @@ def _public_label(value):
     return value
 
 
-def _statement(raw, declarations):
+def _replay_state(raw, schema):
     envelope = weekly_report._envelope(raw)
     state = envelope["state"]
+    if schema == 1:
+        # Reproduce only the original v1 receipt's historical arithmetic.
+        # New statements with an undated calendar must leave deadlines unknown.
+        clocks = (
+            state.get("complaint_records", {})
+            .get("snapshot", {})
+            .get("episodes", {})
+            .get("policy")
+        )
+        if clocks and "holiday_calendar" not in clocks:
+            clocks["holiday_calendar"] = {
+                "id": "legacy-unbounded",
+                "version": "historical",
+                "source": "original receipt",
+                "valid_from": "0001-01-01",
+                "valid_through": "9999-12-31",
+            }
+    return state, envelope["auth"]["revision"]
+
+
+def _statement(raw, declarations, schema=2):
+    state, revision = _replay_state(raw, schema)
     summary = weekly_report.summarize(state)
     qa = summary.get("score_audit")
     if not qa or "complaint_records" not in state:
@@ -67,11 +89,20 @@ def _statement(raw, declarations):
         c["owner_as_of"] for c in records["cases"] if c["case_id"] in passed_misses
     )
     return {
-        "schema": 1,
+        "schema": schema,
         "week": state["week"],
         "synthetic": state.get("control", {}).get("synthetic", False),
         "declared_by_issuer": declarations,
-        "report_revision": envelope["auth"]["revision"],
+        "report_revision": revision,
+        **(
+            {
+                "calendar": policy.calendar_label(records)
+                if "holiday_calendar" in records
+                else "Manual deadline supplied by the issuer"
+            }
+            if schema == 2
+            else {}
+        ),
         "source_report_sha256": _digest(raw),
         "human_rubric": state["rubric"],
         "scorecard": qa["scorecard"],
@@ -123,6 +154,8 @@ def _html(s):
             ("Owner history coverage through", s["work_complete_through"]),
         )
     )
+    if s["schema"] == 2:
+        rows += row("Calendar used for deadlines", s["calendar"])
     metrics = []
     for key, label in METRICS.items():
         m = s["metrics"][key]
@@ -135,7 +168,12 @@ def _html(s):
         metrics.append(
             f"<tr><th scope='row'>{escape(label)}</th><td>{m['denominator']}</td><td>{m['assigned']}</td>"
             f"<td>{m['confirmed']}</td><td>{m['assigned'] - m['determinate']}</td>"
-            f"<td>{_percent(m['estimate'])}</td><td>{interval}</td></tr>"
+            + (
+                f"<td>{_percent(m['estimate'])}</td><td>{interval}</td>"
+                if s["schema"] == 1
+                else f"<td>{escape(score_audit.rate_summary(m))}</td>"
+            )
+            + "</tr>"
         )
     counts = ", ".join(
         f"{count} {show(status)}"
@@ -146,6 +184,13 @@ def _html(s):
         for label, count in s["coverage"].items()
     )
     label = "Synthetic rehearsal" if s["synthetic"] else "Weekly statement"
+    title = "Which QA passes missed a complaint deadline?"
+    metrics_header = "<th>Estimated rate</th><th>Range</th>"
+    if s["schema"] == 2:
+        title = escape(
+            score_audit.deadline_headline(s["metrics"]["passed_deadline_miss"])
+        )
+        metrics_header = "<th>Population rate</th>"
     data = (
         canonical(s)
         .replace("<", r"\u003c")
@@ -157,8 +202,8 @@ def _html(s):
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'">
 <title>Complaints audit · {show(s["week"])}</title>
 <style>body{{max-width:58rem;margin:2rem auto;padding:0 1rem;font:16px/1.48 system-ui;color:#172f34}}h1,h2{{line-height:1.15}}h1{{font-size:2rem}}h2{{font-size:1.25rem}}table{{border-collapse:collapse;width:100%;margin-bottom:1rem}}td,th{{padding:.3rem .5rem;text-align:left;border-bottom:1px solid #b4c6c9}}th{{font-weight:600}}.wide{{overflow:auto}}@media print{{body{{font-size:10pt;margin:0}}}}</style><main>
-<p>{label} · week of {show(s["week"])} · revision {s["report_revision"]}</p><h1>Which QA passes missed a complaint deadline?</h1>
-<div class="wide"><table><thead><tr><th>Measure</th><th>Eligible</th><th>Sampled</th><th>Confirmed</th><th>Unresolved in sample</th><th>Estimated rate</th><th>Range</th></tr></thead><tbody>{"".join(metrics)}</tbody></table></div>
+<p>{label} · week of {show(s["week"])} · revision {s["report_revision"]}</p><h1>{title}</h1>
+<div class="wide"><table><thead><tr><th>Measure</th><th>Eligible</th><th>Sampled</th><th>Confirmed</th><th>Unresolved in sample</th>{metrics_header}</tr></thead><tbody>{"".join(metrics)}</tbody></table></div>
 <p>Confirmed and unresolved counts describe the sample. Each estimated rate and its range apply to the eligible population for that row. The private audit retains the sampling design and case evidence.</p>
 <h2>What owners did</h2><p>Latest recorded work status among the sampled QA passes with a confirmed registration miss by cutoff: {counts or "no such cases"}.</p>
 <h2>Sources and coverage</h2><table>{rows}</table><p>{coverage}</p>
@@ -178,6 +223,13 @@ def write(report, folder, *, queue, sample_owner, register_owner, excluded_queue
         }.items()
     }
     raw = weekly_report.verified_html(report)
+    state = weekly_report._envelope(raw)["state"]
+    if state.get("pack_reviews") or state.get("complaint_records", {}).get(
+        "policy_reviews"
+    ):
+        raise InputError(
+            "policy re-review required before issuing a new bank statement"
+        )
     rendered = _html(_statement(raw, declarations))
     with new_directory(folder) as staging:
         (staging / "report.html").write_bytes(rendered)
@@ -207,6 +259,7 @@ def _check_originals(state, sources):
         ("actions", complaints.ACTIONS, case_ids),
     ):
         if path := sources.get(name):
+            path = path.resolve(strict=True)
             frozen = snapshot[name]
             source = {k: frozen[k] for k in ("source_ref", "complete_through")}
             projected = complaints._ledger(
@@ -222,7 +275,19 @@ def _check_originals(state, sources):
         raw = path.read_bytes()
         if _digest(raw) != state["score_audit"]["sha256"]:
             raise InputError("scores differ from the frozen export")
-        original = weekly._csv(raw, score_audit.COLUMNS, "bank-held scores")
+        audit = state["score_audit"]
+        if "native" in audit:
+            from . import score_import
+
+            original = score_import.read(
+                raw,
+                audit["native"],
+                {c["case_id"]: c["revision"] for c in sampled},
+                audit["scorecard"],
+                audit["version"],
+            )
+        else:
+            original = weekly._csv(raw, score_audit.COLUMNS, "bank-held scores")
         for case in sampled:
             record = original.get(case["case_id"])
             if (
@@ -240,13 +305,13 @@ def _checked_statement(raw):
     payload, close, _ = tail.partition(b"</script>")
     if not marker or not close:
         raise InputError("bank statement is absent")
-    invalid = "invalid version 1 bank statement"
+    invalid = "invalid bank statement"
     try:
         s = json.loads(payload)
         if (
             not isinstance(s, dict)
             or type(s.get("schema")) is not int
-            or s["schema"] != 1
+            or s["schema"] not in (1, 2)
         ):
             raise InputError("unsupported bank statement version")
         if set(s) != {
@@ -269,8 +334,12 @@ def _checked_statement(raw):
             "coverage",
             "metrics",
             "sampled_owner_status_after_miss",
-        }:
+        } | ({"calendar"} if s["schema"] == 2 else set()):
             raise InputError(invalid)
+        if s["schema"] == 2:
+            # The calendar description joins two independently valid 1024-character
+            # policy labels with their date range.
+            policy.label(s["calendar"], "calendar description", limit=2081)
         if set(s["declared_by_issuer"]) != {
             "queue",
             "sample_owner",
@@ -309,6 +378,8 @@ def _checked_statement(raw):
             if set(m) != set(COLUMNS) or counts != sorted(counts):
                 raise InputError(invalid)
             interval = m["interval"]
+            if s["schema"] == 2 and (interval is None) != (m["denominator"] == 0):
+                raise InputError(invalid)
             if interval is not None and (
                 not isinstance(interval, list)
                 or len(interval) != 2
@@ -387,9 +458,9 @@ def verify(path, expected, *, source_report=None, case_id=None, sources=None):
         evidence = source_report.read_bytes()
         if _digest(evidence) != s["source_report_sha256"]:
             raise InputError("private report differs from the frozen source revision")
-        if _html(_statement(evidence, s["declared_by_issuer"])) != raw:
+        if _html(_statement(evidence, s["declared_by_issuer"], s["schema"])) != raw:
             raise InputError("replayed bank statement differs from the supplied report")
-        state = weekly_report._envelope(evidence)["state"]
+        state, _ = _replay_state(evidence, s["schema"])
         _check_originals(state, sources or {})
         result["replayed_week"] = s["week"]
         if case_id:

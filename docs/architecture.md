@@ -40,3 +40,7 @@ A conversation is the sampling unit. A complaint episode can include earlier con
 A release check asks a different question before a changed support agent goes live. Its sender submits synthetic complaints to the test deployment. Its reader checks the test register for the corresponding dated entries. The build receives a receipt and a blocking exit code. Release-check cases never enter the weekly queue or its population estimate. [Agent release check](agent-release.md)
 
 Complaint registration and accommodation delivery use the same rule for classifying a dated obligation at a cutoff. Each keeps its own source records, required evidence and owner events. The accommodation worksheet checks one request and a provider receipt. [Accommodation example](accommodation.md)
+
+## Pilot and reporting boundaries
+
+The desk translates supported score exports into the same signed weekly model as the scheduler, and invokes the policy and register checks used by the CLI. Authenticated hosting binds each review to the subject asserted by a configured identity gateway. The bank statement and multiweek reports select aggregate fields from that evidence. The opt-in benchmark command writes a local JSON file. A separate census worksheet reconciles reviewed disclosures with a support-needs register. [Hosted desk](hosted-desk.md) · [Committee and vendor reports](oversight.md) · [Support-needs evidence](accommodation.md)

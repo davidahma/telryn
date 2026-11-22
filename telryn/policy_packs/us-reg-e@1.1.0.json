@@ -3,7 +3,8 @@
   "applicability": "US starter for eligible consumer EFT error notices under Regulation E. The firm determines whether the standard investigation, new-account or conditional extension path applies. An approved extension runs from the original notice. Registration, the calendar, business close and categories are firm settings.",
   "sources": [
     "https://www.consumerfinance.gov/rules-policy/regulations/1005/11/",
-    "https://www.consumerfinance.gov/rules-policy/regulations/1005/2/"
+    "https://www.consumerfinance.gov/rules-policy/regulations/1005/2/",
+    "https://www.frbservices.org/about/holiday-schedules/"
   ],
   "rubric_question": "Did the customer give a qualifying EFT error notice that the firm's error-resolution policy requires it to log?",
   "categories": [
@@ -13,9 +14,8 @@
   "clock_policy": {
     "schema": 1,
     "id": "us-reg-e",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "timezone": "America/New_York",
-    "holidays": [],
     "episode_days": 90,
     "registration_clause": "firm-register",
     "clauses": {
@@ -68,6 +68,7 @@
         "count": 3,
         "due_time": "17:00"
       }
-    }
+    },
+    "holiday_calendar": "us-federal-reserve-banks@2026-11-22"
   }
 }

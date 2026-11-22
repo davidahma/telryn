@@ -17,7 +17,7 @@ def reference(pack):
     return f"{clocks['id']}@{clocks['version']}"
 
 
-def validate(pack):
+def validate(pack, *, historical=False):
     versioned(pack, "policy pack")
     policy.fields(
         pack,
@@ -39,7 +39,7 @@ def validate(pack):
     for source in sources:
         policy.label(source, "policy source")
     control.categories(pack["categories"])
-    clocks = policy.validate(pack["clock_policy"])
+    clocks = policy.validate(pack["clock_policy"], historical=historical)
     if not IDENTIFIER.fullmatch(clocks["id"]) or not VERSION.fullmatch(
         clocks["version"]
     ):

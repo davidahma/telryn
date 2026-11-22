@@ -30,7 +30,7 @@ def load(config, folder, population, reviewed, coverage, dimensions):
     from . import weekly
 
     config = mapping(config, "score_audit")
-    if set(config) != {"file", "scorecard", "version", "cutoff", "scope"}:
+    if set(config) - {"native"} != {"file", "scorecard", "version", "cutoff", "scope"}:
         raise InputError("score_audit needs file, scorecard, version, cutoff and scope")
     scope = config["scope"]
     if scope not in ("all_scored", "unreviewed_scored"):
@@ -50,7 +50,18 @@ def load(config, folder, population, reviewed, coverage, dimensions):
         raw = stream.read(MAX_EXPORT + 1)
     if len(raw) > MAX_EXPORT:
         raise InputError("score export exceeds 24 MiB")
-    rows = weekly._csv(raw, COLUMNS, "score export")
+    if "native" in config:
+        from . import score_import
+
+        rows = score_import.read(
+            raw,
+            config["native"],
+            {c: r["revision"] for c, r in population.items()},
+            card,
+            version,
+        )
+    else:
+        rows = weekly._csv(raw, COLUMNS, "score export")
     included = set(rows)
     if scope == "unreviewed_scored":
         included.difference_update(reviewed)
@@ -65,7 +76,11 @@ def load(config, folder, population, reviewed, coverage, dimensions):
         if row["scorecard"] != card or row["scorecard_version"] != version:
             raise InputError("score export mixes scorecards or versions")
         when = timestamp(row["scored_at"], "score timestamp")
-        if when < timestamp(closures[ident], "case closure") or when > cutoff:
+        if (
+            timestamp(row.get("first_score_at", row["scored_at"]), "first score")
+            < timestamp(closures[ident], "case closure")
+            or when > cutoff
+        ):
             raise InputError(
                 "score timestamp must fall between case closure and audit cutoff"
             )
@@ -108,6 +123,7 @@ def load(config, folder, population, reviewed, coverage, dimensions):
         "version": version,
         "cutoff": config["cutoff"],
         "sha256": sha256(raw).hexdigest(),
+        **({"native": config["native"]} if "native" in config else {}),
         "coverage": counts,
         "domains": domains,
     }
@@ -205,21 +221,54 @@ def sections(result):
         f"{s['eligible_previously_reviewed']} with a completed ordinary review. "
         f"{s['unscored']} had no score and {s['excluded_previously_reviewed']} scored conversations were excluded for prior review. "
         f"{s['eligible_scored'] - s['eligible_classified']} included scores had no definite complaint prediction.",
+        deadline_headline(result["passed_deadline_miss"]),
         *(_metric_line(LABELS[k], result[k]) for k in MEASURES),
     ]
 
 
-def _metric_line(label, metric):
-    interval = metric["interval"]
-    estimate = metric["estimate"]
-    rate = f"{estimate:.1%}" if estimate is not None else "unavailable"
-    bounds = (
-        f"{interval[0]:.1%}–{interval[1]:.1%}" if interval is not None else "undefined"
+def format_bounds(lower, upper, format_value):
+    return (
+        format_value(lower)
+        if lower == upper
+        else f"{format_value(lower)}–{format_value(upper)}"
     )
+
+
+def deadline_headline(metric):
+    n = metric["denominator"]
+    if n == 0:
+        return "No QA passes in scope."
+    if not metric["assigned"]:
+        return f"No QA passes sampled from the {n:,} in scope."
+    # Both the private metric and the aggregate bank receipt carry population
+    # bounds as fractions of this exact integer denominator.
+    lower, upper = (round(v * n) for v in metric["interval"])
+    counts = format_bounds(lower, upper, lambda x: f"{x:,}")
+    unresolved = metric["assigned"] - metric["determinate"]
+    if metric["assigned"] == n:
+        return f"{counts} of {n:,} QA passes missed the deadline" + (
+            f" ({unresolved:,} unresolved)." if unresolved else "."
+        )
+    return f"An estimated {counts} of {n:,} QA passes missed the deadline (95% population range). {unresolved:,} sampled passes remain unresolved."
+
+
+def rate_summary(metric):
+    interval = metric["interval"]
+    if interval is None:
+        return "No eligible conversations."
+    bounds = format_bounds(*interval, lambda x: f"{x:.1%}")
+    if metric["assigned"] == metric["denominator"]:
+        return f"Census: no sampling error. {'Rate' if interval[0] == interval[1] else 'Range from unresolved evidence'} {bounds}."
+    estimate = metric["estimate"]
+    point = f"Estimated rate {estimate:.1%}. " if estimate is not None else ""
+    return f"{point}95% population range {bounds}."
+
+
+def _metric_line(label, metric):
     return (
         f"{label}. {metric['confirmed']} confirmed among {metric['assigned']} assignments "
         f"({metric['determinate']} resolved). Population denominator {metric['denominator']}. "
-        f"Estimated rate {rate}, 95% range {bounds}."
+        f"{rate_summary(metric)}"
     )
 
 

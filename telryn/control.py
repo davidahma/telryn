@@ -264,7 +264,7 @@ def statement_lines(s):
         "queue": "conversations outside ordinary QA",
     }[s["population_basis"]]
     lines = [
-        f"Reviewers graded {s['graded']:,} of {s['queue']:,} {universe} ({s['assigned']:,} selected)."
+        f"Reviewers returned determinate grades for {s['graded']:,} of {s['queue']:,} {universe} ({s['assigned']:,} selected)."
     ]
     if s["cutoff"]:
 
@@ -288,8 +288,14 @@ def statement_lines(s):
                 "These conversations may refer to the same complaint."
             )
         lo, hi = s["unregistered_conversations"]["interval"]
+        basis = (
+            "Census: no sampling error."
+            if s["assigned"] == s["queue"]
+            else "95% population range."
+        )
+        count = str(lo) if lo == hi else f"{lo:,}–{hi:,}"
         lines.append(
-            f"95% range for {universe} with an overdue, unregistered complaint at the cutoff: {lo:,}–{hi:,}."
+            f"{basis} At cutoff, {count} {universe} had an overdue, unregistered complaint."
         )
     else:
         lines.append(
@@ -411,9 +417,21 @@ def html(state, s):
         ),
     )
     bounds = table(
-        ["Sampling group", "Confirmed conversations", "Determinate", "95% range"],
+        [
+            "Sampling group",
+            "Confirmed conversations",
+            "Determinate",
+            "Census range" if s["assigned"] == s["queue"] else "95% range",
+        ],
         (
-            [r["label"], r["confirmed"], r["graded"], "–".join(map(str, r["interval"]))]
+            [
+                r["label"],
+                r["confirmed"],
+                r["graded"],
+                str(r["interval"][0])
+                if r["interval"][0] == r["interval"][1]
+                else "–".join(map(str, r["interval"])),
+            ]
             for r in s["unregistered_conversations"]["strata"].values()
         ),
     )
@@ -438,3 +456,17 @@ def html(state, s):
     )
     lead = f"<h1>{title}</h1><p><strong>{escape(s['scope'])}</strong></p><p>{' '.join(intro)}</p>"
     return lead, detail
+
+
+def committee_week(state):
+    """Select aggregate committee facts from one issued weekly control."""
+    result = summary(state)
+    return {
+        "week": state["week"],
+        "eligible": result["queue"],
+        "assigned": result["assigned"],
+        "graded": result["graded"],
+        "unregistered_bounds": result["unregistered_conversations"]["interval"],
+        "unresolved_cases": len(result["unresolved"]),
+        "as_of": result["as_of"],
+    }

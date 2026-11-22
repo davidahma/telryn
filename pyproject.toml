@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "telryn"
 dynamic = ["version"]
-description = "Find complaints human and AI support missed by auditing QA passes against policy deadlines, register entries and owner actions."
+description = "Find complaints your AI and human support teams missed."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
@@ -41,6 +41,7 @@ path = "telryn/__init__.py"
 include = ["/telryn", "/examples", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
 
 [tool.hatch.build.targets.wheel]
+dev-mode-dirs = ["."]
 only-include = ["telryn", "examples", "tests"]
 
 [tool.hatch.build.targets.wheel.sources]
