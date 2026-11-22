@@ -212,7 +212,7 @@ def _html(s):
     ).encode("utf-8")
 
 
-def write(report, folder, *, queue, sample_owner, register_owner, excluded_queues):
+def verified_statement(report, *, queue, sample_owner, register_owner, excluded_queues):
     declarations = {
         key: _public_label(value)
         for key, value in {
@@ -223,7 +223,8 @@ def write(report, folder, *, queue, sample_owner, register_owner, excluded_queue
         }.items()
     }
     raw = weekly_report.verified_html(report)
-    state = weekly_report._envelope(raw)["state"]
+    envelope = weekly_report._envelope(raw)
+    state = envelope["state"]
     if state.get("pack_reviews") or state.get("complaint_records", {}).get(
         "policy_reviews"
     ):
@@ -231,6 +232,11 @@ def write(report, folder, *, queue, sample_owner, register_owner, excluded_queue
             "policy re-review required before issuing a new bank statement"
         )
     rendered = _html(_statement(raw, declarations))
+    return rendered, state["publication_id"], envelope["auth"]["revision"]
+
+
+def write(report, folder, **declarations):
+    rendered, _, _ = verified_statement(report, **declarations)
     with new_directory(folder) as staging:
         (staging / "report.html").write_bytes(rendered)
     return _digest(rendered)

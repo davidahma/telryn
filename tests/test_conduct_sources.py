@@ -60,6 +60,11 @@ class ConductScorers(unittest.TestCase):
             result["deadline"],
             {"status": "missing", "passed": False, "due": "2026-10-07T16:00:00Z"},
         )
+        self.case["complete_through"] = "2026-10-07T16:00:00Z"
+        narrow = self.scorers.evaluate(self.case, self.candidate, self.expected)
+        self.assertEqual(
+            narrow["deadline"], result["deadline"] | {"status": "missed_by_deadline"}
+        )
         self.case["complete_through"] = None
         self.assertIsNone(
             self.scorers.evaluate(self.case, self.candidate, self.expected)["deadline"][
@@ -323,6 +328,7 @@ unflagged_sample = 1
         with self.assertRaisesRegex(InputError, "row limit"):
             self.capture("snowflake")
         self.assertFalse(self.out.exists())
+
         self.cfg["max_rows"] = 50
         self.rows["conversations"] *= 2
         with self.assertRaisesRegex(InputError, "duplicate frozen"):
@@ -335,3 +341,13 @@ unflagged_sample = 1
         with self.assertRaisesRegex(InputError, "warehouse identifier"):
             warehouse.capture(self.plan, self.out, reader=self.reader)
         self.assertFalse(self.out.exists())
+
+    def test_incomplete_conversation_projection_cannot_issue_complete_queue_receipt(
+        self,
+    ):
+        for complete in (None, "2026-10-11T23:59:59Z"):
+            self.cfg["sources"]["conversations"]["complete_through"] = complete
+            with self.assertRaisesRegex(InputError, "complete conversation coverage"):
+                self.capture("snowflake")
+            self.assertFalse(self.out.exists())
+        self.assertEqual(self.queries, [])

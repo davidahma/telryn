@@ -48,7 +48,7 @@ telryn attestation verify handoff/vendor-attestation \
   --run-id approved-build-42 --quarter 2026-Q4 --key vendor-approved.pub
 ```
 
-The receiver checks the Ed25519 signature with its pinned key, then checks the three file digests, the pinned deployment and test outcomes, and the bank statement’s membership in the signed series. Verification works offline with the approved suite and profile. The receiver does not need the private issuer or audit key. Use the signed weekly digest and the [bank replay workflow](bank-report.md) to inspect a disputed result using private original evidence. A signature binds the issuer to the supplied evidence. The bank's approval of the key, scope, recency and evidence sources establishes its trust in the claims.
+The receiver checks the Ed25519 signature with its pinned key, then checks the three file digests, the pinned deployment and test outcomes, and the bank statement’s membership in the signed series. The verifier also recreates the calibration page from the same signed aggregate figures and compares the complete bytes. Verification works offline with the approved suite and profile. The receiver does not need the private issuer or audit key. Use the signed weekly digest and the [bank replay workflow](bank-report.md) to inspect a disputed result using private original evidence. A signature binds the issuer to the supplied evidence. The bank's approval of the key, scope, recency and evidence sources establishes its trust in the claims.
 
 ## Attach evidence to existing controls
 

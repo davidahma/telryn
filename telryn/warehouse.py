@@ -92,13 +92,11 @@ def _plan(path):
             and timestamp(complete, "source completeness") > instant
         ):
             raise InputError("warehouse completeness cannot exceed snapshot time")
-        if (
-            name == "conversations"
-            and complete is not None
-            and timestamp(complete, "cohort completeness")[0] < end
+        if name == "conversations" and (
+            complete is None or timestamp(complete, "cohort completeness")[0] < end
         ):
             raise InputError(
-                "conversations coverage must extend through the end of the week"
+                "the source owner must affirm complete conversation coverage through the week end"
             )
     return cfg, first, end
 

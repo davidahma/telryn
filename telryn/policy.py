@@ -128,10 +128,12 @@ def warnings_at(policy, instant=None):
 
 def select_calendar(policy, *, channel=None, region=None):
     if calendar := policy.get(CALENDAR_MAPS[1], {}).get(region):
-        return calendar, calendar["holidays"]
+        return calendar
     if calendar := policy.get(CALENDAR_MAPS[0], {}).get(channel):
-        return calendar, calendar["holidays"]
-    return policy.get("holiday_calendar"), policy["holidays"]
+        return calendar
+    if calendar := policy.get("holiday_calendar"):
+        return {**calendar, "holidays": policy["holidays"]}
+    return None
 
 
 def uses_business_days(rule):
@@ -335,9 +337,7 @@ def deadline(start, rule, policy, *, channel=None, region=None):
     day = local.date()
     count = rule["count"]
     if uses_business_days(rule):
-        calendar, holiday_dates = select_calendar(
-            policy, channel=channel, region=region
-        )
+        calendar = select_calendar(policy, channel=channel, region=region)
         if (
             not calendar
             or not calendar["valid_from"]
@@ -346,7 +346,7 @@ def deadline(start, rule, policy, *, channel=None, region=None):
         ):
             return None
         last = date.fromisoformat(calendar["valid_through"])
-        holidays = set(holiday_dates)
+        holidays = set(calendar["holidays"])
         weekdays = set(policy.get("business_weekdays", [1, 2, 3, 4, 5]))
 
         def business(d):

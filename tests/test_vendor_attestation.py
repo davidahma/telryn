@@ -1,5 +1,6 @@
 """Exercise a private operating record through a portable vendor attestation."""
 
+import hashlib
 import os
 import shutil
 import subprocess
@@ -114,6 +115,29 @@ class VendorAttestation(TestCase):
             evidence_signatures.verify(
                 envelope | {"payload": unsigned}, args.key, attestation.PURPOSE
             )
+
+    def test_issuing_key_cannot_bypass_canonical_calibration_check(self):
+        with patch.dict(os.environ, self.env):
+            attestation.issue(self.args)
+        page = self.out / "calibration.html"
+        page.write_bytes(page.read_bytes() + b"<p>extra statement</p>")
+        manifest = self.out / "attestation.json"
+        payload = read_json(manifest, "manifest")["payload"]
+        payload["file_sha256"]["calibration.html"] = hashlib.sha256(
+            page.read_bytes()
+        ).hexdigest()
+        manifest.write_text(
+            canonical(evidence_signatures.sign(payload, self.key, attestation.PURPOSE)),
+            encoding="ascii",
+        )
+        check = SimpleNamespace(
+            **(
+                vars(self.args)
+                | {"folder": self.out, "key": self.key.with_suffix(".pub")}
+            ),
+        )
+        with self.assertRaisesRegex(InputError, "calibration page differs"):
+            attestation.verify(check)
 
     def test_refuses_failed_seed_without_leaving_a_pack(self):
         suite = read_json(self.suite, "suite") | {"agent_revision": "demo-prompt-v1"}

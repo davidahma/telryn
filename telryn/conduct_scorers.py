@@ -8,7 +8,7 @@ from copy import deepcopy
 
 from . import complaints, packs, policy, seed
 from .contracts import InputError, fingerprint, mapping, sequence, timestamp
-from .outcomes import deadline_status
+from .outcomes import covered_deadline_without_entry, deadline_status
 
 _NAMES = {
     "rubric": "telryn_complaint_rubric",
@@ -154,6 +154,10 @@ class ComplaintScorers:
         status = deadline_status(
             True, exact, due, as_of, rows, case["complete_through"]
         )
+        if status == "unresolved" and covered_deadline_without_entry(
+            exact, due, as_of, rows, case["complete_through"]
+        ):
+            return {"status": "missed_by_deadline", "passed": False, "due": due}
         passed = {"on_time": True, "late": False, "missing": False}.get(status)
         return {"status": status, "passed": passed, "due": due}
 

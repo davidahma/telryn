@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import episodes, policy
 from .contracts import InputError, fingerprint, integer, read_json, sequence, timestamp
-from .outcomes import _local, deadline_status
+from .outcomes import _local, covered_deadline_without_entry, deadline_status
 from .weekly_review import effective_grades
 
 REGISTER = ("match_key", "entry_id", "recorded_at", "evidence_ref")
@@ -513,13 +513,12 @@ def reconcile(state):
                 deadline_miss = False
             elif at_cutoff in ("missing", "late"):
                 deadline_miss = True
-            elif (
-                grade is True
-                and prior_exact
-                and earlier_due
-                and not visible
-                and _time(earlier_due) <= cutoff
-                and _complete(doc["register"], _time(earlier_due))
+            elif grade is True and covered_deadline_without_entry(
+                prior_exact,
+                earlier_due,
+                cutoff,
+                visible,
+                doc["register"]["complete_through"],
             ):
                 deadline_miss = True
         current = "unresolved"

@@ -7,7 +7,7 @@ import re
 from . import evidence_signatures as signatures
 from . import oversight, weekly_report
 from .artifacts import new_directory
-from .contracts import InputError, canonical, decode_json, fingerprint, read_json
+from .contracts import InputError, canonical, decode_json, fingerprint, versioned
 
 PURPOSE = "telryn-quarter-history-v1"
 MAX_REPORT = 64 * 1024 * 1024
@@ -118,7 +118,8 @@ def _body(series, quarter, rows, previous, previous_digest):
 
 
 def verify(folder, public_key, *, expected=None, extends=None):
-    index = read_json(folder / "index.json", "history index")
+    label = "history index"
+    index = versioned(decode_json(_read(folder / "index.json", 4096), label), label)
     quarters = index.get("quarters")
     if (
         set(index) != {"schema", "quarters"}
@@ -147,7 +148,11 @@ def verify(folder, public_key, *, expected=None, extends=None):
         rows = []
         expected_weeks = set(oversight.quarter_weeks(quarter))
         for row in body["weeks"]:
-            if not isinstance(row, dict) or row.get("week") not in expected_weeks:
+            if (
+                not isinstance(row, dict)
+                or not isinstance(row.get("week"), str)
+                or row["week"] not in expected_weeks
+            ):
                 raise InputError("invalid week in signed history")
             filename = f"{row['week']}.html"
             files.add(filename)
@@ -197,8 +202,15 @@ def issue(paths, out, *, series, quarter, private_key, public_key, prior=None):
         seen = set()
         horizons = set(oversight.quarter_weeks(quarter))
         for path in paths:
-            _read(path, MAX_REPORT)
+            if (
+                path.is_symlink()
+                or not path.is_file()
+                or path.stat().st_size > MAX_REPORT
+            ):
+                raise InputError("history requires a bounded regular weekly source")
             raw = weekly_report.verified_html(path)
+            if len(raw) > MAX_REPORT:
+                raise InputError("history source exceeds the weekly file limit")
             row = _report(raw)
             if row["week"] not in horizons or row["week"] in seen:
                 raise InputError("duplicate week or report outside the stated quarter")

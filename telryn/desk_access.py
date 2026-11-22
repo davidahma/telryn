@@ -52,7 +52,17 @@ class AccessError(RuntimeError):
     """A private response cannot be logged to the trust store."""
 
 
-def record(subject, role, route, method, status, case_ids=()):
+def record(
+    subject,
+    role,
+    route,
+    method,
+    status,
+    case_ids=(),
+    *,
+    publication=None,
+    revision=None,
+):
     try:
         root = audit_trust._root()
         path = root / "desk-access.sqlite3"
@@ -73,15 +83,25 @@ def record(subject, role, route, method, status, case_ids=()):
                     """CREATE TABLE IF NOT EXISTS access_events (
                        id INTEGER PRIMARY KEY, utc TEXT NOT NULL, subject TEXT NOT NULL,
                        role TEXT NOT NULL, route TEXT NOT NULL, method TEXT NOT NULL,
-                       status INTEGER)"""
+                       status INTEGER, publication_id TEXT, revision INTEGER)"""
                 )
+                columns = {
+                    column[1]
+                    for column in db.execute("PRAGMA table_info(access_events)")
+                }
+                if "publication_id" not in columns:
+                    db.execute(
+                        "ALTER TABLE access_events ADD COLUMN publication_id TEXT"
+                    )
+                if "revision" not in columns:
+                    db.execute("ALTER TABLE access_events ADD COLUMN revision INTEGER")
                 db.execute(
                     """CREATE TABLE IF NOT EXISTS access_cases (
                        event_id INTEGER NOT NULL REFERENCES access_events(id),
                        case_id TEXT NOT NULL, PRIMARY KEY (event_id, case_id))"""
                 )
                 event = db.execute(
-                    "INSERT INTO access_events(utc, subject, role, route, method, status) VALUES (?,?,?,?,?,?)",
+                    "INSERT INTO access_events(utc, subject, role, route, method, status, publication_id, revision) VALUES (?,?,?,?,?,?,?,?)",
                     (
                         datetime.now(UTC).isoformat(timespec="microseconds"),
                         subject,
@@ -89,6 +109,8 @@ def record(subject, role, route, method, status, case_ids=()):
                         route,
                         method,
                         status,
+                        publication,
+                        revision,
                     ),
                 ).lastrowid
                 db.executemany(

@@ -193,6 +193,22 @@ class EpisodeTests(unittest.TestCase):
         self.assertEqual(cases["C1"]["registration_at_cutoff"], "unresolved")
         self.assertIn("different holiday calendars", self.f.report.read_text())
 
+    def test_simultaneous_contacts_agree_on_a_calendar_from_default_and_mapping(self):
+        at = "2026-08-27T11:00:00Z"
+        self.contacts = [
+            {**contact("C1", at, "dissatisfaction"), "region": "south"},
+            contact("also", at, "dissatisfaction"),
+        ]
+        self.policy_doc["holiday_calendars_by_region"] = {
+            "south": "england-and-wales@2026-11-22",
+        }
+        self.policy_file.write_text(json.dumps(self.policy_doc))
+        _, cases = self.attach()
+        self.assertEqual(cases["C1"]["deadline"], "2026-09-02T16:00:00Z")
+        self.assertIn(
+            "england-and-wales", cases["C1"]["clocks"]["registration"]["calendar"]
+        )
+
     def attach(self):
         self.save()
         return self.f.attach()

@@ -48,6 +48,16 @@ def deadline_status(
     return "missing" if through is not None and through >= horizon else "unresolved"
 
 
+def covered_deadline_without_entry(
+    exact_match, deadline, horizon, event_times, complete_through
+):
+    """Deadline absence can be proven before current register status is known."""
+    if not exact_match or deadline is None or event_times or complete_through is None:
+        return False
+    due = timestamp(deadline, "deadline")
+    return due <= horizon and due <= timestamp(complete_through, "coverage")
+
+
 def _fields(value, names, label):
     if not isinstance(value, dict) or set(value) != set(names):
         raise InputError(f"{label} must have the documented fields")

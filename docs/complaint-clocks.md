@@ -68,7 +68,7 @@ A [versioned policy and rubric pack](policy-packs.md) can supply the frozen cloc
 
 ## Use regional or channel calendars
 
-The bundled reference calendars cover England and Wales, Scotland and Northern Ireland through 2028, and Ireland's public holiday calendar through 2026. Select a bundled calendar by its complete ID and date version. For a queue spanning jurisdictions, use the region supplied on the originating cited contact, or map each channel to its own calendar.
+The bundled reference calendars cover England and Wales, Scotland and Northern Ireland through 2028, and Ireland's public holiday and Consumer Protection Regulations working-day calendars through 2026. The latter also excludes Good Friday. Select a bundled calendar by its complete ID and date version. For a queue spanning jurisdictions, use the region supplied on the originating cited contact, or map each channel to its own calendar.
 
 ```json
 {

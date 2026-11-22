@@ -59,6 +59,21 @@ class DeadlineDataset(unittest.TestCase):
                     "northern-ireland",
                     "england-and-wales",
                     "ireland-public-holidays",
+                    "ireland-cpc-working-days",
                     "us-federal-reserve-banks",
                 },
+            )
+
+            april = "2026-04-03"
+            self.assertIn(
+                april,
+                json.loads(files["calendars/ireland-cpc-working-days@2026-11-22.json"])[
+                    "holidays"
+                ],
+            )
+            self.assertNotIn(
+                april,
+                json.loads(files["calendars/ireland-public-holidays@2026-11-22.json"])[
+                    "holidays"
+                ],
             )

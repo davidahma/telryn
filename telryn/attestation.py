@@ -97,6 +97,67 @@ def _bank_scope(statement, profile):
         raise InputError("the bank statement does not match the approved profile")
 
 
+CALIBRATION_SCOPE = ("queue", "basis", "rubric", "scorecard", "version", "synthetic")
+CALIBRATION_ROWS = (
+    "week",
+    "eligible",
+    "graded",
+    "assigned",
+    "agreement_rate_bounds",
+    "deadline_basis",
+    "deadline_comparison",
+)
+
+
+def _calibration_model(series):
+    """Select only the aggregate fields shown in the public calibration."""
+    return {
+        "quarter": series["quarter"],
+        "scope": {name: series["scope"][name] for name in CALIBRATION_SCOPE},
+        "missing_weeks": series["missing_weeks"],
+        "weeks": [
+            {
+                **{name: row[name] for name in CALIBRATION_ROWS},
+                "disagreement_change_bounds": row.get("disagreement_change_bounds"),
+                "metrics": {
+                    metric: {
+                        field: values[field] for field in ("denominator", "interval")
+                    }
+                    for metric, values in row["metrics"].items()
+                },
+            }
+            for row in series["weeks"]
+        ],
+    }
+
+
+def _verify_calibration(doc, missing_weeks, raw):
+    try:
+        model = doc["calibration"]
+        scope = model["scope"]
+        profile = doc["profile"]
+        if (
+            set(model) != {"scope", "quarter", "missing_weeks", "weeks"}
+            or set(scope) != set(CALIBRATION_SCOPE)
+            or scope["queue"] != profile["source_queue"]
+            or scope["scorecard"] != profile["scorecard"]
+            or scope["version"] != profile["scorecard_version"]
+            or scope["synthetic"] is not (profile["evidence"] == "synthetic")
+            or scope["basis"] not in ("all_scored", "unreviewed_scored")
+            or model["quarter"] != doc["quarter"]
+            or model["missing_weeks"] != missing_weeks
+            or [row["week"] for row in model["weeks"]]
+            != [row["week"] for row in doc["weeks"]]
+            or _calibration_model(model) != model
+            or oversight.html(model, "vendor").encode("utf-8") != raw
+        ):
+            raise InputError(
+                "calibration page differs from the signed aggregate evidence"
+            )
+    except (AttributeError, KeyError, IndexError, TypeError, OverflowError) as exc:
+        raise InputError("invalid signed calibration model") from exc
+
+
 def _sources(reports):
     return [weekly_report.verified_html(path) for path in reports]
 
@@ -141,7 +202,8 @@ def issue(args):
             "bank statement must replay from a current signed week in the series"
         )
 
-    calibration = oversight.html(series, "vendor").encode("utf-8")
+    model = _calibration_model(series)
+    calibration = oversight.html(model, "vendor").encode("utf-8")
     # Fail early on a malformed or inaccessible signing key before an external
     # test adapter has an opportunity to submit synthetic messages.
     evidence_signatures.sign({}, args.key, PURPOSE)
@@ -180,6 +242,7 @@ def issue(args):
         "run_id": receipt["run_id"],
         "suite_digest": receipt["suite_digest"],
         "weeks": sorted(weeks, key=lambda week: week["week"]),
+        "calibration": model,
         "aiuc_1_evidence_references": AIUC,
         "file_sha256": {name: _digest(raw) for name, raw in files.items()},
     }
@@ -211,6 +274,7 @@ def verify(args):
         "weeks",
         "aiuc_1_evidence_references",
         "file_sha256",
+        "calibration",
     }
     if (
         set(doc) != names
@@ -263,6 +327,7 @@ def verify(args):
         ):
             raise InputError("invalid weekly identity in signed series")
         seen.add(row["week"])
+    _verify_calibration(doc, sorted(valid_weeks - seen), files["calibration.html"])
     return {
         "verified": True,
         "vendor": doc["profile"]["vendor"],

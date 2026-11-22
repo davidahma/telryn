@@ -453,11 +453,11 @@ def clocks(group, policy_doc, horizon, entries, exact, covered):
         if policy.uses_business_days(rule) and any(
             key in policy_doc for key in policy.CALENDAR_MAPS
         ):
-            selected, _ = policy.select_calendar(policy_doc, **place(start))
+            selected = policy.select_calendar(policy_doc, **place(start))
             for at, alternative in triggers[1:]:
                 if at != triggers[0][0]:
                     break
-                other, _ = policy.select_calendar(policy_doc, **place(alternative))
+                other = policy.select_calendar(policy_doc, **place(alternative))
                 if other != selected:
                     row["reason"] = "holiday_calendar_conflicting_triggers"
                     break

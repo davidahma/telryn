@@ -74,14 +74,14 @@ The default local desk still uses a private session URL. Use that mode on a sing
 
 ## Review access events
 
-Hosted mode writes `desk-access.sqlite3` under `TELRYN_TRUST_DIR`. The owner-only database records UTC time, the verified SSO subject and role, the HTTP method, a fixed operation name and the response status. The private report, records manifest, grading packet and lead worklist record the case IDs in the response. Linked episode contacts in the private report are included. A policy preview or bank aggregate can have no case IDs. A POST has an admission event with a null status and a separate response event.
+Hosted mode writes `desk-access.sqlite3` under `TELRYN_TRUST_DIR`. The owner-only database records UTC time, the verified SSO subject and role, the HTTP method, a fixed operation name and the response status. The private report, records manifest, grading packet and lead worklist record the case IDs in the response. Linked episode contacts in the private report are included. The event carries the weekly publication ID and any revision that was verified for that response. Use the publication ID to distinguish identical case IDs in different audits. Older events and admissions that precede verification can have empty publication or revision fields. A policy preview or bank aggregate can have no case IDs. A POST has an admission event with a null status and a separate response event.
 
 The backend records access before sending the response. That shows which evidence the service authorized for delivery. It cannot establish whether someone read it. If a response cannot be recorded, the desk returns an unavailable message. Requests rejected by the identity gateway never reach the backend. Requests without verified proxy identity are tracked by the gateway. Local desk URLs remain out of the log. The database contains no raw paths, protected request bodies, transcripts or proxy secret.
 
 Use an owner-authorized SQLite client to query the database. For example:
 
 ```sql
-SELECT utc, subject, role, route, status, case_id
+SELECT utc, subject, role, route, status, publication_id, revision, case_id
 FROM access_events
 JOIN access_cases ON access_events.id = access_cases.event_id
 WHERE case_id = 'C102'

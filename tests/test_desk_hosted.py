@@ -214,6 +214,52 @@ class HostedDesk(unittest.TestCase):
         for value in ("unverified", "private-evidence", "private-url", self.key):
             self.assertNotIn(value.encode(), raw)
 
+    def test_log_migrates_and_distinguishes_case_id_reused_across_audits(self):
+        trust = self.root / "audit-trust"
+        trust.mkdir(mode=0o700)
+        path = trust / "desk-access.sqlite3"
+        with closing(sqlite3.connect(path)) as db, db:
+            db.execute(
+                """CREATE TABLE access_events (id INTEGER PRIMARY KEY, utc TEXT NOT NULL,
+                subject TEXT NOT NULL, role TEXT NOT NULL, route TEXT NOT NULL,
+                method TEXT NOT NULL, status INTEGER)"""
+            )
+            db.execute(
+                "INSERT INTO access_events VALUES(1,?,?,?,?,?,?)",
+                (
+                    "2026-11-02+00:00",
+                    "prior-reviewer",
+                    "reviewer",
+                    "grading-packet",
+                    "GET",
+                    200,
+                ),
+            )
+        path.chmod(0o600)
+        ids = []
+        for week in ("2026-11-02", "2026-11-09"):
+            status, body = self.request("POST", "/audits", self.form | {"week": week})
+            self.assertEqual(status, 200, body)
+            run = json.loads(body)["id"]
+            ids.append(read_state(self.desk.report(run))["publication_id"])
+            self.assertEqual(self.request("GET", "/" + run + "/report.html")[0], 200)
+        self.assertNotEqual(*ids)
+        with closing(sqlite3.connect(path)) as db:
+            self.assertEqual(
+                db.execute(
+                    "SELECT publication_id, revision FROM access_events WHERE id=1"
+                ).fetchone(),
+                (None, None),
+            )
+            self.assertEqual(
+                db.execute("""
+                    SELECT case_id, publication_id, revision
+                    FROM access_events JOIN access_cases ON access_events.id=access_cases.event_id
+                    WHERE route='weekly-report' ORDER BY access_events.id
+                """).fetchall(),
+                [("a", ident, 1) for ident in ids],
+            )
+
     def test_unavailable_log_blocks_protected_delivery_and_changes(self):
         status, body = self.request("POST", "/audits", self.form)
         self.assertEqual(status, 200)
