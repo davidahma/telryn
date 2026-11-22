@@ -123,6 +123,7 @@ class Oversight(TestCase):
             )
             self.assertEqual(result["differences"][0]["difference_bounds"], [0.5, 0.5])
             self.assertNotIn("letter", json.dumps(result))
+            self.assertEqual(result["suppressed_group_count"], 1)
             doc = json.loads(path.read_text())
             doc["recognition_complete_through"] = None
             path.write_text(json.dumps(doc))

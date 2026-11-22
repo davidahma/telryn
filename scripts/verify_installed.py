@@ -3,6 +3,7 @@
 import csv
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -214,6 +215,63 @@ def main(version):
                 trust=work / "score-audit/trust",
             )
         assert "queue" in run("--help") and "record-shadow" in run("queue", "--help")
+        assert "capture" in run("warehouse", "--help")
+        assert "issue" in run("attestation", "--help")
+        subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-m",
+                "telryn._bundled.deadlines.build",
+                "--out",
+                "deadlines.tar.gz",
+            ],
+            cwd=work,
+            env=env,
+            check=True,
+            timeout=60,
+        )
+        assert (work / "deadlines.tar.gz").is_file()
+        if shutil.which("ssh-keygen"):
+            key = work / "history-key"
+            subprocess.run(
+                ["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)],
+                check=True,
+            )
+            history = json.loads(
+                run(
+                    "history",
+                    "export",
+                    "--series",
+                    "rehearsal",
+                    "--quarter",
+                    "2026-Q4",
+                    "--signing-key",
+                    key,
+                    "--public-key",
+                    key.with_suffix(".pub"),
+                    "--out",
+                    "history",
+                    *(row["report"] for row in scored["weeks"]),
+                    trust=work / "score-audit/trust",
+                )
+            )
+            assert len(history["quarters"][0]["weeks"]) == 2
+            assert (
+                json.loads(
+                    run(
+                        "history",
+                        "verify",
+                        "history",
+                        "--public-key",
+                        key.with_suffix(".pub"),
+                        "--expect",
+                        history["sha256"],
+                        trust=work / "recipient",
+                    )
+                )
+                == history
+            )
         run("qualify")
         with subprocess.Popen(
             [binary, "desk", "--no-browser", "--out", "desk"],

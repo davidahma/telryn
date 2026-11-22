@@ -10,7 +10,7 @@ from pathlib import Path
 
 from . import episodes, policy
 from .contracts import InputError, fingerprint, integer, read_json, sequence, timestamp
-from .outcomes import _local, deadline_status
+from .outcomes import _local, covered_deadline_without_entry, deadline_status
 from .weekly_review import effective_grades
 
 REGISTER = ("match_key", "entry_id", "recorded_at", "evidence_ref")
@@ -513,13 +513,12 @@ def reconcile(state):
                 deadline_miss = False
             elif at_cutoff in ("missing", "late"):
                 deadline_miss = True
-            elif (
-                grade is True
-                and prior_exact
-                and earlier_due
-                and not visible
-                and _time(earlier_due) <= cutoff
-                and _complete(doc["register"], _time(earlier_due))
+            elif grade is True and covered_deadline_without_entry(
+                prior_exact,
+                earlier_due,
+                cutoff,
+                visible,
+                doc["register"]["complete_through"],
             ):
                 deadline_miss = True
         current = "unresolved"
@@ -609,8 +608,10 @@ def reconcile(state):
                                     "revision",
                                     "evidence_ref",
                                     "channel",
+                                    "region",
                                     "contact_at",
                                 )
+                                if k in row
                             }
                             for row in info["contacts"]
                         ],
@@ -639,7 +640,15 @@ def reconcile(state):
         "receipt": evidence["receipt"],
         "previous_receipts": evidence["history"],
         **(
-            {"holiday_calendar": policy_doc.get("holiday_calendar")}
+            {
+                "holiday_calendar": policy_doc.get("holiday_calendar"),
+                **{
+                    key: policy_doc[key]
+                    for key in policy.CALENDAR_MAPS
+                    if key in policy_doc
+                },
+                "calendar_warnings": policy.warnings_at(policy_doc, doc["as_of"]),
+            }
             if policy_doc
             else {}
         ),
@@ -666,6 +675,10 @@ def html(state):
     if "holiday_calendar" in summary:
         calendar = policy.calendar_label(summary)
         parts.append(f"<p>Holiday calendar · {escape(calendar)}</p>")
+        parts.extend(
+            f"<p><strong>{escape(warning)}</strong></p>"
+            for warning in summary["calendar_warnings"]
+        )
     for notice in summary["policy_reviews"]:
         clauses = ", ".join(escape(name) for name in notice["changed_clauses"])
         parts.append(
@@ -749,8 +762,9 @@ def html(state):
                     f"<p>Payment-reference link confirmed by {escape(reviewer)}.</p>"
                 )
             for row in case["contacts"]:
+                location = f" · {escape(row['region'])}" if "region" in row else ""
                 parts.append(
-                    f"<p>{escape(row['channel'])} · {escape(row['contact_at'])} · {escape(row['case_id'])} · {escape(row['evidence_ref'])} ({escape(row['revision'])})</p>"
+                    f"<p>{escape(row['channel'])}{location} · {escape(row['contact_at'])} · {escape(row['case_id'])} · {escape(row['evidence_ref'])} ({escape(row['revision'])})</p>"
                 )
             for name, clock in case["clocks"].items():
                 cutoff_status = (
@@ -763,6 +777,16 @@ def html(state):
                     parts.append(
                         "<p>Deadline unresolved. The holiday calendar does not cover the required dates.</p>"
                     )
+                if clock.get("reason") == "holiday_calendar_unassigned":
+                    parts.append(
+                        "<p>Deadline unresolved. No holiday calendar is assigned to the cited contact.</p>"
+                    )
+                if clock.get("reason") == "holiday_calendar_conflicting_triggers":
+                    parts.append(
+                        "<p>Deadline unresolved. Equally early contacts cite different holiday calendars.</p>"
+                    )
+                if selected := clock.get("calendar"):
+                    parts.append(f"<p>Calendar · {escape(selected)}</p>")
                 for event in (clock["start"], clock["stop"]):
                     if event and "quote" in event:
                         parts.append(

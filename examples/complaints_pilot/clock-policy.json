@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "id": "payments-example",
-  "version": "2026-11",
+  "version": "2026-11-payments",
   "timezone": "Europe/London",
   "holidays": [
     "2026-01-01",
@@ -39,11 +39,25 @@
       "count": 3,
       "due_time": "17:00"
     },
-    "final-response": {
-      "start_event": "dissatisfaction",
+    "payments-response": {
+      "start_event": "ordinary_psd_emd_receipt",
       "stop_event": "final_response_sent",
-      "unit": "weeks",
-      "count": 8,
+      "unit": "business_days",
+      "count": 15,
+      "due_time": "17:00"
+    },
+    "exceptional-payments-holding": {
+      "start_event": "exceptional_psd_emd_receipt",
+      "stop_event": "qualifying_holding_response_sent",
+      "unit": "business_days",
+      "count": 15,
+      "due_time": "17:00"
+    },
+    "exceptional-payments-final": {
+      "start_event": "exceptional_psd_emd_receipt",
+      "stop_event": "final_response_sent",
+      "unit": "business_days",
+      "count": 35,
       "due_time": "17:00"
     }
   },

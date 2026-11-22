@@ -15,7 +15,7 @@ from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import desk_evidence, weekly_report, weekly_review
+from . import desk_access, desk_evidence, weekly_report, weekly_review
 from .desk_hosted import Proxy, reviewer_id
 from .contracts import InputError, decode_json, integer, mapping
 from .screen import RUBRICS
@@ -246,16 +246,6 @@ class Desk:
                 continue
             self.runs[ident] = report
 
-    def review(self, ident: str) -> dict:
-        state = weekly_report.read_state(self.report(ident))
-        return {
-            "week": state["week"],
-            "rubric": state["rubric"],
-            "progress": weekly_review.workload(state),
-            "follow_up": weekly_review.follow_up(state),
-            **weekly_review.review_status(state),
-        }
-
     def history(self) -> list[dict]:
         self._discover()
         items = []
@@ -303,7 +293,7 @@ class Desk:
             raise InputError("unknown audit in this desk session")
         return path
 
-    def grade(self, ident: str, fields: dict, *, second: bool) -> None:
+    def grade(self, ident: str, fields: dict, *, second: bool) -> dict:
         path = self.report(ident)
         data = fields.get("grades")
         reviewer = fields.get("reviewer")
@@ -313,12 +303,11 @@ class Desk:
             returned = Path(temp) / "return.csv"
             returned.write_text(data, encoding="utf-8", newline="")
             if second:
-                weekly_report.second_review(path, returned, reviewer)
-            else:
-                weekly_report.refresh(path, returned, reviewer=reviewer)
+                return weekly_report.second_review(path, returned, reviewer)
+            return weekly_report.refresh(path, returned, reviewer=reviewer)
 
     def resolve(self, ident, fields):
-        weekly_report.adjudicate(
+        return weekly_report.adjudicate(
             self.report(ident),
             fields.get("case_id"),
             fields.get("dispute_id"),
@@ -337,8 +326,21 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
             pass  # The local entry URL contains a session secret.
 
         def reply(
-            self, status, body, mime, *, download=None, script_nonce=None, digest=None
+            self,
+            status,
+            body,
+            mime,
+            *,
+            download=None,
+            script_nonce=None,
+            digest=None,
+            case_ids=(),
         ):
+            try:
+                self.access_event(status, case_ids)
+            except desk_access.AccessError:
+                status, body, mime = 503, b"Hosted access log unavailable", "text/plain"
+                download = script_nonce = digest = None
             self.send_response(status)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(len(body)))
@@ -362,14 +364,33 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
             self.end_headers()
             self.wfile.write(body)
 
+        def access_event(self, status, case_ids=()):
+            if proxy is not None and self.subject:
+                desk_access.record(
+                    self.subject,
+                    self.role,
+                    self.operation,
+                    self.command,
+                    status,
+                    case_ids,
+                    publication=self.publication,
+                    revision=self.revision,
+                )
+
+        def note_audit(self, state, revision=None):
+            self.publication, self.revision = state["publication_id"], revision
+
         def route(self):
             self.role, self.subject = "lead", None
+            self.publication = self.revision = None
             if proxy is not None:
                 principal = proxy.principal(self)
                 if not principal or not self.path.startswith("/"):
                     return None
                 self.role, self.subject = principal
-                return self.path.split("/")[1:]
+                parts = self.path.split("/")[1:]
+                self.operation = desk_access.route_name(self.command, parts)
+                return parts
             host = f"127.0.0.1:{self.server.server_port}"
             if self.headers.get_all("Host", []) != [host]:
                 return None
@@ -433,30 +454,53 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
             elif parts and len(parts) == 2 and parts[0] in desk.runs:
                 path = desk.report(parts[0])
                 if parts[1] in ("grades.csv", "outstanding.csv"):
+                    state, revision, _ = weekly_report.verified_snapshot(path)
+                    self.note_audit(state, revision)
+                    outstanding = parts[1] == "outstanding.csv"
+                    cases = (
+                        row["case_id"]
+                        for row in state["cases"]
+                        if not outstanding or row["case_id"] not in state["grades"]
+                    )
                     self.reply(
                         200,
-                        weekly_report.verified_packet(
-                            path, outstanding=parts[1] == "outstanding.csv"
-                        ),
+                        weekly_report._packet_bytes(state, outstanding=outstanding),
                         "text/csv",
                         download=parts[1],
+                        case_ids=cases,
                     )
                 elif parts[1] == "report.html":
-                    self.reply(
-                        200,
-                        weekly_report.verified_html(path),
-                        "text/html; charset=utf-8",
-                    )
+                    report = weekly_report.verified_html(path)
+                    cases = ()
+                    if proxy is not None:
+                        envelope = weekly_report._envelope(report)
+                        state = envelope["state"]
+                        self.note_audit(state, envelope["auth"]["revision"])
+                        episode = (
+                            state.get("complaint_records", {})
+                            .get("snapshot", {})
+                            .get("episodes", {})
+                        )
+                        cases = (
+                            row["case_id"]
+                            for row in (*state["cases"], *episode.get("contacts", ()))
+                        )
+                    self.reply(200, report, "text/html; charset=utf-8", case_ids=cases)
                 elif parts[1] == "manifest.json":
+                    state, revision, _ = weekly_report.verified_snapshot(path)
+                    self.note_audit(state, revision)
+                    manifest = desk_evidence.template(state)
                     self.reply(
                         200,
-                        json.dumps(desk_evidence.template(path), indent=2).encode(),
+                        json.dumps(manifest, indent=2).encode(),
                         "application/json",
                         download="manifest.json",
+                        case_ids=(row["case_id"] for row in manifest["cases"]),
                     )
                 elif parts[1] == "review":
+                    state, revision, _ = weekly_report.verified_snapshot(path)
+                    self.note_audit(state, revision)
                     if self.role == "reviewer":
-                        state = weekly_report.read_state(path)
                         status = {
                             "week": state["week"],
                             "rubric": state["rubric"],
@@ -469,8 +513,22 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                             "open_disputes": [],
                         }
                     else:
-                        status = desk.review(parts[0])
-                    self.reply(200, json.dumps(status).encode(), "application/json")
+                        status = {
+                            "week": state["week"],
+                            "rubric": state["rubric"],
+                            "progress": weekly_review.workload(state),
+                            "follow_up": weekly_review.follow_up(state),
+                            **weekly_review.review_status(state),
+                        }
+                    self.reply(
+                        200,
+                        json.dumps(status).encode(),
+                        "application/json",
+                        case_ids=(
+                            row["case_id"]
+                            for row in (*status["follow_up"], *status["open_disputes"])
+                        ),
+                    )
                 else:
                     self.reply(404, b"Unknown artifact", "text/plain")
             else:
@@ -505,6 +563,10 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                 ):
                     raise InputError("use the desk intake form")
                 fields = _form(self.headers["Content-Type"], self.rfile.read(length))
+                # Record admission before a POST can change signed records. The
+                # outcome event is recorded separately before responding.
+                self.access_event(None)
+                case_ids = ()
                 if len(route) == 2 and route[1] in {
                     "records",
                     "links",
@@ -514,17 +576,27 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                 }:
                     report = desk.report(route[0])
                     if route[1] == "records":
-                        value = desk_evidence.attach(
+                        value, state = desk_evidence.attach(
                             report,
                             fields,
                             reviewer_id(self.subject) if self.subject else None,
                         )
+                        self.note_audit(state)
                     elif route[1] == "links":
+                        state, revision, _ = weekly_report.verified_snapshot(report)
+                        self.note_audit(state, revision)
                         value = {
-                            "suggestions": desk_evidence.suggestions(report, fields)
+                            "suggestions": desk_evidence.suggestions(state, fields)
                         }
+                        case_ids = (
+                            case
+                            for row in value["suggestions"]
+                            for case in row["case_ids"]
+                        )
                     elif route[1] == "bank":
-                        data, digest = desk_evidence.bank(report, fields)
+                        data, digest, self.publication, self.revision = (
+                            desk_evidence.bank(report, fields)
+                        )
                         self.reply(
                             200,
                             data,
@@ -534,9 +606,10 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                         )
                         return
                     else:
-                        value = desk_evidence.review_policy(
+                        value, state = desk_evidence.review_policy(
                             report, fields, apply=route[1] == "policy-review"
                         )
+                        self.note_audit(state)
                 elif route == ["plan"]:
                     value = desk.preview(fields)
                 elif route == ["audits"]:
@@ -549,15 +622,23 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                     if self.subject:
                         fields["reviewer"] = reviewer_id(self.subject)
                     if route[1] == "adjudicate":
-                        desk.resolve(route[0], fields)
+                        state = desk.resolve(route[0], fields)
                     else:
-                        desk.grade(route[0], fields, second=route[1] == "second-review")
+                        state = desk.grade(
+                            route[0], fields, second=route[1] == "second-review"
+                        )
+                    self.note_audit(state)
                     value = {"id": route[0]}
                 else:
                     raise InputError("unknown desk operation")
                 self.reply(
-                    200, json.dumps(value, allow_nan=False).encode(), "application/json"
+                    200,
+                    json.dumps(value, allow_nan=False).encode(),
+                    "application/json",
+                    case_ids=case_ids,
                 )
+            except desk_access.AccessError:
+                self.reply(503, b"Hosted access log unavailable", "text/plain")
             except UploadLimit as exc:
                 self.reply(413, str(exc).encode(), "text/plain; charset=utf-8")
             except (

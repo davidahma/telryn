@@ -7,6 +7,8 @@
 !telryn/**
 !examples/
 !examples/**
+!deadlines/
+!deadlines/**
 !tests/
 !tests/**
 **/__pycache__/

@@ -14,8 +14,11 @@ from pathlib import Path
 from . import (
     TAGLINE,
     __version__,
+    attestation,
     audit_trust,
     bank_report,
+    history,
+    peer_benchmark,
     benchmark,
     intake,
     integrations,
@@ -26,6 +29,7 @@ from . import (
     policy,
     screen,
     seed,
+    warehouse,
     weekly,
     weekly_report,
     weekly_review,
@@ -119,6 +123,10 @@ def _parser() -> argparse.ArgumentParser:
     bank_report.register_arguments(commands)
     outcomes.register_arguments(commands)
     oversight.register_arguments(commands)
+    history.register_arguments(commands)
+    attestation.register_arguments(commands)
+    warehouse.register_arguments(commands)
+    peer_benchmark.register_arguments(commands)
     seed.register_arguments(commands)
     screen.register_arguments(commands)
     desk = commands.add_parser(
@@ -419,6 +427,9 @@ def weekly_audit(args: argparse.Namespace) -> int:
         from .complaints import reconcile
 
         result["complaints"] = reconcile(state)
+    warnings = weekly_report.calendar_warnings(state)
+    if warnings:
+        result["calendar_warnings"] = warnings
     result["review"] = weekly_report.review_status(state)
     result["workload"] = weekly_review.workload(state)
     result["verification"] = (
@@ -428,6 +439,8 @@ def weekly_audit(args: argparse.Namespace) -> int:
         print(canonical(result))
     else:
         print(weekly_report.digest(path, allow_legacy=args.legacy))
+        for warning in warnings:
+            print(terminal_text(warning))
         print(f"Report: {terminal_text(path)}")
     return 0
 
@@ -462,6 +475,14 @@ def main(argv: list[str] | None = None) -> int:
             )
         if args.command == "weekly":
             return weekly_audit(args)
+        if args.command == "attestation":
+            return attestation.execute(args)
+        if args.command == "warehouse":
+            return warehouse.execute(args)
+        if args.command == "history":
+            return history.execute(args)
+        if args.command == "peer-benchmark":
+            return peer_benchmark.execute(args)
         if args.command == "bank-report":
             return bank_report.execute(args)
         if args.command == "oversight":

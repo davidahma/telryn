@@ -65,3 +65,29 @@ Each affected report keeps the original calculation and gains a signed re-review
 The signed report retains the policy, pseudonymous links, cited excerpts and projected source records. Unquoted passage text and the raw subject and matter inputs stay outside it. Protect local inputs, the signing key, report, backups and exported JSON under the firm's retention and access rules.
 
 A [versioned policy and rubric pack](policy-packs.md) can supply the frozen clock policy directly. In a pack-backed audit the manifest names the episode evidence and the report supplies the approved clocks. A custom clock can set `business_weekdays` to the institution's ISO business weekdays. Reports issued with this calendar require v0.9.0 or later.
+
+## Use regional or channel calendars
+
+The bundled reference calendars cover England and Wales, Scotland and Northern Ireland through 2028, and Ireland's public holiday and Consumer Protection Regulations working-day calendars through 2026. The latter also excludes Good Friday. Select a bundled calendar by its complete ID and date version. For a queue spanning jurisdictions, use the region supplied on the originating cited contact, or map each channel to its own calendar.
+
+```json
+{
+  "holiday_calendars_by_region": {
+    "Scotland": "scotland@2026-11-22",
+    "Northern Ireland": "northern-ireland@2026-11-22"
+  },
+  "holiday_calendars_by_channel": {
+    "London branch": "england-and-wales@2026-11-22"
+  }
+}
+```
+
+Declare the optional `region` alongside `channel` in the contact archive. Both match policy keys exactly. A mapped region takes precedence, then a mapped channel, then the policy's explicitly supplied default `holiday_calendar`. If none matches, a business-day deadline stays unresolved. Use a firm-issued calendar with a distinct version when its dates differ from a public calendar. A routing entry may be a bundled reference string or an inline object containing `id`, `version`, `source`, `valid_from`, `valid_through` and `holidays`. The clock uses the policy's local time zone and working-week definition. It uses the calendar attached to the first triggering contact even if a later contact arrived elsewhere.
+
+A weekly report warns from 90 days before coverage ends, based on the audited cutoff or follow-up date. Policy review warns based on the local review date. Historical reports keep the frozen policy. A region- or channel-mapped report requires v0.12.0 or later. [UK bank holidays](https://www.gov.uk/bank-holidays) · [Ireland public holidays](https://www.workplacerelations.ie/en/what_you_should_know/public-holidays/)
+
+## Payments response deadlines
+
+General DISP business-day clocks use the relevant part of the UK. For PSD and EMD complaint response time limits under DISP 1.6.2A, use the days the relevant provider is open to execute payments. The synthetic payments exercise assumes a provider schedule that matches the dated England and Wales calendar. It checks the ordinary 15-business-day response, or an eligible exceptional route with a 15-business-day holding response and a 35-business-day final response. Both run from original receipt. Use the exceptional trigger only after confirming eligibility and cite the qualifying holding response separately. The fixture's internal three-business-day logging deadline is a separate control. [FCA business day definition](https://handbook.fca.org.uk/glossary/G120) · [DISP 1.6.2A](https://handbook.fca.org.uk/handbook/disp1/disp1s6)
+
+The [standalone deadline dataset](../deadlines/README.md) supplies structured reference records for the UK, Ireland, Australia and the US. Its archive and schemas can be consumed without Telryn.

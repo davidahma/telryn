@@ -3,6 +3,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
@@ -44,6 +45,14 @@ class EpisodeTests(unittest.TestCase):
         self.f.manifest["cases"][0]["deadline"] = None
         self.policy_file = self.f.root / "policy.json"
         self.policy_doc = policy.load(BASE)
+        self.policy_doc["id"] = "generic-test-clocks"
+        self.policy_doc["clauses"]["final-response"] = {
+            "start_event": "dissatisfaction",
+            "stop_event": "final_response_sent",
+            "unit": "weeks",
+            "count": 8,
+            "due_time": "17:00",
+        }
         self.policy_file.write_text(json.dumps(self.policy_doc))
         self.contacts = [
             contact("C1", "2026-09-01T11:00:00Z", "dissatisfaction"),
@@ -139,6 +148,66 @@ class EpisodeTests(unittest.TestCase):
         self.assertIsNone(cases["C1"]["deadline"])
         self.assertEqual(cases["C1"]["registration_at_cutoff"], "unresolved")
         self.assertIn("calendar does not cover", self.f.report.read_text())
+        self.assertIn("expired", self.f.report.read_text())
+
+    def test_issued_report_keeps_trigger_region_and_selected_calendar(self):
+        self.contacts[0] = {
+            **contact("C1", "2026-08-27T11:00:00Z", "dissatisfaction"),
+            "region": "north",
+        }
+        self.contacts[1]["region"] = "south"
+        self.policy_doc["holiday_calendars_by_region"] = {
+            "north": "scotland@2026-11-22",
+            "south": "england-and-wales@2026-11-22",
+        }
+        self.policy_doc["holiday_calendars_by_channel"] = {
+            "chat": "northern-ireland@2026-11-22",
+        }
+        self.policy_file.write_text(json.dumps(self.policy_doc))
+        report, cases = self.attach()
+        self.assertEqual(cases["C1"]["deadline"], "2026-09-01T16:00:00Z")
+        self.assertIn(
+            "scotland@2026-11-22", cases["C1"]["clocks"]["registration"]["calendar"]
+        )
+        self.assertIn("region north", self.f.report.read_text())
+        self.assertEqual(
+            weekly_report._envelope(self.f.report.read_bytes())["schema"], 8
+        )
+        self.assertEqual(report["calendar_warnings"], [])
+
+    def test_simultaneous_earliest_contacts_with_different_calendars_stay_unresolved(
+        self,
+    ):
+        at = "2026-08-27T11:00:00Z"
+        self.contacts = [
+            {**contact("C1", at, "dissatisfaction"), "region": "north"},
+            {**contact("also", at, "dissatisfaction"), "region": "south"},
+        ]
+        self.policy_doc["holiday_calendars_by_region"] = {
+            "north": "scotland@2026-11-22",
+            "south": "england-and-wales@2026-11-22",
+        }
+        self.policy_file.write_text(json.dumps(self.policy_doc))
+        _, cases = self.attach()
+        self.assertIsNone(cases["C1"]["deadline"])
+        self.assertEqual(cases["C1"]["registration_at_cutoff"], "unresolved")
+        self.assertIn("different holiday calendars", self.f.report.read_text())
+
+    def test_simultaneous_contacts_agree_on_a_calendar_from_default_and_mapping(self):
+        at = "2026-08-27T11:00:00Z"
+        self.contacts = [
+            {**contact("C1", at, "dissatisfaction"), "region": "south"},
+            contact("also", at, "dissatisfaction"),
+        ]
+        self.policy_doc["holiday_calendars_by_region"] = {
+            "south": "england-and-wales@2026-11-22",
+        }
+        self.policy_file.write_text(json.dumps(self.policy_doc))
+        _, cases = self.attach()
+        self.assertEqual(cases["C1"]["deadline"], "2026-09-02T16:00:00Z")
+        self.assertIn(
+            "england-and-wales", cases["C1"]["clocks"]["registration"]["calendar"]
+        )
 
     def attach(self):
         self.save()
@@ -486,6 +555,60 @@ class EpisodeTests(unittest.TestCase):
 
 
 class ClockTests(unittest.TestCase):
+    def test_region_or_channel_selection_and_expiry(self):
+        raw = policy.load(BASE)
+        raw.pop("holiday_calendar")
+        raw.pop("holidays")
+        raw["holiday_calendars_by_region"] = {
+            "scotland": "scotland@2026-11-22",
+            "northern-ireland": "northern-ireland@2026-11-22",
+        }
+        raw["holiday_calendars_by_channel"] = {"chat": "england-and-wales@2026-11-22"}
+        p = policy.validate(raw)
+        rule = dict(p["clauses"]["registration"], count=1)
+        self.assertEqual(
+            policy.deadline("2026-03-16T12:00:00Z", rule, p, region="northern-ireland"),
+            "2026-03-18T17:00:00Z",
+        )
+        self.assertEqual(
+            policy.deadline("2026-03-16T12:00:00Z", rule, p, channel="chat"),
+            "2026-03-17T17:00:00Z",
+        )
+        self.assertIsNone(
+            policy.deadline("2026-03-16T12:00:00Z", rule, p, channel="unmapped")
+        )
+        self.assertIsNone(
+            policy.deadline("2029-01-02T12:00:00Z", rule, p, channel="chat")
+        )
+        self.assertEqual(policy.calendar_warnings(p, on=date(2028, 10, 1)), [])
+        warnings = policy.calendar_warnings(p, on=date(2028, 10, 2))
+        self.assertEqual(len(warnings), 3)
+        self.assertTrue(all("expires in 90 days" in option for option in warnings))
+        self.assertIn("expired", policy.calendar_warnings(p, on=date(2029, 1, 1))[0])
+
+    def test_ordinary_and_exceptional_payments_use_same_cited_receipt(self):
+        p = policy.load(BASE)
+        ordinary = p["clauses"]["payments-response"]
+        holding = p["clauses"]["exceptional-payments-holding"]
+        exceptional = p["clauses"]["exceptional-payments-final"]
+        self.assertEqual(
+            ["business_days", 15, "final_response_sent"],
+            [ordinary["unit"], ordinary["count"], ordinary["stop_event"]],
+        )
+        self.assertEqual(holding["start_event"], exceptional["start_event"])
+        self.assertEqual(
+            ("qualifying_holding_response_sent", 15, "final_response_sent", 35),
+            (
+                holding["stop_event"],
+                holding["count"],
+                exceptional["stop_event"],
+                exceptional["count"],
+            ),
+        )
+        start = "2026-08-04T10:00:00Z"
+        self.assertEqual(policy.deadline(start, ordinary, p), "2026-08-25T16:00:00Z")
+        self.assertEqual(policy.deadline(start, exceptional, p), "2026-09-23T16:00:00Z")
+
     def test_calendar_coverage_cutoff_and_observed_holidays(self):
         from telryn import packs
 

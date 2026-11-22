@@ -385,7 +385,8 @@ for (const form of [records,policyForm,bankForm]) form.addEventListener("submit"
       const result = await postFiles(run + (preview ? "/policy-preview" : "/policy-review"), form);
       if (active !== run) return;
       const notices = result.notices.flatMap(n => [...(n.changed_clauses || []), ...(n.changed_pack_fields || [])]);
-      byId("policy-result").textContent = result.affected ? (preview ? "Affected: " : "Marked for review: ") + notices.join(", ") : "This change does not affect the issued audit.";
+      const impact = result.affected ? (preview ? "Affected: " : "Marked for review: ") + notices.join(", ") : "This change does not affect the issued audit.";
+      byId("policy-result").textContent = [impact, ...(result.calendar_warnings || [])].join(" ");
     } else {
       const result = await postFiles(run + "/records",form);
       if (active !== run) return;

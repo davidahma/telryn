@@ -38,12 +38,13 @@ Releases = "https://github.com/davidahma/telryn/releases"
 path = "telryn/__init__.py"
 
 [tool.hatch.build.targets.sdist]
-include = ["/telryn", "/examples", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
+include = ["/telryn", "/examples", "/deadlines", "/tests", "/README.md", "/LICENSE", "/pyproject.toml"]
 
 [tool.hatch.build.targets.wheel]
 dev-mode-dirs = ["."]
-only-include = ["telryn", "examples", "tests"]
+only-include = ["telryn", "examples", "tests", "deadlines"]
 
 [tool.hatch.build.targets.wheel.sources]
 "examples" = "telryn/_bundled/examples"
 "tests" = "telryn/_bundled/tests"
+"deadlines" = "telryn/_bundled/deadlines"

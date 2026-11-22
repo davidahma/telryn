@@ -1,0 +1,301 @@
+{
+  "schema": 1,
+  "dataset": "telryn-deadlines",
+  "version": "1.0.0",
+  "published": "2026-11-22",
+  "rules": [
+    {
+      "id": "fca-disp-standard",
+      "jurisdiction": "GB",
+      "source": "https://handbook.fca.org.uk/handbook/disp1",
+      "citation": "DISP 1.6.2R",
+      "effective_from": "2018-01-13",
+      "effective_through": null,
+      "trigger": "receipt of covered complaint",
+      "milestone": "required final or other qualifying eight-week response",
+      "period": {
+        "count": 8,
+        "unit": "weeks"
+      },
+      "calendar_basis": "calendar",
+      "computation": "fixed",
+      "conditions": "Ordinary route where no other applicable requirement displaces it. Check all response contents."
+    },
+    {
+      "id": "fca-disp-summary",
+      "jurisdiction": "GB",
+      "source": "https://handbook.fca.org.uk/handbook/disp1",
+      "citation": "DISP 1.5.1R",
+      "effective_from": "2016-06-30",
+      "effective_through": null,
+      "trigger": "receipt of eligible complaint",
+      "milestone": "complaint resolved with complainant by close of third business day",
+      "period": {
+        "count": 3,
+        "unit": "business_days"
+      },
+      "calendar_basis": "uk_part_of_performance",
+      "computation": "evidence_required",
+      "conditions": "Rules route the prompt resolution of eligible complaints. A summary resolution communication has separate requirements."
+    },
+    {
+      "id": "fca-disp-psd-emd",
+      "jurisdiction": "GB",
+      "source": "https://handbook.fca.org.uk/handbook/disp1",
+      "citation": "DISP 1.6.2AR(1)",
+      "effective_from": "2018-01-13",
+      "effective_through": null,
+      "trigger": "receipt of covered PSD or EMD complaint",
+      "milestone": "final response by end of the fifteenth business day",
+      "period": {
+        "count": 15,
+        "unit": "business_days"
+      },
+      "calendar_basis": "payment_provider_schedule",
+      "computation": "evidence_required",
+      "conditions": "Applies to the covered part. Check medium requirements."
+    },
+    {
+      "id": "fca-disp-psd-emd-holding",
+      "jurisdiction": "GB",
+      "source": "https://handbook.fca.org.uk/handbook/disp1",
+      "citation": "DISP 1.6.2AR(2)(a)",
+      "effective_from": "2018-01-13",
+      "effective_through": null,
+      "trigger": "receipt of covered PSD or EMD complaint",
+      "milestone": "holding response",
+      "period": {
+        "count": 15,
+        "unit": "business_days"
+      },
+      "calendar_basis": "payment_provider_schedule",
+      "computation": "evidence_required",
+      "conditions": "Exceptional circumstances require a reason beyond the respondent's control. Check that the response states the reason and final-response date."
+    },
+    {
+      "id": "fca-disp-psd-emd-exceptional-final",
+      "jurisdiction": "GB",
+      "source": "https://handbook.fca.org.uk/handbook/disp1",
+      "citation": "DISP 1.6.2AR(2)(b)",
+      "effective_from": "2018-01-13",
+      "effective_through": null,
+      "trigger": "receipt of covered PSD or EMD complaint",
+      "milestone": "exceptional-route final response",
+      "period": {
+        "count": 35,
+        "unit": "business_days"
+      },
+      "calendar_basis": "payment_provider_schedule",
+      "computation": "evidence_required",
+      "conditions": "Requires the exceptional conditions and a qualifying day-15 holding response. The 35 days run from original receipt."
+    },
+    {
+      "id": "ireland-cpc-acknowledgement",
+      "jurisdiction": "IE",
+      "source": "https://www.centralbank.ie/regulation/consumer-protection/consumer-protection-code/section-48-regulations/part-2-general-consumer-protection-requirements",
+      "citation": "Regulation 105(3), (4)(a) and (b)",
+      "effective_from": "2026-03-24",
+      "effective_through": null,
+      "trigger": "receipt of covered complaint",
+      "milestone": "durable acknowledgement",
+      "period": {
+        "count": 5,
+        "unit": "business_days"
+      },
+      "calendar_basis": "irish_working_days",
+      "computation": "evidence_required",
+      "conditions": "Configured website complaints require automatic or immediate durable acknowledgement. Check prompt-resolution exception and separate logging duty."
+    },
+    {
+      "id": "ireland-cpc-update",
+      "jurisdiction": "IE",
+      "source": "https://www.centralbank.ie/regulation/consumer-protection/consumer-protection-code/section-48-regulations/part-2-general-consumer-protection-requirements",
+      "citation": "Regulation 105(4)(d)",
+      "effective_from": "2026-03-24",
+      "effective_through": null,
+      "trigger": "original receipt of covered complaint",
+      "milestone": "regular progress updates",
+      "period": {
+        "count": 20,
+        "unit": "business_days"
+      },
+      "calendar_basis": "irish_working_days",
+      "computation": "evidence_required",
+      "conditions": "At intervals of no more than 20 working days from receipt, as applicable. Preserve evidence for successive updates."
+    },
+    {
+      "id": "ireland-cpc-resolution",
+      "jurisdiction": "IE",
+      "source": "https://www.centralbank.ie/regulation/consumer-protection/consumer-protection-code/section-48-regulations/part-2-general-consumer-protection-requirements",
+      "citation": "Regulation 105(4)(e) and (f)",
+      "effective_from": "2026-03-24",
+      "effective_through": null,
+      "trigger": "receipt of covered complaint",
+      "milestone": "investigate and make reasonable efforts to resolve",
+      "period": {
+        "count": 40,
+        "unit": "business_days"
+      },
+      "calendar_basis": "irish_working_days",
+      "computation": "evidence_required",
+      "conditions": "If unresolved when the period elapses, the additional notice and referral obligations apply."
+    },
+    {
+      "id": "asic-rg271-standard",
+      "jurisdiction": "AU",
+      "source": "https://download.asic.gov.au/media/3olo5aq5/rg271-published-2-september-2021.pdf",
+      "citation": "RG 271.56 and Table 2",
+      "effective_from": "2021-10-05",
+      "effective_through": null,
+      "trigger": "receipt of standard covered complaint",
+      "milestone": "internal dispute resolution response",
+      "period": {
+        "count": 30,
+        "unit": "calendar_days"
+      },
+      "calendar_basis": "calendar",
+      "computation": "fixed",
+      "conditions": "Check eligibility for no written response and the delay-notification provisions."
+    },
+    {
+      "id": "asic-rg271-superannuation",
+      "jurisdiction": "AU",
+      "source": "https://download.asic.gov.au/media/3olo5aq5/rg271-published-2-september-2021.pdf",
+      "citation": "RG 271.56 and Table 2",
+      "effective_from": "2021-10-05",
+      "effective_through": null,
+      "trigger": "receipt of superannuation or traditional trustee complaint",
+      "milestone": "internal dispute resolution response",
+      "period": {
+        "count": 45,
+        "unit": "calendar_days"
+      },
+      "calendar_basis": "calendar",
+      "computation": "fixed",
+      "conditions": "Death benefit distribution objections have a separate trigger and deadline."
+    },
+    {
+      "id": "asic-rg271-default",
+      "jurisdiction": "AU",
+      "source": "https://download.asic.gov.au/media/3olo5aq5/rg271-published-2-september-2021.pdf",
+      "citation": "RG 271.86 and RG 271.91",
+      "effective_from": "2021-10-05",
+      "effective_through": null,
+      "trigger": "receipt of credit complaint involving a default notice",
+      "milestone": "internal dispute resolution response",
+      "period": {
+        "count": 21,
+        "unit": "calendar_days"
+      },
+      "calendar_basis": "calendar",
+      "computation": "fixed",
+      "conditions": "Apply the credit-related route; hardship and postponement also need their distinct exceptions."
+    },
+    {
+      "id": "us-reg-e-standard",
+      "jurisdiction": "US",
+      "source": "https://www.consumerfinance.gov/rules-policy/regulations/1005/11/",
+      "citation": "12 CFR 1005.11(c)(1)",
+      "effective_from": "2011-12-30",
+      "effective_through": null,
+      "trigger": "receipt of qualifying error notice",
+      "milestone": "determine whether error occurred",
+      "period": {
+        "count": 10,
+        "unit": "business_days"
+      },
+      "calendar_basis": "institution_functions",
+      "computation": "evidence_required",
+      "conditions": "Check qualifying notice and applicable provisional credit or extended investigation conditions."
+    },
+    {
+      "id": "us-reg-e-new-account",
+      "jurisdiction": "US",
+      "source": "https://www.consumerfinance.gov/rules-policy/regulations/1005/11/",
+      "citation": "12 CFR 1005.11(c)(3)(i)",
+      "effective_from": "2011-12-30",
+      "effective_through": null,
+      "trigger": "receipt of qualifying error notice",
+      "milestone": "new account initial investigation or applicable provisional credit",
+      "period": {
+        "count": 20,
+        "unit": "business_days"
+      },
+      "calendar_basis": "institution_functions",
+      "computation": "evidence_required",
+      "conditions": "Applies to certain transfers within 30 days after first deposit."
+    },
+    {
+      "id": "us-reg-e-extended",
+      "jurisdiction": "US",
+      "source": "https://www.consumerfinance.gov/rules-policy/regulations/1005/11/",
+      "citation": "12 CFR 1005.11(c)(2)",
+      "effective_from": "2011-12-30",
+      "effective_through": null,
+      "trigger": "receipt of qualifying error notice",
+      "milestone": "complete extended investigation",
+      "period": {
+        "count": 45,
+        "unit": "calendar_days"
+      },
+      "calendar_basis": "calendar",
+      "computation": "evidence_required",
+      "conditions": "Check provisional credit and notice conditions; the longer path requires the specified transaction categories."
+    },
+    {
+      "id": "us-reg-e-extended-90",
+      "jurisdiction": "US",
+      "source": "https://www.consumerfinance.gov/rules-policy/regulations/1005/11/",
+      "citation": "12 CFR 1005.11(c)(3)(ii)",
+      "effective_from": "2011-12-30",
+      "effective_through": null,
+      "trigger": "receipt of qualifying error notice",
+      "milestone": "complete qualifying extended investigation",
+      "period": {
+        "count": 90,
+        "unit": "calendar_days"
+      },
+      "calendar_basis": "calendar",
+      "computation": "evidence_required",
+      "conditions": "Qualifying foreign-initiated, point-of-sale debit or new account transfers. Check conditions and distinctions."
+    },
+    {
+      "id": "us-reg-z-acknowledgement",
+      "jurisdiction": "US",
+      "source": "https://www.consumerfinance.gov/rules-policy/regulations/1026/13/",
+      "citation": "12 CFR 1026.13(c)(1)",
+      "effective_from": "2011-12-30",
+      "effective_through": null,
+      "trigger": "receipt of qualifying billing-error notice",
+      "milestone": "written acknowledgement",
+      "period": {
+        "count": 30,
+        "unit": "calendar_days"
+      },
+      "calendar_basis": "calendar",
+      "computation": "fixed",
+      "conditions": "Applies unless the appropriate resolution procedures have already been completed in the period."
+    },
+    {
+      "id": "us-reg-z-resolution",
+      "jurisdiction": "US",
+      "source": "https://www.consumerfinance.gov/rules-policy/regulations/1026/13/",
+      "citation": "12 CFR 1026.13(c)(2)",
+      "effective_from": "2011-12-30",
+      "effective_through": null,
+      "trigger": "receipt of qualifying billing-error notice",
+      "milestone": "complete applicable billing-error resolution procedures",
+      "period": {
+        "count": 2,
+        "unit": "complete_billing_cycles"
+      },
+      "calendar_basis": "statement_calendar",
+      "computation": "evidence_required",
+      "conditions": "Use two actual complete cycles after receipt and apply the 90-calendar-day cap, whichever is earlier.",
+      "outer_limit": {
+        "count": 90,
+        "unit": "calendar_days"
+      }
+    }
+  ]
+}

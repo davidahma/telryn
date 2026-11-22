@@ -44,3 +44,7 @@ Complaint registration and accommodation delivery use the same rule for classify
 ## Pilot and reporting boundaries
 
 The desk translates supported score exports into the same signed weekly model as the scheduler, and invokes the policy and register checks used by the CLI. Authenticated hosting binds each review to the subject asserted by a configured identity gateway. The bank statement and multiweek reports select aggregate fields from that evidence. The opt-in benchmark command writes a local JSON file. A separate census worksheet reconciles reviewed disclosures with a support-needs register. [Hosted desk](hosted-desk.md) · [Committee and vendor reports](oversight.md) · [Support-needs evidence](accommodation.md)
+
+## Evidence for outside reviewers
+
+Hosted desk access events live in the team's trust store. A signed history preserves the private issued weekly bytes and links consecutive quarter manifests. Bank statements, vendor attestations and peer benchmarks disclose approved extracts. Recipients pin the appropriate issuer or contributor key separately from the bank's HMAC key. Warehouse adapters capture read-only dated evidence from approved projections. The scorer adapters apply the same rubric, clock and seed-receipt contracts inside external evaluation tools. [Signed history](signed-history.md) · [Vendor attestation](vendor-attestation.md) · [Peer benchmark](peer-benchmark.md)

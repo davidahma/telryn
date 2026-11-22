@@ -56,6 +56,12 @@ if [[ -f examples/complaints_pilot/qa_passes.py ]]; then
   cp "$work/scored/bank/report.html" "$out/synthetic-bank-statement.html"
   reports+=(synthetic-qa-pass-audit.html synthetic-bank-statement.html)
 fi
+if [[ -f deadlines/build.py ]]; then
+  dataset_version=$(jq -er '.version | select(test("^[0-9]+[.][0-9]+[.][0-9]+$"))' deadlines/rules.json)
+  dataset="telryn-deadlines-${dataset_version}.tar.gz"
+  python -m deadlines.build --out "$out/$dataset"
+  reports+=("$dataset")
+fi
 echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
 docker buildx build --platform linux/amd64,linux/arm64 --provenance=false --sbom=false \
   --build-arg "REVISION=$COMMIT" -t "$image:$TAG" \

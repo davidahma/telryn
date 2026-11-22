@@ -171,12 +171,12 @@ class ComplaintsPilot(unittest.TestCase):
             self.assertEqual(
                 mira["clocks"]["registration"]["deadline"], "2026-08-07T16:00:00Z"
             )
-            response = mira["clocks"]["final-response"]
+            response = mira["clocks"]["payments-response"]
             self.assertEqual(
                 response["start"]["quote"],
                 "Even with a refund I want to know how this happened.",
             )
-            self.assertEqual(response["deadline"], "2026-09-29T16:00:00Z")
+            self.assertEqual(response["deadline"], "2026-08-25T16:00:00Z")
             self.assertEqual(response["status"], "past_due_without_evidence")
             self.assertNotIn("S-Mira", Path(first["report"]).read_text())
             pending = next(

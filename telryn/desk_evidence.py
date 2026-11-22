@@ -12,8 +12,7 @@ def _json(fields, key):
     return mapping(decode_json(string(fields.get(key), key), key), key)
 
 
-def template(report):
-    state = weekly_report.read_state(report)
+def template(state):
     cutoff = state.get("score_audit", {}).get("cutoff")
     doc = {
         "schema": 1,
@@ -40,8 +39,7 @@ def template(report):
     return doc
 
 
-def suggestions(report, fields):
-    state = weekly_report.read_state(report)
+def suggestions(state, fields):
     archive = _json(fields, "contacts")
     clock = state.get("policy_pack", {}).get("clock_policy")
     if clock is None:
@@ -84,7 +82,7 @@ def attach(report, fields, user):
                 (base / manifest[target]).write_text(json.dumps(obj), encoding="utf-8")
         (base / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
         state = weekly_report.attach_complaints(report, base / "manifest.json")
-        return {"receipt": state["complaint_records"]["receipt"]}
+        return {"receipt": state["complaint_records"]["receipt"]}, state
 
 
 def review_policy(report, fields, *, apply):
@@ -106,14 +104,16 @@ def review_policy(report, fields, *, apply):
         + state.get("pack_reviews", [])
         if n["policy"] == rules["id"] and n["review_version"] == rules["version"]
     ]
-    return {"affected": bool(changes), "notices": changes}
+    return {
+        "affected": bool(changes),
+        "notices": changes,
+        "calendar_warnings": policy.warnings_at(rules),
+    }, state
 
 
 def bank(report, fields):
     accepted = {"queue", "sample_owner", "register_owner", "excluded_queues"}
     if set(fields) != accepted:
         raise InputError("enter the queue, sample owner, register owner and exclusions")
-    with tempfile.TemporaryDirectory() as tmp:
-        directory = Path(tmp) / "statement"
-        digest = bank_report.write(report, directory, **fields)
-        return (directory / "report.html").read_bytes(), digest
+    data, publication, revision = bank_report.verified_statement(report, **fields)
+    return data, bank_report._digest(data), publication, revision

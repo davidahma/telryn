@@ -35,7 +35,7 @@ def _over_window(start, end, days):
 
 def _contact(item, key, scope, horizon):
     policy.fields(
-        {k: v for k, v in item.items() if k != "payment_ref"}
+        {k: v for k, v in item.items() if k not in ("payment_ref", "region")}
         if isinstance(item, dict)
         else item,
         (
@@ -56,6 +56,8 @@ def _contact(item, key, scope, horizon):
         name: policy.label(item[name], name)
         for name in ("case_id", "revision", "evidence_ref", "channel", "contact_at")
     }
+    if "region" in item:
+        row["region"] = policy.label(item["region"], "region", limit=80)
     start = instant(row["contact_at"])
     if start > horizon:
         raise InputError("contact is later than the evidence horizon")
@@ -426,28 +428,49 @@ def bindings(doc, horizon):
 
 
 def clocks(group, policy_doc, horizon, entries, exact, covered):
-    events = sorted(
-        (
-            event
-            for row in group
-            for event in row["events"]
-            if instant(event["at"]) <= horizon
-        ),
-        key=lambda e: (instant(e["at"]), e["case_id"], e["passage"]),
-    )
+    contacts = {row["case_id"]: row for row in group}
+    events = defaultdict(list)
+    for row in group:
+        for event in row["events"]:
+            at = instant(event["at"])
+            if at <= horizon:
+                events[event["event"]].append((at, event))
+    for occurrences in events.values():
+        occurrences.sort(key=lambda row: (row[0], row[1]["case_id"], row[1]["passage"]))
+
+    def place(event):
+        contact = contacts[event["case_id"]]
+        return {"channel": contact["channel"], "region": contact.get("region")}
+
     output = {}
     for name, rule in policy_doc["clauses"].items():
-        start = next(
-            (event for event in events if event["event"] == rule["start_event"]), None
-        )
+        triggers = events.get(rule["start_event"], ())
+        start = triggers[0][1] if triggers else None
         row = {"start": start, "stop": None, "deadline": None, "status": "unresolved"}
         output[name] = row
         if not start:
             continue
-        due = policy.deadline(start["at"], rule, policy_doc)
+        if policy.uses_business_days(rule) and any(
+            key in policy_doc for key in policy.CALENDAR_MAPS
+        ):
+            selected = policy.select_calendar(policy_doc, **place(start))
+            for at, alternative in triggers[1:]:
+                if at != triggers[0][0]:
+                    break
+                other = policy.select_calendar(policy_doc, **place(alternative))
+                if other != selected:
+                    row["reason"] = "holiday_calendar_conflicting_triggers"
+                    break
+            if "reason" in row:
+                continue
+            if selected:
+                row["calendar"] = policy.calendar_label({"holiday_calendar": selected})
+            else:
+                row["reason"] = "holiday_calendar_unassigned"
+        due = policy.deadline(start["at"], rule, policy_doc, **place(start))
         row["deadline"] = due
         if due is None:
-            row["reason"] = "holiday_calendar_outside_coverage"
+            row.setdefault("reason", "holiday_calendar_outside_coverage")
             continue
         if name == policy_doc["registration_clause"]:
             if not exact or len(entries) > 1:
@@ -460,9 +483,8 @@ def clocks(group, policy_doc, horizon, entries, exact, covered):
             stop = next(
                 (
                     event
-                    for event in events
-                    if event["event"] == rule["stop_event"]
-                    and instant(event["at"]) >= instant(start["at"])
+                    for at, event in events.get(rule["stop_event"], ())
+                    if at >= triggers[0][0]
                 ),
                 None,
             )

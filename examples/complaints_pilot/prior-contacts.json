@@ -25,6 +25,11 @@
           "event": "dissatisfaction",
           "passage": 1,
           "quote": "Even with a refund I want to know how this happened."
+        },
+        {
+          "event": "ordinary_psd_emd_receipt",
+          "passage": 1,
+          "quote": "Even with a refund I want to know how this happened."
         }
       ]
     },
