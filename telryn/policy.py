@@ -45,10 +45,50 @@ def load(path):
     return validate(read_input(path, "clock policy"))
 
 
-def validate(obj):
+CALENDARS = Path(__file__).with_name("policy_packs") / "calendars"
+CALENDAR_ID = re.compile(r"[a-z][a-z0-9-]{0,63}@[0-9]{4}-[0-9]{2}-[0-9]{2}")
+LOCAL_TIME = re.compile(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]")
+
+
+def _iso_day(value):
+    try:
+        return isinstance(value, str) and date.fromisoformat(value).isoformat() == value
+    except ValueError:
+        return False
+
+
+def calendar_label(policy):
+    c = policy.get("holiday_calendar") if policy else None
+    if not c:
+        return "No dated holiday calendar"
+    return f"{c['id']}@{c['version']} ({c['valid_from']} through {c['valid_through']})"
+
+
+def validate(obj, *, historical=False):
     versioned(obj, "clock policy")
+    # Only packaged calendar identifiers resolve to a file. The expanded dates
+    # and authority are then frozen into the signed state for offline replay.
+    calendar = obj.get("holiday_calendar")
+    if isinstance(calendar, str):
+        if not CALENDAR_ID.fullmatch(calendar):
+            raise InputError("invalid bundled holiday calendar identifier")
+        source = CALENDARS / f"{calendar}.json"
+        if not source.is_file() or "holidays" in obj:
+            raise InputError(
+                "select one installed holiday calendar or supply its full dated contents"
+            )
+        calendar = read_input(source, "bundled holiday calendar")
+        calendar.pop("schema")
+        if obj["holiday_calendar"] != f"{calendar['id']}@{calendar['version']}":
+            raise InputError("bundled calendar identity mismatch")
+        obj["holidays"] = calendar.pop("holidays")
+        obj["holiday_calendar"] = calendar
     fields(
-        {key: value for key, value in obj.items() if key != "business_weekdays"},
+        {
+            key: value
+            for key, value in obj.items()
+            if key not in ("business_weekdays", "holiday_calendar")
+        },
         (
             "schema",
             "id",
@@ -77,16 +117,38 @@ def validate(obj):
         ZoneInfo(obj["timezone"])
     except (ValueError, ZoneInfoNotFoundError) as exc:
         raise InputError("policy needs an installed IANA timezone") from exc
-    try:
-        valid_holidays = isinstance(obj["holidays"], list) and all(
-            isinstance(d, str) and date.fromisoformat(d).isoformat() == d
-            for d in obj["holidays"]
-        )
-    except ValueError:
-        valid_holidays = False
-    if not valid_holidays:
+    if not isinstance(obj["holidays"], list) or not all(
+        _iso_day(d) for d in obj["holidays"]
+    ):
         raise InputError("holidays must be local YYYY-MM-DD dates")
     obj["holidays"] = sorted(set(obj["holidays"]))
+    if "holiday_calendar" in obj:
+        fields(
+            calendar,
+            ("id", "version", "valid_from", "valid_through", "source"),
+            "holiday calendar",
+        )
+        for key in ("id", "version", "source"):
+            label(calendar[key], key)
+        first, last = calendar["valid_from"], calendar["valid_through"]
+        if (
+            not _iso_day(first)
+            or not _iso_day(last)
+            or first > last
+            or any(day < first or day > last for day in obj["holidays"])
+        ):
+            raise InputError(
+                "calendar dates must be inside its inclusive valid_from and valid_through"
+            )
+        ref = f"{calendar['id']}@{calendar['version']}"
+        if CALENDAR_ID.fullmatch(ref):
+            bundled = CALENDARS / f"{ref}.json"
+            if bundled.is_file() and read_input(
+                bundled, "bundled holiday calendar"
+            ) != {"schema": 1, **calendar, "holidays": obj["holidays"]}:
+                raise InputError(
+                    "modified calendar reuses a bundled ID and version; assign a distinct firm calendar identity"
+                )
     if integer(obj["episode_days"], "episode days", minimum=1) > 3660:
         raise InputError("episode window exceeds ten years")
     clauses = mapping(obj["clauses"], "policy clauses")
@@ -97,7 +159,11 @@ def validate(obj):
     for name, rule in clauses.items():
         label(name, "clause ID")
         fields(
-            rule,
+            {
+                key: value
+                for key, value in mapping(rule, "policy clause").items()
+                if key != "receipt_cutoff"
+            },
             ("start_event", "stop_event", "unit", "count", "due_time"),
             "policy clause",
         )
@@ -121,10 +187,22 @@ def validate(obj):
             raise InputError("invalid clock unit or count")
         when = rule["due_time"]
         if when != "same" and (
-            not isinstance(when, str)
-            or not re.fullmatch(r"(?:[01][0-9]|2[0-3]):[0-5][0-9]", when)
+            not isinstance(when, str) or not LOCAL_TIME.fullmatch(when)
         ):
             raise InputError("due_time must be same or a local HH:MM")
+        if "receipt_cutoff" in rule and (
+            not isinstance(rule["receipt_cutoff"], str)
+            or not LOCAL_TIME.fullmatch(rule["receipt_cutoff"])
+        ):
+            raise InputError("receipt_cutoff must be a local HH:MM")
+        if (
+            not historical
+            and (rule["unit"] == "business_days" or "receipt_cutoff" in rule)
+            and calendar is None
+        ):
+            raise InputError(
+                "business-day clocks and receipt cutoffs need a dated holiday_calendar with valid_through"
+            )
     return obj
 
 
@@ -135,13 +213,42 @@ def deadline(start, rule, policy):
     local = instant.astimezone(zone)
     day = local.date()
     count = rule["count"]
-    if rule["unit"] == "business_days":
+    if rule["unit"] == "business_days" or "receipt_cutoff" in rule:
+        calendar = policy.get("holiday_calendar")
+        if (
+            not calendar
+            or not calendar["valid_from"]
+            <= day.isoformat()
+            <= calendar["valid_through"]
+        ):
+            return None
+        last = date.fromisoformat(calendar["valid_through"])
         holidays = set(policy["holidays"])
         weekdays = set(policy.get("business_weekdays", [1, 2, 3, 4, 5]))
-        while count:
-            day += timedelta(days=1)
-            count -= day.isoweekday() in weekdays and day.isoformat() not in holidays
-    else:
+
+        def business(d):
+            return d.isoweekday() in weekdays and d.isoformat() not in holidays
+
+        if cutoff := rule.get("receipt_cutoff"):
+            close = time.fromisoformat(cutoff)
+            if (
+                not business(day)
+                or local.time() > close
+                or (local.time() == close and remainder.strip("0"))
+            ):
+                while day < last:
+                    day += timedelta(days=1)
+                    if business(day):
+                        break
+                else:
+                    return None
+        if rule["unit"] == "business_days":
+            while count:
+                if day >= last:
+                    return None
+                day += timedelta(days=1)
+                count -= business(day)
+    if rule["unit"] != "business_days":
         day += timedelta(days=count * (7 if rule["unit"] == "weeks" else 1))
     same_time = rule["due_time"] == "same"
     wall = datetime.combine(
@@ -163,15 +270,17 @@ def dependency(policy, name):
     rule = policy["clauses"].get(name)
     if rule is None:
         return None
+    uses_business = rule["unit"] == "business_days" or "receipt_cutoff" in rule
     return fingerprint(
         [
             rule,
             policy["timezone"],
             policy["episode_days"],
-            policy["holidays"] if rule["unit"] == "business_days" else [],
+            policy["holidays"] if uses_business else [],
             sorted(policy.get("business_weekdays", [1, 2, 3, 4, 5]))
-            if rule["unit"] == "business_days"
+            if uses_business
             else [],
+            policy.get("holiday_calendar") if uses_business else None,
         ]
     )
 
@@ -286,6 +395,20 @@ def _directory_reports(root):
             yield report
 
 
+def update_review(state, next_policy, candidate=None):
+    from . import packs
+
+    rubric_changed = candidate is not None and packs.review_rubric(state, candidate)
+    return (
+        mark(
+            state,
+            next_policy,
+            pack_digest=fingerprint(candidate) if candidate else None,
+        )
+        or rubric_changed
+    )
+
+
 def execute(args):
     from . import report as comparison
     from . import weekly_report
@@ -297,17 +420,6 @@ def execute(args):
     next_policy = (
         candidate["clock_policy"] if candidate is not None else validate(supplied)
     )
-
-    def update(state):
-        rubric_changed = candidate is not None and packs.review_rubric(state, candidate)
-        return (
-            mark(
-                state,
-                next_policy,
-                pack_digest=fingerprint(candidate) if candidate else None,
-            )
-            or rubric_changed
-        )
 
     paths = set()
     explicit = set()
@@ -332,7 +444,9 @@ def execute(args):
                 comparison.load_report(path)
                 skipped.append(str(path))
                 continue
-        state = weekly_report._update(path, update)
+        state = weekly_report._update(
+            path, lambda state: update_review(state, next_policy, candidate)
+        )
         checked += 1
         flags = [
             f

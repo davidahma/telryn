@@ -310,7 +310,8 @@ def accommodation(path: Path):
 
 def register_arguments(commands):
     parser = commands.add_parser(
-        "outcome", help="check recording and delivery of an agreed accommodation"
+        "outcome",
+        help="check a promised accommodation or recognition of disclosed support needs",
     )
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument(
@@ -318,7 +319,7 @@ def register_arguments(commands):
     )
     source.add_argument(
         "--example",
-        choices=("accommodation",),
+        choices=("accommodation", "vulnerability"),
         help="replay bundled synthetic evidence",
     )
     parser.add_argument("--format", choices=("text", "json"), default="text")
@@ -329,7 +330,37 @@ def execute(args):
     examples = (
         root / "_bundled" if (root / "_bundled").is_dir() else root.parent
     ) / "examples"
-    path = args.manifest or examples / "accommodation" / "manifest.json"
+    path = args.manifest or examples / args.example / "manifest.json"
+    if path.stat().st_size > LIMIT:
+        raise InputError("outcome manifest exceeds 32 MiB")
+    if read_json(path, "outcome manifest").get("outcome_type") == "vulnerability":
+        from .vulnerability import assessment
+
+        report = assessment(path)
+        if args.format == "json":
+            print(canonical(report))
+        else:
+            print(report["measure"])
+            print(
+                f"{report['evidence'].capitalize()} census · {report['scope']} · {report['cutoff']}"
+            )
+            for row in report["groups"]:
+                lo, hi = row["rate_bounds"]
+                rate = f"{lo:.1%}" if lo == hi else f"{lo:.1%} to {hi:.1%}"
+                print(
+                    f"{row['group']}: {row['confirmed_misses']} confirmed in {row['denominator']} ({rate})"
+                )
+            for delta in report["differences"]:
+                lo, hi = delta["difference_bounds"]
+                change = (
+                    f"{lo * 100:+.1f}"
+                    if lo == hi
+                    else f"{lo * 100:+.1f} to {hi * 100:+.1f}"
+                )
+                print(f"{' minus '.join(delta['groups'])}: {change} percentage points")
+            if report["groups_suppressed"]:
+                print("Small cells suppressed.")
+        return 0
     result = accommodation(path)
     if args.format == "json":
         print(canonical(result))

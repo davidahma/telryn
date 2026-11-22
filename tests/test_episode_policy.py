@@ -54,8 +54,91 @@ class EpisodeTests(unittest.TestCase):
 
     def save(self):
         (self.f.root / "contacts.json").write_text(
-            json.dumps({"schema": 1, "contacts": self.contacts})
+            json.dumps(
+                {
+                    "schema": 1,
+                    "contacts": self.contacts,
+                    "confirmed_links": getattr(self, "links", []),
+                }
+            )
         )
+
+    def test_payment_suggestions_require_same_subject_and_lead_confirmation(self):
+        self.contacts = [
+            contact("earlier", "2026-09-01T11:00:00Z", "dissatisfaction", matter=None),
+            contact("C1", "2026-09-05T11:00:00Z", matter=None),
+            contact("other subject", "2026-09-02T11:00:00Z", matter=None),
+        ]
+        for row in self.contacts:
+            row["payment_ref"] = "PRIVATE-transaction"
+        self.contacts[2]["subject_ref"] = "different"
+        self.f.register = [self.f.entry("earlier", "R1", self.f.later)]
+        proposals = episodes.suggestions({"contacts": self.contacts}, self.policy_doc)
+        self.assertEqual(
+            proposals,
+            [{"case_ids": ["earlier", "C1"], "payment_ref": "PRIVATE-transaction"}],
+        )
+        old, cases = self.attach()
+        self.assertEqual(cases["C1"]["registration_at_cutoff"], "unresolved")
+        self.f.manifest["previous_receipt"] = old["receipt"]
+        self.links = [
+            {"case_ids": ["earlier", "other subject"], "reviewer": "Bank lead"}
+        ]
+        with self.assertRaisesRegex(InputError, "proposed payment group"):
+            self.attach()
+        self.links[0]["case_ids"] = proposals[0]["case_ids"]
+        latest, cases = self.attach()
+        c = cases["C1"]
+        self.assertEqual(
+            (c["registration_at_cutoff"], c["registration_as_of"], c["deadline"]),
+            ("missing", "registered", "2026-09-04T16:00:00Z"),
+        )
+        self.assertEqual(c["payment_link_reviewers"], ["Bank lead"])
+        self.assertNotIn("PRIVATE-transaction", self.f.report.read_text())
+        self.assertIn("Bank lead", self.f.report.read_text())
+        self.f.manifest["previous_receipt"] = latest["receipt"]
+        self.links[0]["reviewer"] = "Changed"
+        with self.assertRaisesRegex(InputError, "changed or backfilled"):
+            self.attach()
+        self.links[0]["reviewer"] = "Bank lead"
+        self.contacts.append(
+            {
+                **contact("later", "2026-11-11T09:00:00Z", matter=None),
+                "payment_ref": "PRIVATE-transaction",
+            }
+        )
+        self.f.manifest["as_of"] = "2026-11-12T00:00:00Z"
+        pending, cases = self.attach()
+        self.assertEqual(cases["C1"]["repeat_contacts"], 1)
+        self.f.manifest["previous_receipt"] = pending["receipt"]
+        self.links.append(
+            {"case_ids": ["earlier", "C1", "later"], "reviewer": "Second lead"}
+        )
+        _, cases = self.attach()
+        self.assertEqual(cases["C1"]["repeat_contacts"], 2)
+        self.assertEqual(
+            cases["C1"]["payment_link_reviewers"], ["Bank lead", "Second lead"]
+        )
+        self.assertEqual(cases["C1"]["registration_at_cutoff"], "missing")
+
+    def test_long_verified_matter_keeps_first_clock_and_flags_its_span(self):
+        self.contacts[0] = contact("C1", "2026-06-01T11:00:00Z", "dissatisfaction")
+        _, cases = self.attach()
+        self.assertTrue(cases["C1"]["long_running_episode"])
+        self.assertEqual(cases["C1"]["deadline"], "2026-06-04T16:00:00Z")
+        self.assertIn("Long-running complaint", self.f.report.read_text())
+
+    def test_depleted_calendar_cannot_create_a_missing_finding(self):
+        self.policy_doc["holiday_calendar"]["id"] = "short-test-calendar"
+        self.policy_doc["holiday_calendar"]["valid_through"] = "2026-09-02"
+        self.policy_doc["holidays"] = [
+            d for d in self.policy_doc["holidays"] if d <= "2026-09-02"
+        ]
+        self.policy_file.write_text(json.dumps(self.policy_doc))
+        _, cases = self.attach()
+        self.assertIsNone(cases["C1"]["deadline"])
+        self.assertEqual(cases["C1"]["registration_at_cutoff"], "unresolved")
+        self.assertIn("calendar does not cover", self.f.report.read_text())
 
     def attach(self):
         self.save()
@@ -261,8 +344,11 @@ class EpisodeTests(unittest.TestCase):
             )
         ]
         groups = episodes.groups(same, 3, now)
-        self.assertEqual(groups["0"], same[:2])
-        self.assertEqual(groups["2"], same[2:])
+        self.assertEqual(groups["0"], same)
+        self.assertEqual(groups["2"], same)
+        self.assertEqual(
+            episodes.groups(same, 3, now, legacy_windows=True)["2"], same[2:]
+        )
 
     def test_missing_identity_and_bad_citation_fail_closed(self):
         signed = self.f.report.read_bytes()
@@ -303,6 +389,7 @@ class EpisodeTests(unittest.TestCase):
         self.assertEqual(self.review(update)[1]["affected"], [])
         self.assertEqual(baseline, self.f.report.read_bytes())
         update["holidays"].append("2026-09-03")
+        update["holiday_calendar"]["id"] = "custom-policy-calendar"
         code, result = self.review(update, self.f.root)
         self.assertEqual(code, 0)
         self.assertEqual(result["affected"][0]["changed_clauses"], ["registration"])
@@ -399,6 +486,63 @@ class EpisodeTests(unittest.TestCase):
 
 
 class ClockTests(unittest.TestCase):
+    def test_calendar_coverage_cutoff_and_observed_holidays(self):
+        from telryn import packs
+
+        uk = packs.load("fca-disp@1.1.0", BASE.parent)["clock_policy"]
+        rule = dict(uk["clauses"]["summary-resolution"])
+        self.assertEqual(
+            policy.deadline("2026-12-23T17:00:00Z", rule, uk), "2026-12-30T17:00:00Z"
+        )
+        rule["receipt_cutoff"] = "17:00"
+        self.assertEqual(
+            policy.deadline("2026-12-23T17:00:00Z", rule, uk), "2026-12-30T17:00:00Z"
+        )
+        self.assertEqual(
+            policy.deadline("2026-12-23T17:00:00.000000001Z", rule, uk),
+            "2026-12-31T17:00:00Z",
+        )
+        self.assertEqual(
+            policy.deadline("2026-12-25T09:00:00Z", dict(rule, count=1), uk),
+            "2026-12-30T17:00:00Z",
+        )
+        self.assertIsNone(policy.deadline("2028-12-29T17:01:00Z", rule, uk))
+        self.assertIsNone(policy.deadline("2025-12-29T12:00:00Z", rule, uk))
+        us = packs.load("us-reg-e@1.1.0", BASE.parent)["clock_policy"]
+        for change in (
+            {"holidays": []},
+            {
+                "holiday_calendar": {
+                    **uk["holiday_calendar"],
+                    "source": "altered authority",
+                }
+            },
+            {
+                "holiday_calendar": {
+                    **uk["holiday_calendar"],
+                    "valid_through": "2099-12-31",
+                }
+            },
+        ):
+            with (
+                self.subTest(change=change),
+                self.assertRaisesRegex(InputError, "reuses a bundled ID"),
+            ):
+                policy.validate({**uk, **change})
+        ordinary = us["clauses"]["firm-register"]
+        self.assertEqual(
+            policy.deadline("2026-07-02T10:00:00Z", ordinary, us),
+            "2026-07-03T21:00:00Z",
+        )
+        self.assertEqual(
+            policy.deadline("2027-07-02T10:00:00Z", ordinary, us),
+            "2027-07-06T21:00:00Z",
+        )
+        del us["holiday_calendar"]
+        with self.assertRaisesRegex(InputError, "valid_through"):
+            policy.validate(us)
+        self.assertIsNone(policy.deadline("2026-07-02T10:00:00Z", ordinary, us))
+
     def test_calendars_dst_and_exact_time(self):
         p = policy.load(BASE)
         start = "2026-08-28T22:00:00.000000001Z"

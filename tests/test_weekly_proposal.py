@@ -2,6 +2,7 @@
 
 import csv
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -59,7 +60,8 @@ class WeeklyProposalTests(unittest.TestCase):
         path = Path(result["comparison_report"])
         state = load_report(path)
         obs = self.out / "shadow-observations.json"
-        self.assertEqual(state, record_shadow(path, obs))
+        with patch.dict(os.environ, TELRYN_TRUST_DIR=str(self.out / "trust")):
+            self.assertEqual(state, record_shadow(path, obs))
         replayed = state["shifts"]["monday"]
         self.assertEqual(["H01", "H02"], replayed["live"])
         self.assertEqual(["H03", "H01"], replayed["candidate"])

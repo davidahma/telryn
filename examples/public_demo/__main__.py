@@ -90,4 +90,17 @@ if __name__ == "__main__":
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--census", action="store_true")
     args = parser.parse_args()
-    print(json.dumps(run(args.out, args.census), indent=2))
+    from telryn import audit_trust
+
+    if args.out.exists() or args.out.is_symlink():
+        parser.error("choose a new output directory")
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=args.out.parent) as temp:
+        staged = Path(temp)
+        with audit_trust.rehearse(staged / "trust"):
+            result = run(staged / "audit", args.census)
+        (staged / "trust").rename(staged / "audit/trust")
+        (staged / "audit").rename(args.out)
+    result["report"] = str(args.out / "report.html")
+    result["trust_directory"] = str(args.out / "trust")
+    print(json.dumps(result, indent=2))

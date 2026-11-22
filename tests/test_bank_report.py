@@ -59,6 +59,17 @@ class BankReport(unittest.TestCase):
         self.assertEqual(sum(statement["sampled_owner_status_after_miss"].values()), 3)
         self.assertEqual(statement["human_rubric"], "example-complaints-v1")
         self.assertIn(b"Human policy rubric", page)
+        for visible in (self.report.read_text(), page.decode()):
+            self.assertIn(
+                "3–4 of 7 QA passes missed the deadline (1 unresolved)", visible
+            )
+            self.assertIn("Census: no sampling error", visible)
+            self.assertNotIn("Estimated rate unavailable", visible)
+            self.assertNotIn("33.3%–33.3%", visible)
+        self.assertIn(
+            "C102 · Missed deadline · registered late on 12 Oct 2026 UTC",
+            self.report.read_text(),
+        )
         swapped = self.root / "demo/source-records/2026-10-12/register.csv"
         with self.assertRaisesRegex(InputError, "export differs"):
             bank_report.verify(
@@ -77,7 +88,7 @@ class BankReport(unittest.TestCase):
     def test_verification_requires_pinned_bytes_and_consistent_display(self):
         page = self.path.read_bytes()
         changed = self.root / "changed.html"
-        changed.write_bytes(page.replace(b"Which QA passes", b"Something else", 1))
+        changed.write_bytes(page.replace(b"of 7 QA passes", b"Something else", 1))
         with self.assertRaisesRegex(InputError, "supplied SHA"):
             bank_report.verify(changed, self.expected)
         with self.assertRaisesRegex(InputError, "displayed bank report"):
@@ -91,3 +102,22 @@ class BankReport(unittest.TestCase):
             changed.write_bytes(malformed)
             with self.assertRaises(InputError):
                 bank_report.verify(changed, hashlib.sha256(malformed).hexdigest())
+
+    def test_issuer_must_resolve_a_policy_review_before_export(self):
+        from telryn import weekly_report
+
+        content = self.report.read_bytes()
+        envelope = weekly_report._envelope(content)
+        for container, key in (
+            (envelope["state"], "pack_reviews"),
+            (envelope["state"]["complaint_records"], "policy_reviews"),
+        ):
+            with (
+                self.subTest(key=key),
+                patch.object(weekly_report, "verified_html", return_value=content),
+                patch.object(weekly_report, "_envelope", return_value=envelope),
+            ):
+                container[key] = [{"review_version": "2.0.0"}]
+                with self.assertRaisesRegex(InputError, "policy re-review"):
+                    bank_report.write_specimen(self.report, self.root / "new-bank")
+                del container[key]

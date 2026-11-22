@@ -2,7 +2,8 @@
   "schema": 1,
   "applicability": "Synthetic payments firm policy. Replace the question, ranked taxonomy, source references, local calendar, event definitions and clocks with the firm's approved versions.",
   "sources": [
-    "Synthetic Payments Complaint Procedure, revision 1, sections 2 and 4"
+    "Synthetic Payments Complaint Procedure, revision 1, sections 2 and 4",
+    "https://www.gov.uk/bank-holidays"
   ],
   "rubric_question": "Did this customer express dissatisfaction that the example payments firm must register?",
   "categories": [
@@ -13,9 +14,8 @@
   "clock_policy": {
     "schema": 1,
     "id": "firm-example",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "timezone": "Europe/London",
-    "holidays": [],
     "episode_days": 90,
     "registration_clause": "firm-register",
     "clauses": {
@@ -33,6 +33,7 @@
         "count": 5,
         "due_time": "17:00"
       }
-    }
+    },
+    "holiday_calendar": "england-and-wales@2026-11-22"
   }
 }

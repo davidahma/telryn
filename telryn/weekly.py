@@ -426,7 +426,7 @@ def validate_state(state: dict) -> tuple[dict, dict]:
         if key in state:
             _field(state[key], key)
     if "policy_pack" in state:
-        pack = packs.validate(state["policy_pack"])
+        pack = packs.validate(state["policy_pack"], historical=True)
         if type(state.get("pack_packet_version", 1)) is not int or state.get(
             "pack_packet_version", 1
         ) not in (1, 2):

@@ -11,7 +11,7 @@ telryn trust draws
 
 Record the printed key ID in a separate, access-controlled team record before viewing assignments. Configure the same store for the CLI, browser desk and scheduled jobs. A first audit initializes the store automatically if one has not been provisioned. The default path is `~/.local/state/telryn/audit`. Only the owning OS account can read its key and database. Run the desk as the audit service account and give graders the blinded CSV and authorized evidence references. A human-readable reviewer name records the operator's attribution. The operator authenticates the reviewer in the team's normal QA system.
 
-The installed `telryn demo --complaints` keeps its synthetic draws and signing key in `~/.local/state/telryn/rehearsal`. Set `TELRYN_DEMO_TRUST_DIR` to choose another private rehearsal store. The command prints a verification command with `TELRYN_TRUST_DIR` scoped to the rehearsal read. To verify a rehearsal issued with v0.9.2 or the source example module, use the trust store active when you issued it.
+The installed `telryn demo --complaints` and `--qa-passes` keep the rehearsal key and ledger under `--out/trust`. Each new rehearsal has its own draw. Use the printed command to verify reports. Keep that directory private when sharing a report. To verify older demos, use the original rehearsal trust store.
 
 ## Repeat a week
 
@@ -82,3 +82,5 @@ A complaint report that carries a cited passage from a sampled conversation uses
 A weekly report with frozen external QA decisions uses signed envelope version 6. Verify and update it with v0.10.0 or later. The lottery for a scored audit uses its eligible case IDs. Correcting an ordinary review ledger in `all_scored` mode or editing a vendor decision leaves the lottery order fixed. The commitment binds the original score CSV’s byte digest, the review ledger membership and the audit design, so either correction produces a distinct audit record. [Scorecard evidence](qa-score-audit.md)
 
 A recipient can pin the SHA-256 of a bank statement through an authenticated channel and recompute it from the exact private source report. This procedure does not grant signing authority. The issuer checks the team registry at export time; the recipient’s digest check identifies that revision. Obtain a newly issued statement when an audit changes. [Bank statement verification](bank-report.md)
+
+New dated calendars, confirmed payment-based episode links and native score formats use signed weekly envelope version 7. Use v0.11.0 or later to verify and update those reports. Existing signed reports keep their issued bytes. A bank statement issued by v0.10.0 can still be verified against its original revision, including the calendar assumptions made at issuance. Version 2 bank statements carry the calendar basis and distinguish census counts from sampling uncertainty.

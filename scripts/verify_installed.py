@@ -20,11 +20,10 @@ def main(version):
     with tempfile.TemporaryDirectory(prefix="telryn-installed-") as directory:
         work = Path(directory)
         team_store = work / "private"
-        demo_store = work / "rehearsal"
+        demo_store = work / "complaints/trust"
         env = {
             **os.environ,
             "TELRYN_TRUST_DIR": str(team_store),
-            "TELRYN_DEMO_TRUST_DIR": str(demo_store),
         }
         env.pop("PYTHONPATH", None)
 
@@ -40,7 +39,7 @@ def main(version):
         assert run("--version").strip() == version
         packs = {row["reference"] for row in json.loads(run("pack", "list"))}
         assert packs == {
-            name + "@1.0.0"
+            name + "@1.1.0"
             for name in ("firm-example", "fca-disp", "us-reg-e", "cfpb-company-portal")
         }
         assert "usage: telryn weekly" in run("weekly", "--help")
@@ -79,7 +78,7 @@ def main(version):
         team_files = [team_store / "audit.key", team_store / "ledger.sqlite3", report]
         before = [path.read_bytes() for path in team_files]
         guidance = run("demo", "--complaints", "--out", "complaints")
-        assert "TELRYN_TRUST_DIR=" in guidance and str(demo_store) in guidance
+        assert "TELRYN_TRUST_DIR=" in guidance and "complaints/trust" in guidance
         comparison = json.loads((work / "complaints/comparison.json").read_text())
         assert "comparison.json" in guidance and comparison["evidence"] == "synthetic"
         assert comparison["week_two_help_minutes"] == 3
@@ -139,9 +138,9 @@ def main(version):
         assert exported == json.loads(
             (work / "second-trial/comparison.json").read_text()
         )
-        assert [w["commitment"] for w in exported["weeks"]] == [
-            w["commitment"] for w in comparison["weeks"]
-        ]
+        assert (work / "second-trial/trust/audit.key").read_bytes() != (
+            demo_store / "audit.key"
+        ).read_bytes()
         assert json.loads(run("weekly", report, "--format", "json")) == state
         scored = json.loads(
             run("demo", "--qa-passes", "--out", "score-audit", "--format", "json")
@@ -181,6 +180,40 @@ def main(version):
         )
         assert accommodation["milestones"]["delivery"]["at_cutoff"] == "missing"
         assert accommodation["milestones"]["delivery"]["at_follow_up"] == "late"
+        assert [
+            r["passed"]
+            for r in json.loads(
+                run(
+                    "demo",
+                    "--agent-release",
+                    "--out",
+                    "agent-release",
+                    "--format",
+                    "json",
+                )
+            )["releases"]
+        ] == [False, True]
+        assert json.loads(
+            run("outcome", "--example", "vulnerability", "--format", "json")
+        )["groups_suppressed"]
+        for form in ("board", "vendor", "benchmark"):
+            flags = (
+                ["--vendor", "test", "--configuration", "v1", "--opt-in"]
+                if form == "benchmark"
+                else []
+            )
+            run(
+                "oversight",
+                form,
+                "--quarter",
+                "2026-Q4",
+                "--out",
+                form,
+                *flags,
+                *(row["report"] for row in scored["weeks"]),
+                trust=work / "score-audit/trust",
+            )
+        assert "queue" in run("--help") and "record-shadow" in run("queue", "--help")
         run("qualify")
         with subprocess.Popen(
             [binary, "desk", "--no-browser", "--out", "desk"],

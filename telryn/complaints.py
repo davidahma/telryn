@@ -7,9 +7,9 @@ from collections import defaultdict
 from html import escape
 from pathlib import Path
 
-from . import episodes
+from . import episodes, policy
 from .contracts import InputError, fingerprint, integer, read_json, sequence, timestamp
-from .outcomes import deadline_status
+from .outcomes import _local, deadline_status
 from .weekly_review import effective_grades
 
 REGISTER = ("match_key", "entry_id", "recorded_at", "evidence_ref")
@@ -82,13 +82,19 @@ def _source_citation(source, frozen, cutoff):
     }
 
 
+def _source(folder, name):
+    if Path(_text(name, "input file")).is_absolute():
+        raise InputError("supply a relative source file inside the manifest directory")
+    return _local(folder, name)
+
+
 def _ledger(folder, descriptor, fields, selected, as_of):
     _fields(descriptor, ("file", "source_ref", "complete_through"), "complaint source")
     ref = _text(descriptor["source_ref"], "source_ref")
     through = descriptor["complete_through"]
     if through is not None and _time(through) > _time(as_of):
         raise InputError("complaint source completeness extends beyond as_of")
-    path = folder / _text(descriptor["file"], "file")
+    path = _source(folder, descriptor["file"])
     with path.open("rb") as stream:
         data = stream.read(LIMIT + 1)
     if len(data) > LIMIT:
@@ -245,14 +251,15 @@ def attach(state, path: Path, audit_id: str):
     doc["cases"] = rows
     if contacts_file is not None:
         doc["episodes"] = episodes.load(
-            path.parent / _text(contacts_file, "episode evidence file"),
-            path.parent / _text(policy_file, "clock policy file")
-            if pack is None
-            else None,
+            _source(path.parent, contacts_file),
+            _source(path.parent, policy_file) if pack is None else None,
             doc,
             sampled,
             control=state.get("control"),
             frozen_policy=pack["clock_policy"] if pack is not None else None,
+            previous=state.get("complaint_records", {})
+            .get("snapshot", {})
+            .get("episodes"),
         )
         for contact in doc["episodes"]["contacts"]:
             citation = rows.get(contact["case_id"], {}).get("source_citation", {})
@@ -320,7 +327,18 @@ def attach(state, path: Path, audit_id: str):
                 raise InputError("follow-up changed historical episode alias coverage")
             by_id = {r["case_id"]: r for r in after["contacts"]}
             previously = {r["case_id"] for r in prior["contacts"]}
-            if any(by_id.get(r["case_id"]) != r for r in prior["contacts"]) or any(
+
+            def extends_contact(row):
+                replacement = by_id.get(row["case_id"])
+                if replacement is None:
+                    return False
+                if row.get("payment") and "confirmed_link" not in row:
+                    replacement = {
+                        k: v for k, v in replacement.items() if k != "confirmed_link"
+                    }
+                return replacement == row
+
+            if not all(extends_contact(r) for r in prior["contacts"]) or any(
                 _time(r["contact_at"]) <= _time(old["as_of"])
                 for cid, r in by_id.items()
                 if cid not in previously
@@ -596,6 +614,14 @@ def reconcile(state):
                             for row in info["contacts"]
                         ],
                         "repeat_contacts": len(info["contacts"]) - 1,
+                        "long_running_episode": info.get("long_running", False),
+                        "payment_link_reviewers": sorted(
+                            {
+                                row["confirmed_link"]["reviewer"]
+                                for row in info["contacts"]
+                                if "confirmed_link" in row
+                            }
+                        ),
                         "clocks": clocks,
                         "policy_clauses_needing_evidence": policy_gaps,
                         "clocks_at_cutoff": earlier_clocks,
@@ -611,6 +637,11 @@ def reconcile(state):
         "outcome_type": "complaint_registration",
         "receipt": evidence["receipt"],
         "previous_receipts": evidence["history"],
+        **(
+            {"holiday_calendar": policy_doc.get("holiday_calendar")}
+            if policy_doc
+            else {}
+        ),
         **{k: doc[k] for k in ("scope", "rubric", "cutoff", "as_of")},
         "sources": {
             k: {n: v for n, v in doc[k].items() if n != "rows"}
@@ -631,6 +662,9 @@ def html(state):
         f"<p>{escape(summary['scope'])} · Policy cutoff {escape(summary['cutoff'])} · Follow-up through {escape(summary['as_of'])}</p>",
         "<p>These queues cover sampled cases still overdue at follow-up, including deadlines that passed after cutoff, and cases that still need evidence. Absence depends on the export owner's declared coverage.</p>",
     ]
+    if "holiday_calendar" in summary:
+        calendar = policy.calendar_label(summary)
+        parts.append(f"<p>Holiday calendar · {escape(calendar)}</p>")
     for notice in summary["policy_reviews"]:
         clauses = ", ".join(escape(name) for name in notice["changed_clauses"])
         parts.append(
@@ -649,10 +683,22 @@ def html(state):
             f"<p>{source.title()} export · {escape(info['source_ref'])} · Complete through {escape(info['complete_through'] or 'unverified')} · SHA-256 <code>{info['sha256']}</code></p>"
         )
     for case in summary["cases"]:
-        title = case["registration_at_cutoff"].replace("_", " ")
-        follow_up = case["follow_up"].replace("_", " ")
+        status = case["registration_at_cutoff"]
+        title = {
+            "late": "Missed deadline",
+            "missing": "Missed deadline",
+            "on_time": "Registered on time",
+            "not_due": "Deadline pending at cutoff",
+            "unresolved": "Registration timing unresolved",
+            "outside_rubric": "Outside complaint policy",
+        }[status]
+        if status in {"missing", "late"} and case["registration_as_of"] == "registered":
+            date = _time(case["register_entries"][0]["recorded_at"])[0]
+            title += f" · registered late on {date.day} {date:%b} {date.year} UTC"
+        elif status == "missing":
+            title += " · " + case["follow_up"].replace("_", " ")
         parts.append(
-            f"<details><summary>{escape(case['case_id'])} · {title} · {follow_up}</summary>"
+            f"<details><summary>{escape(case['case_id'])} · {escape(title)}</summary>"
         )
         anchor = (
             f' id="complaint-{fingerprint(case["case_id"])}"'
@@ -693,6 +739,14 @@ def html(state):
             parts.append(
                 f"<p>Complaint episode · {escape(case.get('episode_id') or 'unresolved')} · Policy {escape(case['policy_id'])} {escape(case['policy_version'])}</p>"
             )
+            if case["long_running_episode"]:
+                parts.append(
+                    "<p>Long-running complaint. The episode exceeds the policy window. Clocks retain the first qualifying contact.</p>"
+                )
+            for reviewer in case["payment_link_reviewers"]:
+                parts.append(
+                    f"<p>Payment-reference link confirmed by {escape(reviewer)}.</p>"
+                )
             for row in case["contacts"]:
                 parts.append(
                     f"<p>{escape(row['channel'])} · {escape(row['contact_at'])} · {escape(row['case_id'])} · {escape(row['evidence_ref'])} ({escape(row['revision'])})</p>"
@@ -704,6 +758,10 @@ def html(state):
                 parts.append(
                     f"<p><strong>{escape(name)}</strong> · At cutoff {escape(cutoff_status.replace('_', ' '))} · At follow-up {escape(clock['status'].replace('_', ' '))} · Due {escape(clock['deadline'] or 'unknown')}</p>"
                 )
+                if clock.get("reason") == "holiday_calendar_outside_coverage":
+                    parts.append(
+                        "<p>Deadline unresolved. The holiday calendar does not cover the required dates.</p>"
+                    )
                 for event in (clock["start"], clock["stop"]):
                     if event and "quote" in event:
                         parts.append(

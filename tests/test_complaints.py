@@ -17,6 +17,19 @@ class ComplaintRecordsTests(unittest.TestCase):
     cutoff = "2026-11-09T00:00:00Z"
     later = "2026-11-10T09:00:00Z"
 
+    def test_manifest_sources_stay_inside_the_selected_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            outside = Path(tmp) / "source.csv"
+            outside.write_text("match_key,entry_id,recorded_at,evidence_ref\n")
+            linked = self.root / "linked.csv"
+            linked.symlink_to(outside)
+            for name in (str(outside), linked.name, "../"):
+                with (
+                    self.subTest(name=name),
+                    self.assertRaisesRegex(InputError, "inside the manifest directory"),
+                ):
+                    complaints._source(self.root, name)
+
     def write_csv(self, name, header, rows):
         with (self.root / name).open("w", newline="", encoding="utf-8") as stream:
             writer = csv.DictWriter(stream, header)

@@ -37,6 +37,7 @@ class QaPassesRehearsal(unittest.TestCase):
                 )
             result = json.loads(output.getvalue())
             self.assertFalse((root / "team").exists())
+            self.assertFalse((root / "demo").exists())
             self.assertEqual(result["evidence"], "synthetic")
             self.assertTrue(Path(result["bank_report"]).is_file())
             for (
@@ -63,7 +64,7 @@ class QaPassesRehearsal(unittest.TestCase):
                     report = Path(summary["report"])
                     with (
                         patch.dict(
-                            os.environ, {"TELRYN_TRUST_DIR": str(root / "demo")}
+                            os.environ, {"TELRYN_TRUST_DIR": str(out / "trust")}
                         ),
                         redirect_stdout(io.StringIO()) as readback,
                     ):

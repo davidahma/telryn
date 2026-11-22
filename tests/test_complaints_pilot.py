@@ -24,7 +24,7 @@ class ComplaintsPilot(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             team = root / "actual-team"
-            demo = root / ".local/state/telryn/rehearsal"
+            demo = root / "trial/trust"
             report = root / "trial/2026-10-05/report.html"
             with patch.dict(
                 os.environ,
@@ -44,12 +44,12 @@ class ComplaintsPilot(unittest.TestCase):
                 with patch.dict(os.environ, {"TELRYN_TRUST_DIR": str(demo)}):
                     self.assertTrue(weekly_report.read_state(report)["grades"])
                 with self.assertRaisesRegex(RuntimeError, "interrupted"):
-                    with audit_trust.rehearse():
+                    with audit_trust.rehearse(demo):
                         raise RuntimeError("interrupted")
                 self.assertEqual(audit_trust.directory(), team)
                 with patch.dict(os.environ, {"TELRYN_DEMO_TRUST_DIR": str(team)}):
                     with self.assertRaisesRegex(InputError, "separate"):
-                        with audit_trust.rehearse():
+                        with audit_trust.rehearse(team):
                             self.fail("rehearsal accepted the team's key and registry")
                 self.assertFalse(team.exists())
 

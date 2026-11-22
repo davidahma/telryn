@@ -1,6 +1,10 @@
 """Audit two weeks of synthetic QA decisions against human grades and register history."""
 
 import shutil
+from contextlib import ExitStack
+
+from telryn import audit_trust
+
 import tempfile
 import tomllib
 from pathlib import Path
@@ -11,16 +15,21 @@ from telryn.contracts import InputError
 from . import __main__ as pilot
 
 
-def run(out: Path):
+def run(out: Path, *, isolated=False):
     if out.exists() or out.is_symlink():
         raise InputError(f"output directory already exists: {out}")
     out.parent.mkdir(parents=True, exist_ok=True)
     protocol = tomllib.loads((pilot.FIXTURE / "protocol.toml").read_text())
     population = pilot.read_csv(pilot.FIXTURE / "conversations.csv")
     weeks = []
-    with tempfile.TemporaryDirectory(prefix=".qa-passes-", dir=out.parent) as temp:
+    with (
+        tempfile.TemporaryDirectory(prefix=".qa-passes-", dir=out.parent) as temp,
+        ExitStack() as context,
+    ):
         staging = Path(temp) / "audits"
         staging.mkdir(mode=0o700)
+        if isolated:
+            context.enter_context(audit_trust.rehearse(staging / "trust"))
         for week, worked_case in zip(protocol["weeks"], ("C102", "C204"), strict=True):
             cases = [c for c in population if c["week"] == week]
             cutoff = pilot.source_cutoff(week)
@@ -87,6 +96,7 @@ def run(out: Path):
         staging.rename(out)
     return {
         "evidence": "synthetic",
+        **({"trust_directory": str(out / "trust")} if isolated else {}),
         "weeks": weeks,
         "bank_report": str(out / "bank/report.html"),
         "bank_report_sha256": bank_sha256,

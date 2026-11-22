@@ -4,6 +4,10 @@ import argparse
 import csv
 import json
 import sqlite3
+from contextlib import ExitStack
+
+from telryn import audit_trust
+
 import tempfile
 import tomllib
 from collections import Counter
@@ -546,7 +550,7 @@ def sensitivity(distributions, native):
     }
 
 
-def run(out: Path):
+def run(out: Path, *, isolated=False):
     if out.exists() or out.is_symlink():
         raise InputError(f"output directory already exists: {out}")
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -554,9 +558,14 @@ def run(out: Path):
     population = read_csv(FIXTURE / "conversations.csv")
     weeks = []
     possible = []
-    with tempfile.TemporaryDirectory(prefix=".complaints-", dir=out.parent) as temp:
+    with (
+        tempfile.TemporaryDirectory(prefix=".complaints-", dir=out.parent) as temp,
+        ExitStack() as context,
+    ):
         staging = Path(temp) / "audits"
         staging.mkdir(mode=0o700)
+        if isolated:
+            context.enter_context(audit_trust.rehearse(staging / "trust"))
         for week in protocol["weeks"]:
             cases = [c for c in population if c["week"] == week]
             work = Path(temp) / week
@@ -596,6 +605,8 @@ def run(out: Path):
                 }
             )
         result = two_week_result(weeks, possible, protocol)
+        if isolated:
+            result["trust_directory"] = str(out / "trust")
         (staging / "comparison.json").write_text(
             canonical(result) + "\n", encoding="utf-8"
         )
@@ -649,6 +660,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", required=True, type=Path)
     try:
-        print(canonical(run(parser.parse_args().out)))
+        print(canonical(run(parser.parse_args().out, isolated=True)))
     except (ValueError, OSError, csv.Error) as exc:
         parser.exit(2, f"{exc}\n")

@@ -115,7 +115,9 @@ def versioned(data: Any, label: str) -> dict:
     return validated
 
 
-def read_json(path: Path, label: str) -> dict:
+def decode_json(content: str | bytes, label: str):
+    """Read JSON without accepting duplicate fields or lossy numbers."""
+
     def unique_keys(pairs):
         result = {}
         for key, value in pairs:
@@ -124,15 +126,16 @@ def read_json(path: Path, label: str) -> dict:
             result[key] = value
         return result
 
-    return versioned(
-        json.loads(
-            path.read_text(encoding="utf-8"),
-            object_pairs_hook=unique_keys,
-            parse_float=exact_number,
-            parse_constant=exact_number,
-        ),
-        label,
+    return json.loads(
+        content,
+        object_pairs_hook=unique_keys,
+        parse_float=exact_number,
+        parse_constant=exact_number,
     )
+
+
+def read_json(path: Path, label: str) -> dict:
+    return versioned(decode_json(path.read_text(encoding="utf-8"), label), label)
 
 
 def load_plan(path: Path) -> dict:

@@ -4,6 +4,12 @@ const intake = byId("intake");
 const grade = byId("grade");
 const resolution = byId("resolution");
 const message = byId("message");
+const records = byId("records");
+const policyForm = byId("policy-form");
+const bankForm = byId("bank");
+const subject = document.body.dataset.subject;
+let recordVersion = 0;
+
 let active = "";
 let disputes = [];
 let draftDispute = "";
@@ -44,6 +50,13 @@ function upload(form) {
     if (source.get("scores")?.name || source.get("scorecard") || source.get("score_version") || source.get("score_cutoff")) {
       settings.score_audit = {scorecard: source.get("scorecard"), version: source.get("score_version"),
         cutoff: source.get("score_cutoff"), scope: source.get("score_scope")};
+      if (source.get("score_format")) {
+        const native = {format:source.get("score_format"), attest_revisions:source.has("attest_revisions")};
+        if (source.get("case_prefix")) native.case_prefix = source.get("case_prefix");
+        if (native.format !== "langfuse-v2") native.pass_percent = Number(source.get("pass_percent"));
+        if (source.get("complaint_evaluator")) native.complaint_evaluator = source.get("complaint_evaluator");
+        settings.score_audit.native = native;
+      }
     }
     if (byId("mode").value === "budget") {
       settings.planning = {
@@ -59,7 +72,10 @@ function upload(form) {
       settings.flagged_sample = Number(source.get("flagged_sample"));
       settings.unflagged_sample = Number(source.get("unflagged_sample"));
     }
-  } else {
+  } else if (form === records) {
+    settings.confirmed_links = source.getAll("link").map(ids => JSON.parse(ids));
+    settings.link_reviewer = source.get("link_reviewer");
+  } else if (form === grade) {
     settings.reviewer = source.get("reviewer");
   }
   body.append("settings", JSON.stringify(settings));
@@ -158,6 +174,12 @@ async function selectRun(id) {
     grade.reset();
     resolution.reset();
     draftDispute = "";
+    records.reset();
+    bankForm.reset();
+    policyForm.reset();
+    clearCandidates();
+    byId("bank-digest").textContent = "";
+    byId("policy-result").textContent = "";
   }
   active = id;
   byId("current").hidden = true;
@@ -168,6 +190,7 @@ async function selectRun(id) {
   if (active !== id || requestNumber !== reviewRequest) return;
   byId("current-title").textContent = status.week + " · " + status.rubric;
   byId("progress").textContent = progressText(status.progress);
+  byId("manifest-download").href = id + "/manifest.json";
   byId("report").href = id + "/report.html";
   byId("packet").href = id + "/grades.csv";
   byId("outstanding").href = id + "/outstanding.csv";
@@ -186,6 +209,7 @@ async function selectRun(id) {
   if (disputes.some((item) => item.dispute_id === draftDispute)) resolution.elements.dispute.value = draftDispute;
   resolution.hidden = !disputes.length;
   displayDispute();
+  setIdentity();
   byId("current").hidden = false;
 }
 
@@ -290,3 +314,84 @@ function resumeFromLocation() {
 }
 window.addEventListener("hashchange", resumeFromLocation);
 resumeFromLocation();
+
+
+function setIdentity() {
+  if (!subject) return;
+  for (const field of [grade.elements.reviewer, resolution.elements.reviewer, records.elements.link_reviewer]) {
+    field.value = subject;
+    field.readOnly = true;
+  }
+}
+function clearCandidates() {
+  recordVersion++;
+  byId("link-candidates").hidden = true;
+  byId("link-candidates").querySelector("div").replaceChildren();
+}
+for (const name of ["contacts","clock"]) records.elements[name].addEventListener("change", clearCandidates);
+intake.elements.score_format.addEventListener("change", () => {
+  const fmt = intake.elements.score_format.value;
+  byId("native-options").disabled = !fmt;
+  byId("native-options").hidden = !fmt;
+  const numeric = fmt && fmt !== "langfuse-v2";
+  byId("percent-label").hidden = !numeric;
+  intake.elements.pass_percent.disabled = !numeric;
+  intake.elements.pass_percent.required = Boolean(numeric);
+  byId("classifier-label").hidden = fmt !== "langfuse-v2";
+  intake.elements.complaint_evaluator.disabled = fmt !== "langfuse-v2";
+});
+byId("suggest").addEventListener("click", async () => {
+  clearCandidates();
+  const version = recordVersion;
+  const run = active;
+  try {
+    const result = await postFiles(run + "/links", records);
+    if (run !== active || version !== recordVersion) return;
+    const box = byId("link-candidates");
+    for (const group of result.suggestions) {
+      const label = document.createElement("label");
+      const choice = document.createElement("input");
+      choice.type = "checkbox";
+      choice.name = "link";
+      choice.value = JSON.stringify(group.case_ids);
+      label.append(choice,document.createTextNode(group.case_ids.join(", ") + " · payment " + group.payment_ref));
+      box.querySelector("div").append(label);
+    }
+    box.hidden = !result.suggestions.length;
+    message.textContent = box.hidden ? "No candidate links found." : "Check each proposed link against the source contacts.";
+  } catch (error) { showError(error); }
+});
+for (const form of [records,policyForm,bankForm]) form.addEventListener("submit", async event => {
+  event.preventDefault();
+  const button = event.submitter;
+  const run = active;
+  button.disabled = true;
+  try {
+    if (form === bankForm) {
+      const response = await fetch(run + "/bank", {method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify(Object.fromEntries(new FormData(form)))});
+      if (!response.ok) throw new Error(await response.text());
+      const blob = await response.blob();
+      if (active !== run) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "bank-statement.html";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      byId("bank-digest").textContent = "Supply this SHA-256 through a separate authenticated channel: " + response.headers.get("X-Telryn-SHA256");
+    } else if (form === policyForm) {
+      const preview = button.value === "preview";
+      const result = await postFiles(run + (preview ? "/policy-preview" : "/policy-review"), form);
+      if (active !== run) return;
+      const notices = result.notices.flatMap(n => [...(n.changed_clauses || []), ...(n.changed_pack_fields || [])]);
+      byId("policy-result").textContent = result.affected ? (preview ? "Affected: " : "Marked for review: ") + notices.join(", ") : "This change does not affect the issued audit.";
+    } else {
+      const result = await postFiles(run + "/records",form);
+      if (active !== run) return;
+      message.textContent = "Records attached. Evidence receipt: " + result.receipt;
+    }
+  } catch (error) { showError(error); }
+  finally { button.disabled = false; }
+});
+setIdentity();
