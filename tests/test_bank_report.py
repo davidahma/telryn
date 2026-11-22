@@ -103,6 +103,23 @@ class BankReport(unittest.TestCase):
             with self.assertRaises(InputError):
                 bank_report.verify(changed, hashlib.sha256(malformed).hexdigest())
 
+    def test_full_length_calendar_identity_round_trips_in_recipient_statement(self):
+        from telryn import policy
+
+        state = bank_report._checked_statement(self.path.read_bytes())
+        state["calendar"] = policy.calendar_label(
+            {
+                "holiday_calendar": {
+                    "id": "i" * 1024,
+                    "version": "v" * 1024,
+                    "valid_from": "2026-01-01",
+                    "valid_through": "2028-12-31",
+                }
+            }
+        )
+        encoded = bank_report._html(state)
+        self.assertEqual(bank_report._checked_statement(encoded), state)
+
     def test_issuer_must_resolve_a_policy_review_before_export(self):
         from telryn import weekly_report
 

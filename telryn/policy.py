@@ -23,13 +23,13 @@ def fields(obj, expected, label):
         raise InputError(f"{label} must have the documented fields")
 
 
-def label(value, name):
+def label(value, name, *, limit=1024):
     if (
         not isinstance(value, str)
         or not value.isprintable()
         or value.strip() != value
         or not value
-        or len(value) > 1024
+        or len(value) > limit
     ):
         raise InputError(f"invalid {name}")
     return value

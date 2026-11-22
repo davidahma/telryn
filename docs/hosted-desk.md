@@ -23,6 +23,8 @@ The public URL has no path prefix or session token. Each forwarded request must 
 | X-Telryn-Role | Exactly `lead` or `reviewer`, derived from the organization's group mapping. |
 | Origin on POST | The browser's original Origin. Telryn compares it with its configured HTTPS origin. |
 
+For a hosted grade or link confirmation the signed reviewer identifier records `sso:`, the first 48 characters of the subject, and a SHA-256 of the complete case-sensitive ASCII subject. This keeps differently cased or long IDs distinct in the review ledger. Use the same identifier for that person if the team also imports their grades through the CLI. The browser returns the authenticated identity even if a submitted CSV names someone else.
+
 ## Reverse-proxy example
 
 This NGINX example assumes the firm already runs an authenticated identity gateway on loopback port 4180. The gateway's auth endpoint must reject expired or unauthorized sessions and return the authenticated subject and group membership in response headers. For OAuth2 Proxy, configure an approved OIDC issuer, a registered callback on the desk host, secure cookies, allowed groups and `--set-xauthrequest`. Confirm its user claim is stable and unique for the issuer. Configure login, callback and session refresh routes according to the gateway's installation guide. [OAuth2 Proxy configuration](https://oauth2-proxy.github.io/oauth2-proxy/configuration/overview/) · [NGINX auth request](https://nginx.org/en/docs/http/ngx_http_auth_request_module.html)

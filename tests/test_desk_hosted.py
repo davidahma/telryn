@@ -109,7 +109,15 @@ class HostedDesk(unittest.TestCase):
             200,
         )
         state = read_state(self.desk.report(ident))
-        self.assertEqual(state["case_reviews"]["a"]["primary_by"], "actual-id")
+        bound = state["case_reviews"]["a"]["primary_by"]
+        self.assertIn("actual-id", bound)
+        self.assertNotIn("someone-else", bound)
+        self.assertEqual(
+            self.request(
+                "POST", path + "grades", data, role="reviewer", subject="Actual-Id"
+            )[0],
+            400,
+        )
         self.assertEqual(
             self.request(
                 "POST",
@@ -144,6 +152,16 @@ class HostedDesk(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b'data-role="reviewer"', body)
         self.assertNotIn(self.key.encode(), body)
+
+    def test_long_sso_subjects_remain_distinct_in_reviewer_ledger(self):
+        from telryn.desk_hosted import reviewer_id
+        from telryn.weekly_review import identity, _same
+
+        prefix = "A" * 127
+        first = identity(reviewer_id(prefix + "B"))
+        second = identity(reviewer_id(prefix + "b"))
+        self.assertLessEqual(len(first), 120)
+        self.assertFalse(_same(first, second))
 
     def test_ambiguous_upload_rejected_before_signing(self):
         from telryn import desk_evidence

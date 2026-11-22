@@ -1,6 +1,7 @@
 """Trusted reverse-proxy identity for one organization's hosted complaints desk."""
 
 import hmac
+import hashlib
 import os
 import re
 import stat
@@ -69,3 +70,8 @@ class Proxy:
         ) or role not in ("lead", "reviewer"):
             return None
         return role, subject
+
+
+def reviewer_id(subject):
+    """Bind case-sensitive proxy subjects even in legacy case-insensitive reviewer comparisons."""
+    return f"sso:{subject[:48]}:{hashlib.sha256(subject.encode('ascii')).hexdigest()}"

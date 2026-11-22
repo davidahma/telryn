@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import desk_evidence, weekly_report, weekly_review
-from .desk_hosted import Proxy
+from .desk_hosted import Proxy, reviewer_id
 from .contracts import InputError, decode_json, integer, mapping
 from .screen import RUBRICS
 
@@ -514,7 +514,11 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                 }:
                     report = desk.report(route[0])
                     if route[1] == "records":
-                        value = desk_evidence.attach(report, fields, self.subject)
+                        value = desk_evidence.attach(
+                            report,
+                            fields,
+                            reviewer_id(self.subject) if self.subject else None,
+                        )
                     elif route[1] == "links":
                         value = {
                             "suggestions": desk_evidence.suggestions(report, fields)
@@ -543,7 +547,7 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                     "adjudicate",
                 ):
                     if self.subject:
-                        fields["reviewer"] = self.subject
+                        fields["reviewer"] = reviewer_id(self.subject)
                     if route[1] == "adjudicate":
                         desk.resolve(route[0], fields)
                     else:
