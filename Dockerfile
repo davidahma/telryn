@@ -29,6 +29,7 @@ WORKDIR /opt/telryn
 COPY LICENSE ./
 COPY telryn/ telryn/
 COPY examples/ examples/
+COPY deadlines/ deadlines/
 COPY tests/ tests/
 USER 65532:65532
 EXPOSE 8765

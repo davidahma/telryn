@@ -339,7 +339,7 @@ def _checked_statement(raw):
         if s["schema"] == 2:
             # The calendar description joins two independently valid 1024-character
             # policy labels with their date range.
-            policy.label(s["calendar"], "calendar description", limit=2081)
+            policy.label(s["calendar"], "calendar description", limit=16_384)
         if set(s["declared_by_issuer"]) != {
             "queue",
             "sample_owner",

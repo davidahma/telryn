@@ -106,7 +106,11 @@ def review_policy(report, fields, *, apply):
         + state.get("pack_reviews", [])
         if n["policy"] == rules["id"] and n["review_version"] == rules["version"]
     ]
-    return {"affected": bool(changes), "notices": changes}
+    return {
+        "affected": bool(changes),
+        "notices": changes,
+        "calendar_warnings": policy.warnings_at(rules),
+    }
 
 
 def bank(report, fields):

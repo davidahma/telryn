@@ -71,3 +71,21 @@ Forward identity values solely from the auth subrequest. Leave the browser's Ori
 Sign in as a lead, preview a scored audit and share a blank packet with a reviewer. Sign in independently as the reviewer. The desk should show assignments, allow a grade return under that identity and deny access to the signed lead report, case manifest, bank export and policy controls. A reviewer cannot independently second-grade their own primary return. Check that a signed-out or unmapped user cannot open the desk. Keep the direct source-system permissions needed to read each original conversation separate from desk access.
 
 The default local desk still uses a private session URL. Use that mode on a single operator's machine. Hosted mode trusts the designated gateway and filesystem administrators. Deploy one Telryn backend per trust store on storage supporting SQLite and file locking. [QA lead workflow](weekly-qa.md)
+
+## Review access events
+
+Hosted mode writes `desk-access.sqlite3` under `TELRYN_TRUST_DIR`. The owner-only database records UTC time, the verified SSO subject and role, the HTTP method, a fixed operation name and the response status. The private report, records manifest, grading packet and lead worklist record the case IDs in the response. Linked episode contacts in the private report are included. A policy preview or bank aggregate can have no case IDs. A POST has an admission event with a null status and a separate response event.
+
+The backend records access before sending the response. That shows which evidence the service authorized for delivery. It cannot establish whether someone read it. If a response cannot be recorded, the desk returns an unavailable message. Requests rejected by the identity gateway never reach the backend. Requests without verified proxy identity are tracked by the gateway. Local desk URLs remain out of the log. The database contains no raw paths, protected request bodies, transcripts or proxy secret.
+
+Use an owner-authorized SQLite client to query the database. For example:
+
+```sql
+SELECT utc, subject, role, route, status, case_id
+FROM access_events
+JOIN access_cases ON access_events.id = access_cases.event_id
+WHERE case_id = 'C102'
+ORDER BY access_events.id;
+```
+
+Keep this database under the firm's access, backup and retention policy. Its case IDs and SSO subjects are private records. The database is a local operational log under the hosted service account. Use an independently controlled copy for review outside that trust boundary. Give auditors controlled query or export access through the firm’s existing process.

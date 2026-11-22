@@ -2,6 +2,7 @@
 
 import csv
 import hmac
+import io
 import json
 import math
 import os
@@ -15,7 +16,7 @@ from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from . import desk_evidence, weekly_report, weekly_review
+from . import desk_access, desk_evidence, weekly_report, weekly_review
 from .desk_hosted import Proxy, reviewer_id
 from .contracts import InputError, decode_json, integer, mapping
 from .screen import RUBRICS
@@ -337,8 +338,21 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
             pass  # The local entry URL contains a session secret.
 
         def reply(
-            self, status, body, mime, *, download=None, script_nonce=None, digest=None
+            self,
+            status,
+            body,
+            mime,
+            *,
+            download=None,
+            script_nonce=None,
+            digest=None,
+            case_ids=(),
         ):
+            try:
+                self.access_event(status, case_ids)
+            except desk_access.AccessError:
+                status, body, mime = 503, b"Hosted access log unavailable", "text/plain"
+                download = script_nonce = digest = None
             self.send_response(status)
             self.send_header("Content-Type", mime)
             self.send_header("Content-Length", str(len(body)))
@@ -362,6 +376,17 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
             self.end_headers()
             self.wfile.write(body)
 
+        def access_event(self, status, case_ids=()):
+            if proxy is not None and self.subject:
+                desk_access.record(
+                    self.subject,
+                    self.role,
+                    self.operation,
+                    self.command,
+                    status,
+                    case_ids,
+                )
+
         def route(self):
             self.role, self.subject = "lead", None
             if proxy is not None:
@@ -369,7 +394,9 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                 if not principal or not self.path.startswith("/"):
                     return None
                 self.role, self.subject = principal
-                return self.path.split("/")[1:]
+                parts = self.path.split("/")[1:]
+                self.operation = desk_access.route_name(self.command, parts)
+                return parts
             host = f"127.0.0.1:{self.server.server_port}"
             if self.headers.get_all("Host", []) != [host]:
                 return None
@@ -435,24 +462,43 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                 if parts[1] in ("grades.csv", "outstanding.csv"):
                     self.reply(
                         200,
-                        weekly_report.verified_packet(
+                        packet := weekly_report.verified_packet(
                             path, outstanding=parts[1] == "outstanding.csv"
                         ),
                         "text/csv",
                         download=parts[1],
+                        case_ids=(
+                            row["case_id"]
+                            for row in csv.DictReader(
+                                io.StringIO(packet.decode("utf-8-sig"), newline="")
+                            )
+                        )
+                        if proxy is not None
+                        else (),
                     )
                 elif parts[1] == "report.html":
-                    self.reply(
-                        200,
-                        weekly_report.verified_html(path),
-                        "text/html; charset=utf-8",
-                    )
+                    report = weekly_report.verified_html(path)
+                    cases = ()
+                    if proxy is not None:
+                        state = weekly_report._envelope(report)["state"]
+                        episode = (
+                            state.get("complaint_records", {})
+                            .get("snapshot", {})
+                            .get("episodes", {})
+                        )
+                        cases = (
+                            row["case_id"]
+                            for row in (*state["cases"], *episode.get("contacts", ()))
+                        )
+                    self.reply(200, report, "text/html; charset=utf-8", case_ids=cases)
                 elif parts[1] == "manifest.json":
+                    manifest = desk_evidence.template(path)
                     self.reply(
                         200,
-                        json.dumps(desk_evidence.template(path), indent=2).encode(),
+                        json.dumps(manifest, indent=2).encode(),
                         "application/json",
                         download="manifest.json",
+                        case_ids=(row["case_id"] for row in manifest["cases"]),
                     )
                 elif parts[1] == "review":
                     if self.role == "reviewer":
@@ -470,7 +516,15 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                         }
                     else:
                         status = desk.review(parts[0])
-                    self.reply(200, json.dumps(status).encode(), "application/json")
+                    self.reply(
+                        200,
+                        json.dumps(status).encode(),
+                        "application/json",
+                        case_ids=(
+                            row["case_id"]
+                            for row in (*status["follow_up"], *status["open_disputes"])
+                        ),
+                    )
                 else:
                     self.reply(404, b"Unknown artifact", "text/plain")
             else:
@@ -505,6 +559,10 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                 ):
                     raise InputError("use the desk intake form")
                 fields = _form(self.headers["Content-Type"], self.rfile.read(length))
+                # Record admission before a POST can change signed records. The
+                # outcome event is recorded separately before responding.
+                self.access_event(None)
+                case_ids = ()
                 if len(route) == 2 and route[1] in {
                     "records",
                     "links",
@@ -523,6 +581,11 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                         value = {
                             "suggestions": desk_evidence.suggestions(report, fields)
                         }
+                        case_ids = (
+                            case
+                            for row in value["suggestions"]
+                            for case in row["case_ids"]
+                        )
                     elif route[1] == "bank":
                         data, digest = desk_evidence.bank(report, fields)
                         self.reply(
@@ -556,8 +619,13 @@ def handler(desk: Desk, token: str, proxy: Proxy | None = None):
                 else:
                     raise InputError("unknown desk operation")
                 self.reply(
-                    200, json.dumps(value, allow_nan=False).encode(), "application/json"
+                    200,
+                    json.dumps(value, allow_nan=False).encode(),
+                    "application/json",
+                    case_ids=case_ids,
                 )
+            except desk_access.AccessError:
+                self.reply(503, b"Hosted access log unavailable", "text/plain")
             except UploadLimit as exc:
                 self.reply(413, str(exc).encode(), "text/plain; charset=utf-8")
             except (

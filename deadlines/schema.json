@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Regulatory deadline observations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "dataset",
+    "version",
+    "published",
+    "rules"
+  ],
+  "properties": {
+    "schema": {
+      "const": 1
+    },
+    "dataset": {
+      "const": "telryn-deadlines"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "published": {
+      "type": "string",
+      "format": "date"
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "required": [
+        "id",
+        "jurisdiction",
+        "citation",
+        "trigger",
+        "milestone",
+        "conditions",
+        "source",
+        "effective_from",
+        "effective_through",
+        "period",
+        "calendar_basis",
+        "computation"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "jurisdiction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "citation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trigger": {
+          "type": "string",
+          "minLength": 1
+        },
+        "milestone": {
+          "type": "string",
+          "minLength": 1
+        },
+        "conditions": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "effective_from": {
+          "type": "string",
+          "format": "date"
+        },
+        "effective_through": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "period": {
+          "$ref": "#/$defs/period"
+        },
+        "calendar_basis": {
+          "enum": [
+            "calendar",
+            "uk_part_of_performance",
+            "payment_provider_schedule",
+            "irish_working_days",
+            "institution_functions",
+            "statement_calendar"
+          ]
+        },
+        "computation": {
+          "enum": [
+            "fixed",
+            "evidence_required"
+          ]
+        },
+        "outer_limit": {
+          "$ref": "#/$defs/period"
+        }
+      }
+    },
+    "period": {
+      "type": "object",
+      "required": [
+        "count",
+        "unit"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "unit": {
+          "enum": [
+            "business_days",
+            "calendar_days",
+            "weeks",
+            "complete_billing_cycles"
+          ]
+        }
+      }
+    }
+  }
+}

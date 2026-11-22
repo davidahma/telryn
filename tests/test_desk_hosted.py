@@ -3,6 +3,10 @@
 import csv
 import io
 import json
+import sqlite3
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+from datetime import datetime
 import tempfile
 import unittest
 from pathlib import Path
@@ -152,6 +156,75 @@ class HostedDesk(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn(b'data-role="reviewer"', body)
         self.assertNotIn(self.key.encode(), body)
+
+    def test_private_log_distinguishes_viewers_packets_and_unauthorized_requests(self):
+        status, body = self.request("POST", "/audits", self.form)
+        self.assertEqual(status, 200)
+        route = "/" + json.loads(body)["id"]
+        self.assertEqual(
+            self.request("GET", route + "/report.html", role="reviewer")[0], 403
+        )
+        requests = [
+            ("report.html", "lead", "Compliance02"),
+            ("grades.csv", "reviewer", "Reviewer03"),
+            ("manifest.json", "lead", "Compliance04"),
+        ]
+        with ThreadPoolExecutor(max_workers=3) as pool:
+
+            def access(request):
+                suffix, role, user = request
+                return self.request(
+                    "GET", route + "/" + suffix, role=role, subject=user
+                )[0]
+
+            self.assertEqual(list(pool.map(access, requests)), [200, 200, 200])
+        self.assertEqual(
+            self.request("GET", route + "/review", role="reviewer")[0], 200
+        )
+        self.assertEqual(
+            self.request("GET", route + "/report.html/opaque?token=private-url")[0], 404
+        )
+        self.assertEqual(
+            self.request(
+                "GET",
+                route + "/report.html",
+                subject="unverified",
+                header={"X-Telryn-Proxy": "wrong"},
+            )[0],
+            404,
+        )
+        log = self.root / "audit-trust/desk-access.sqlite3"
+        self.assertEqual(log.stat().st_mode & 0o777, 0o600)
+        with closing(sqlite3.connect(log)) as db:
+            vals = db.execute("""
+                SELECT subject,role,route,status,case_id
+                FROM access_events LEFT JOIN access_cases ON id=event_id ORDER BY route,subject
+            """).fetchall()
+            self.assertIn(("Compliance02", "lead", "weekly-report", 200, "a"), vals)
+            self.assertIn(("Reviewer03", "reviewer", "grading-packet", 200, "a"), vals)
+            self.assertIn(("Compliance04", "lead", "records-manifest", 200, "a"), vals)
+            self.assertIn(("staff001", "reviewer", "weekly-report", 403, None), vals)
+            self.assertIn(("staff001", "reviewer", "review-worklist", 200, None), vals)
+            self.assertIn(("staff001", "lead", "unknown", 404, None), vals)
+            for (at,) in db.execute("SELECT utc FROM access_events"):
+                self.assertEqual(
+                    datetime.fromisoformat(at).utcoffset().total_seconds(), 0
+                )
+        raw = log.read_bytes()
+        for value in ("unverified", "private-evidence", "private-url", self.key):
+            self.assertNotIn(value.encode(), raw)
+
+    def test_unavailable_log_blocks_protected_delivery_and_changes(self):
+        status, body = self.request("POST", "/audits", self.form)
+        self.assertEqual(status, 200)
+        path = "/" + json.loads(body)["id"] + "/report.html"
+        log = self.root / "audit-trust/desk-access.sqlite3"
+        log.chmod(0o0644)
+        self.assertEqual(
+            self.request("GET", path), (503, b"Hosted access log unavailable")
+        )
+        self.assertEqual(self.request("POST", "/audits", self.form)[0], 503)
+        self.assertEqual(len(self.desk.runs), 1)
 
     def test_long_sso_subjects_remain_distinct_in_reviewer_ledger(self):
         from telryn.desk_hosted import reviewer_id

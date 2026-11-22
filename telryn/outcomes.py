@@ -358,8 +358,9 @@ def execute(args):
                     else f"{lo * 100:+.1f} to {hi * 100:+.1f}"
                 )
                 print(f"{' minus '.join(delta['groups'])}: {change} percentage points")
-            if report["groups_suppressed"]:
-                print("Small cells suppressed.")
+            if hidden := report["suppressed_group_count"]:
+                groups = "group" if hidden == 1 else "groups"
+                print(f"Withheld {hidden} {groups} under the small-cell rule.")
         return 0
     result = accommodation(path)
     if args.format == "json":

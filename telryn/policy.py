@@ -57,11 +57,135 @@ def _iso_day(value):
         return False
 
 
-def calendar_label(policy):
+def _default_label(policy):
     c = policy.get("holiday_calendar") if policy else None
     if not c:
         return "No dated holiday calendar"
     return f"{c['id']}@{c['version']} ({c['valid_from']} through {c['valid_through']})"
+
+
+CALENDAR_MAPS = ("holiday_calendars_by_channel", "holiday_calendars_by_region")
+
+
+def calendar_entries(policy):
+    if not policy:
+        return {}
+    return {
+        **(
+            {"default": policy["holiday_calendar"]}
+            if policy.get("holiday_calendar")
+            else {}
+        ),
+        **{
+            f"channel {key}": value
+            for key, value in policy.get(CALENDAR_MAPS[0], {}).items()
+        },
+        **{
+            f"region {key}": value
+            for key, value in policy.get(CALENDAR_MAPS[1], {}).items()
+        },
+    }
+
+
+def calendar_label(policy):
+    if not policy or not any(key in policy for key in CALENDAR_MAPS):
+        return _default_label(policy)
+    return "; ".join(
+        f"{key}: {_default_label({'holiday_calendar': calendar})}"
+        for key, calendar in sorted(calendar_entries(policy).items())
+    )
+
+
+def calendar_warnings(policy, *, on):
+    """Return advisory text relative to the audit or review's local date."""
+    warnings = []
+    for key, calendar in sorted(calendar_entries(policy).items()):
+        limit = date.fromisoformat(calendar["valid_through"])
+        remaining = (limit - on).days
+        if remaining <= 90:
+            status = (
+                f"expires in {remaining} day{'s' if remaining != 1 else ''}"
+                if remaining >= 0
+                else "expired"
+            )
+            warnings.append(
+                f"Holiday calendar {calendar['id']}@{calendar['version']} ({key}) {status}. Coverage ends {limit.isoformat()}."
+            )
+    return warnings
+
+
+def warnings_at(policy, instant=None):
+    if not policy:
+        return []
+    zone = ZoneInfo(policy["timezone"])
+    day = (
+        timestamp(instant, "calendar observation")[0].astimezone(zone).date()
+        if instant is not None
+        else datetime.now(zone).date()
+    )
+    return calendar_warnings(policy, on=day)
+
+
+def select_calendar(policy, *, channel=None, region=None):
+    if calendar := policy.get(CALENDAR_MAPS[1], {}).get(region):
+        return calendar, calendar["holidays"]
+    if calendar := policy.get(CALENDAR_MAPS[0], {}).get(channel):
+        return calendar, calendar["holidays"]
+    return policy.get("holiday_calendar"), policy["holidays"]
+
+
+def uses_business_days(rule):
+    return rule["unit"] == "business_days" or "receipt_cutoff" in rule
+
+
+def _expand(reference):
+    if not CALENDAR_ID.fullmatch(reference):
+        raise InputError("invalid bundled holiday calendar identifier")
+    source = CALENDARS / f"{reference}.json"
+    if not source.is_file():
+        raise InputError(
+            "select one installed holiday calendar or supply its full dated contents"
+        )
+    calendar = read_input(source, "bundled holiday calendar")
+    calendar.pop("schema")
+    if reference != f"{calendar['id']}@{calendar['version']}":
+        raise InputError("bundled calendar identity mismatch")
+    return calendar
+
+
+def _normalize_calendar(calendar):
+    fields(
+        calendar,
+        ("id", "version", "valid_from", "valid_through", "source", "holidays"),
+        "holiday calendar",
+    )
+    for key in ("id", "version", "source"):
+        label(calendar[key], key)
+    holidays = calendar["holidays"]
+    first, last = calendar["valid_from"], calendar["valid_through"]
+    if (
+        not _iso_day(first)
+        or not _iso_day(last)
+        or first > last
+        or not isinstance(holidays, list)
+        or any(not _iso_day(day) or day < first or day > last for day in holidays)
+    ):
+        raise InputError(
+            "calendar dates must be inside its inclusive valid_from and valid_through"
+        )
+    days = sorted(set(holidays))
+    ref = f"{calendar['id']}@{calendar['version']}"
+    if CALENDAR_ID.fullmatch(ref):
+        bundled = CALENDARS / f"{ref}.json"
+        if bundled.is_file() and read_input(bundled, "bundled holiday calendar") != {
+            "schema": 1,
+            **calendar,
+            "holidays": days,
+        }:
+            raise InputError(
+                "modified calendar reuses a bundled ID and version; assign a distinct firm calendar identity"
+            )
+    return {**calendar, "holidays": days}
 
 
 def validate(obj, *, historical=False):
@@ -70,24 +194,36 @@ def validate(obj, *, historical=False):
     # and authority are then frozen into the signed state for offline replay.
     calendar = obj.get("holiday_calendar")
     if isinstance(calendar, str):
-        if not CALENDAR_ID.fullmatch(calendar):
-            raise InputError("invalid bundled holiday calendar identifier")
-        source = CALENDARS / f"{calendar}.json"
-        if not source.is_file() or "holidays" in obj:
+        if "holidays" in obj:
             raise InputError(
                 "select one installed holiday calendar or supply its full dated contents"
             )
-        calendar = read_input(source, "bundled holiday calendar")
-        calendar.pop("schema")
-        if obj["holiday_calendar"] != f"{calendar['id']}@{calendar['version']}":
-            raise InputError("bundled calendar identity mismatch")
+        calendar = _expand(calendar)
         obj["holidays"] = calendar.pop("holidays")
         obj["holiday_calendar"] = calendar
+    for key in CALENDAR_MAPS:
+        if key not in obj:
+            continue
+        entries = mapping(obj[key], key)
+        if not 1 <= len(entries) <= 16:
+            raise InputError(f"{key} requires 1–16 calendar assignments")
+        for name, entry in entries.items():
+            label(name, key, limit=80)
+            normalized = _normalize_calendar(
+                _expand(entry) if isinstance(entry, str) else entry
+            )
+            for field in ("id", "version"):
+                label(normalized[field], field, limit=128)
+            entries[name] = normalized
+    if any(key in obj for key in CALENDAR_MAPS) and calendar is None:
+        if obj.get("holidays"):
+            raise InputError("unassigned holiday dates need a default calendar")
+        obj["holidays"] = []
     fields(
         {
             key: value
             for key, value in obj.items()
-            if key not in ("business_weekdays", "holiday_calendar")
+            if key not in ("business_weekdays", "holiday_calendar", *CALENDAR_MAPS)
         },
         (
             "schema",
@@ -128,26 +264,15 @@ def validate(obj, *, historical=False):
             ("id", "version", "valid_from", "valid_through", "source"),
             "holiday calendar",
         )
-        for key in ("id", "version", "source"):
-            label(calendar[key], key)
-        first, last = calendar["valid_from"], calendar["valid_through"]
-        if (
-            not _iso_day(first)
-            or not _iso_day(last)
-            or first > last
-            or any(day < first or day > last for day in obj["holidays"])
-        ):
-            raise InputError(
-                "calendar dates must be inside its inclusive valid_from and valid_through"
-            )
-        ref = f"{calendar['id']}@{calendar['version']}"
-        if CALENDAR_ID.fullmatch(ref):
-            bundled = CALENDARS / f"{ref}.json"
-            if bundled.is_file() and read_input(
-                bundled, "bundled holiday calendar"
-            ) != {"schema": 1, **calendar, "holidays": obj["holidays"]}:
+        _normalize_calendar({**calendar, "holidays": obj["holidays"]})
+    if any(key in obj for key in CALENDAR_MAPS):
+        identities = {}
+        for key, spec in calendar_entries(obj).items():
+            ident = (spec["id"], spec["version"])
+            data = {**spec, "holidays": obj["holidays"]} if key == "default" else spec
+            if identities.setdefault(ident, data) != data:
                 raise InputError(
-                    "modified calendar reuses a bundled ID and version; assign a distinct firm calendar identity"
+                    "different calendar contents reuse a policy calendar identity"
                 )
     if integer(obj["episode_days"], "episode days", minimum=1) > 3660:
         raise InputError("episode window exceeds ten years")
@@ -195,26 +320,24 @@ def validate(obj, *, historical=False):
             or not LOCAL_TIME.fullmatch(rule["receipt_cutoff"])
         ):
             raise InputError("receipt_cutoff must be a local HH:MM")
-        if (
-            not historical
-            and (rule["unit"] == "business_days" or "receipt_cutoff" in rule)
-            and calendar is None
-        ):
+        if not historical and uses_business_days(rule) and not calendar_entries(obj):
             raise InputError(
                 "business-day clocks and receipt cutoffs need a dated holiday_calendar with valid_through"
             )
     return obj
 
 
-def deadline(start, rule, policy):
+def deadline(start, rule, policy, *, channel=None, region=None):
     """Exclude the triggering local date. Preserve wall time or apply the specified local time."""
     instant, remainder = timestamp(start, "clock start")
     zone = ZoneInfo(policy["timezone"])
     local = instant.astimezone(zone)
     day = local.date()
     count = rule["count"]
-    if rule["unit"] == "business_days" or "receipt_cutoff" in rule:
-        calendar = policy.get("holiday_calendar")
+    if uses_business_days(rule):
+        calendar, holiday_dates = select_calendar(
+            policy, channel=channel, region=region
+        )
         if (
             not calendar
             or not calendar["valid_from"]
@@ -223,7 +346,7 @@ def deadline(start, rule, policy):
         ):
             return None
         last = date.fromisoformat(calendar["valid_through"])
-        holidays = set(policy["holidays"])
+        holidays = set(holiday_dates)
         weekdays = set(policy.get("business_weekdays", [1, 2, 3, 4, 5]))
 
         def business(d):
@@ -270,7 +393,7 @@ def dependency(policy, name):
     rule = policy["clauses"].get(name)
     if rule is None:
         return None
-    uses_business = rule["unit"] == "business_days" or "receipt_cutoff" in rule
+    uses_business = uses_business_days(rule)
     return fingerprint(
         [
             rule,
@@ -281,6 +404,11 @@ def dependency(policy, name):
             if uses_business
             else [],
             policy.get("holiday_calendar") if uses_business else None,
+            *(
+                [calendar_entries(policy)]
+                if uses_business and any(key in policy for key in CALENDAR_MAPS)
+                else []
+            ),
         ]
     )
 
@@ -470,6 +598,7 @@ def execute(args):
                 "checked": checked,
                 "affected": affected,
                 "comparison_reports_skipped": skipped,
+                "calendar_warnings": warnings_at(next_policy),
             }
         )
     )

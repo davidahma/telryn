@@ -9,6 +9,7 @@ import json
 import os
 import secrets
 import tempfile
+from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 
@@ -372,8 +373,14 @@ def _coverage_lines(state: dict) -> list[str]:
 
 
 def _report_schema(state):
+    from .policy import CALENDAR_MAPS
+
     records = state.get("complaint_records", {})
     snapshot = records.get("snapshot", {})
+    issued_policy = snapshot.get("episodes", {}).get("policy", {})
+    pack_policy = state.get("policy_pack", {}).get("clock_policy", {})
+    if any(key in issued_policy or key in pack_policy for key in CALENDAR_MAPS):
+        return 8
     if (
         "native" in state.get("score_audit", {})
         or snapshot.get("episodes", {}).get("link_version") == 2
@@ -384,7 +391,6 @@ def _report_schema(state):
         return 6
     if any("source_citation" in case for case in snapshot.get("cases", {}).values()):
         return 5
-    issued_policy = snapshot.get("episodes", {}).get("policy", {})
     if (
         "policy_pack" in state
         or "business_weekdays" in issued_policy
@@ -398,6 +404,25 @@ def _report_schema(state):
     ):
         return 3
     return 2
+
+
+def calendar_warnings(state: dict) -> list[str]:
+    from .policy import warnings_at
+
+    snapshot = state.get("complaint_records", {}).get("snapshot", {})
+    clocks = snapshot.get("episodes", {}).get("policy")
+    if clocks is None:
+        clocks = state.get("policy_pack", {}).get("clock_policy")
+    if clocks is None:
+        return []
+    observation = (
+        snapshot.get("as_of")
+        or (
+            datetime.fromisoformat(state["week"]).replace(tzinfo=timezone.utc)
+            + timedelta(days=7)
+        ).isoformat()
+    )
+    return warnings_at(clocks, observation)
 
 
 def _render(state: dict, auth: dict) -> str:
@@ -440,13 +465,22 @@ def _render(state: dict, auth: dict) -> str:
         )
         from .policy import calendar_label
 
-        scope += f"<p>Holiday calendar · {escape(calendar_label(state['policy_pack']['clock_policy']))}</p>"
+        clocks = state["policy_pack"]["clock_policy"]
+        scope += f"<p>Holiday calendar · {escape(calendar_label(clocks))}</p>"
+        if "episodes" not in state.get("complaint_records", {}).get("snapshot", {}):
+            scope += "".join(
+                f"<p><strong>{escape(warning)}</strong></p>"
+                for warning in calendar_warnings(state)
+            )
         for notice in state.get("pack_reviews", []):
             changed = ", ".join(notice["changed_pack_fields"])
             scope += f"<p>Review these grades against pack {escape(notice['review_version'])}. Changed fields: {escape(changed)}.</p>"
     scope += "".join(f"<p>{escape(line)}</p>" for line in _coverage_lines(state))
     if cov := state.get("coverage"):
-        scope += f"<p>Source scope: {escape(cov['scope'])}. UTC interval [{escape(cov['since'])}, {escape(cov['until'])}).</p>"
+        source_scope = cov["scope"].rstrip()
+        if not source_scope.endswith((".", "!", "?")):
+            source_scope += "."
+        scope += f"<p>Source scope: {escape(source_scope)} UTC interval [{escape(cov['since'])}, {escape(cov['until'])}).</p>"
     cover = "".join(
         (
             stat("Human-confirmed findings", str(result["confirmed_serious"])),
@@ -607,6 +641,7 @@ def _verify_signed(raw, db, key):
         5,
         6,
         7,
+        8,
     ):
         raise InputError("unrecognized signed weekly report version")
     state = versioned(envelope.get("state"), "weekly evidence")

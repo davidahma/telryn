@@ -212,22 +212,7 @@ def run(path, run_id, agent, register, *, transport=None):
     for marker, data in submissions.items():
         due = timestamp(data["deadline"], "seed deadline")
         rows = entries[marker]
-        if len(rows) > 1:
-            status = "ambiguous"
-        elif rows:
-            status = (
-                "on_time"
-                if timestamp(rows[0]["recorded_at"], "register entry") <= due
-                else "late"
-            )
-        elif as_of < due:
-            status = "pending"
-        else:
-            status = (
-                "missing"
-                if complete is not None and complete >= due
-                else "incomplete_register"
-            )
+        status = _case_status(rows, due, as_of, complete)
         results.append({**data, "marker": marker, "status": status, "entries": rows})
     return {
         **base,
@@ -239,6 +224,110 @@ def run(path, run_id, agent, register, *, transport=None):
         "cases": results,
         "passed": all(case["status"] == "on_time" for case in results),
     }
+
+
+def _case_status(rows, due, as_of, complete):
+    if len(rows) > 1:
+        return "ambiguous"
+    if rows:
+        return (
+            "on_time"
+            if timestamp(rows[0]["recorded_at"], "register entry") <= due
+            else "late"
+        )
+    if as_of < due:
+        return "pending"
+    return (
+        "missing" if complete is not None and complete >= due else "incomplete_register"
+    )
+
+
+def verify_receipt(suite, receipt):
+    """Recompute the release decision from its suite and recorded source events."""
+    plan, scope = _plan(suite)
+    base_fields = {"schema", "environment", "scope", "run_id", "suite_digest"}
+    versioned(receipt, "seed receipt")
+    if (
+        set(receipt) != base_fields | {"register", "cases", "passed"}
+        or receipt["environment"] != "test"
+        or receipt["scope"] != scope
+        or receipt["suite_digest"] != fingerprint(plan)
+    ):
+        raise InputError("seed receipt belongs to another suite or deployment")
+    run_id = _label(receipt["run_id"], "seed run ID")
+    register = mapping(receipt["register"], "test register")
+    if set(register) != {"source_ref", "as_of", "complete_through"}:
+        raise InputError("seed receipt has an invalid register snapshot")
+    _label(register["source_ref"], "test register source")
+    as_of = timestamp(register["as_of"], "register observation")
+    through = register["complete_through"]
+    complete = (
+        timestamp(through, "register completeness") if through is not None else None
+    )
+    if complete is not None and complete > as_of:
+        raise InputError("seed register coverage extends beyond its observation")
+    cases = sequence(receipt["cases"], "seed receipt cases")
+    if len(cases) != len(plan["cases"]):
+        raise InputError("seed receipt must include every pinned test")
+    conversations, entries = set(), set()
+    for row, case in zip(cases, plan["cases"], strict=True):
+        if set(mapping(row, "seed case receipt")) != {
+            "case_id",
+            "conversation_id",
+            "received_at",
+            "deadline",
+            "marker",
+            "status",
+            "entries",
+        }:
+            raise InputError("seed case receipt fields differ from the issued form")
+        marker = fingerprint(
+            [
+                "telryn-seed-v1",
+                scope["workspace"],
+                receipt["suite_digest"],
+                run_id,
+                case["id"],
+            ]
+        )
+        cid = _label(row["conversation_id"], "test conversation")
+        if (
+            row["case_id"] != case["id"]
+            or row["marker"] != marker
+            or cid in conversations
+        ):
+            raise InputError("receipt does not uniquely identify each pinned test")
+        conversations.add(cid)
+        received = timestamp(row["received_at"], "intent receipt time")
+        due = timestamp(row["deadline"], "seed deadline")
+        if (
+            received[0] + timedelta(minutes=case["registration_minutes"]),
+            received[1],
+        ) != due or received > as_of:
+            raise InputError(
+                "seed deadline or observation is inconsistent with the suite"
+            )
+        rows = sequence(row["entries"], "seed register entries")
+        for entry in rows:
+            if set(mapping(entry, "seed register entry")) != {
+                "entry_id",
+                "recorded_at",
+            }:
+                raise InputError("invalid seed register entry")
+            ident = _label(entry["entry_id"], "test register entry ID")
+            if (
+                ident in entries
+                or not received
+                <= timestamp(entry["recorded_at"], "register entry")
+                <= as_of
+            ):
+                raise InputError("duplicate or mistimed seed register entry")
+            entries.add(ident)
+        if row["status"] != _case_status(rows, due, as_of, complete):
+            raise InputError("seed case status differs from its register evidence")
+    if receipt["passed"] is not all(c["status"] == "on_time" for c in cases):
+        raise InputError("seed pass flag differs from the case evidence")
+    return receipt
 
 
 def register_arguments(commands):

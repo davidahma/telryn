@@ -39,6 +39,9 @@ class QaPassesRehearsal(unittest.TestCase):
             self.assertFalse((root / "team").exists())
             self.assertFalse((root / "demo").exists())
             self.assertEqual(result["evidence"], "synthetic")
+            report = Path(result["weeks"][0]["report"]).read_text()
+            self.assertIn("including previously reviewed cases. UTC interval", report)
+            self.assertNotIn("including previously reviewed cases..", report)
             self.assertTrue(Path(result["bank_report"]).is_file())
             for (
                 summary,
