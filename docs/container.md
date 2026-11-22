@@ -72,4 +72,4 @@ The workflow builds a multi-platform OCI archive, records each platform digest, 
 
 Publishing the immutable release also notifies the Python package publisher on protected `main`. It verifies the signed source archive against the tag before building the PyPI distributions. [Python package publication and recovery](../CONTRIBUTING.md#publish-the-python-package)
 
-The runtime image is pinned by its multi-platform manifest digest. Its optional SDK is installed from hash-checked universal wheels into `/opt/telryn-dependencies`, on the interpreter's module path. Updating the pinned Python image requires a successful import and container smoke check on the candidate.
+The runtime image is pinned by its multi-platform manifest digest. At build time, the same pinned runtime supplies its system site-packages path. Hash-checked universal wheels for the SDK and time zones are copied there for normal and isolated Python processes. Updating the pinned Python image requires a successful import and container smoke check on the candidate.

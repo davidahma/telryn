@@ -39,8 +39,9 @@ def main(image):
             "--entrypoint",
             "python",
             image,
+            "-I",
             "-c",
-            "import boto3, os, site; assert site.ENABLE_USER_SITE is False; print(os.getuid())",
+            "import boto3, os, site; from zoneinfo import ZoneInfo; ZoneInfo('Europe/London'); assert site.ENABLE_USER_SITE is False; print(os.getuid())",
         )
         assert identity == "65532"
         # Exercise the installed AWS SDK and the complete release on the image interpreter.
