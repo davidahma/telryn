@@ -18,6 +18,37 @@ EXAMPLES = Path(__file__).resolve().parents[1] / "examples"
 
 
 class Oversight(TestCase):
+    def test_weekly_native_decision_settings_must_match(self):
+        with TemporaryDirectory() as tmp:
+            base = Path(tmp) / "audit"
+            demo = qa_passes.run(base, isolated=True)
+            paths = [Path(w["report"]) for w in demo["weeks"]]
+            with patch.dict(os.environ, TELRYN_TRUST_DIR=str(base / "trust")):
+                states = [oversight.weekly_report.read_state(p) for p in paths]
+                for left, right in (
+                    (
+                        {"format": "maestroqa", "pass_percent": 80},
+                        {"format": "maestroqa", "pass_percent": 90},
+                    ),
+                    (
+                        {"format": "langfuse-v2", "complaint_evaluator": "c1"},
+                        {"format": "langfuse-v2", "complaint_evaluator": "c2"},
+                    ),
+                ):
+                    for state, settings in zip(states, (left, right), strict=True):
+                        state["score_audit"]["native"] = dict(
+                            settings, attest_revisions=True
+                        )
+                    with patch.object(
+                        oversight.weekly_report, "read_state", side_effect=states
+                    ):
+                        with self.assertRaisesRegex(
+                            InputError, "native decision settings"
+                        ):
+                            oversight.compile_series(
+                                paths, "2026-Q4", require_scores=True
+                            )
+
     def test_board_vendor_and_benchmark_from_real_signed_weeks(self):
         with TemporaryDirectory() as tmp:
             base = Path(tmp) / "audit"

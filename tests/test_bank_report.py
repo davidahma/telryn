@@ -23,6 +23,19 @@ class BankReport(unittest.TestCase):
         self.report = Path(self.result["weeks"][0]["report"])
         self.expected = self.result["bank_report_sha256"]
 
+    def test_late_registration_header_uses_the_utc_date(self):
+        from telryn import complaints, weekly_report
+
+        state = weekly_report.read_state(self.report)
+        rows = state["complaint_records"]["snapshot"]["register"]["rows"]
+        next(row for row in rows if row["entry_id"] == "R12")["recorded_at"] = (
+            "2026-10-13T02:00:00+14:00"
+        )
+        self.assertIn(
+            "C102 · Missed deadline · registered late on 12 Oct 2026 UTC",
+            complaints.html(state),
+        )
+
     def test_bank_rejoins_original_exports_without_signing_authority(self):
         original = self.root / "demo/source-records/2026-10-05"
         files = {

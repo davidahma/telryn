@@ -41,6 +41,7 @@ def _scope(state):
         "basis": score.get("scope", profile.get("population_basis", "queue")),
         "scorecard": score.get("scorecard"),
         "version": score.get("version"),
+        "decision_settings": score.get("native"),
         "channels": sorted((c["name"], c["coverage"]) for c in profile["channels"]),
         "synthetic": profile.get("synthetic", False),
     }
@@ -90,7 +91,7 @@ def compile_series(paths, quarter, *, require_scores):
         current = _scope(state)
         if scope is not None and current != scope:
             raise InputError(
-                "queue, channels, population, evidence type, scorecard or rubric changed; issue separate statements"
+                "queue, channels, population, evidence type, scorecard, native decision settings or rubric changed; issue separate statements"
             )
         scope = current
         row = control.committee_week(state)

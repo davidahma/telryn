@@ -4,6 +4,7 @@ import csv
 import hashlib
 import io
 from collections import defaultdict
+from datetime import UTC
 from html import escape
 from pathlib import Path
 
@@ -693,7 +694,7 @@ def html(state):
             "outside_rubric": "Outside complaint policy",
         }[status]
         if status in {"missing", "late"} and case["registration_as_of"] == "registered":
-            date = _time(case["register_entries"][0]["recorded_at"])[0]
+            date = _time(case["register_entries"][0]["recorded_at"])[0].astimezone(UTC)
             title += f" · registered late on {date.day} {date:%b} {date.year} UTC"
         elif status == "missing":
             title += " · " + case["follow_up"].replace("_", " ")
